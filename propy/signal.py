@@ -81,29 +81,6 @@ def moving_std(x, size, overlap, fill_method='mean'):
   y = resolve_1d_window_view(y_view, size, overlap, pad_end, fill_method)
   return y
 
-def windowed_standardize(x, window_size, windowed_mean=True, windowed_std=True):
-  """Perform dynamic standardization based on windowed mean and std
-  Args:
-    x: The input data
-    window_size: The size of the moving window
-    windowed_mean: Boolean indicating whether mean should be windowed
-    windowed_std: Boolean indicating whether std should be windowed
-  Returns:
-    y: The standardized data
-  """
-  x = np.asarray(x)
-  if windowed_mean:
-    mean = moving_average(x, size=window_size)
-  else:
-    mean = np.mean(x)
-  if windowed_std:
-    std = moving_std(x, size=window_size, overlap=window_size-1)
-  else:
-    std = np.std(x)
-  x -= mean
-  x /= std
-  return x
-
 def detrend(z, Lambda, axis=-1):
   """Vectorized implementation of the detrending method by
     Tarvainen et al. (2002). Based on code listing in the Appendix.
@@ -269,3 +246,26 @@ def select_most_periodic(x, axis=-1):
   y = x[idx]
   assert x.shape[1] == y.shape[0]
   return y
+
+def windowed_standardize(x, window_size, windowed_mean=True, windowed_std=True):
+  """Perform dynamic standardization based on windowed mean and std
+  Args:
+    x: The input data
+    window_size: The size of the moving window
+    windowed_mean: Boolean indicating whether mean should be windowed
+    windowed_std: Boolean indicating whether std should be windowed
+  Returns:
+    y: The standardized data
+  """
+  x = np.asarray(x)
+  if windowed_mean:
+    mean = moving_average(x, size=window_size)
+  else:
+    mean = np.mean(x)
+  if windowed_std:
+    std = moving_std(x, size=window_size, overlap=window_size-1)
+  else:
+    std = np.std(x)
+  x -= mean
+  x /= std
+  return x

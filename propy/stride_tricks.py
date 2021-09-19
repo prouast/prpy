@@ -114,7 +114,7 @@ def resolve_1d_window_view(x, window_size, overlap, pad_end, fill_method):
     # window view of the vals and reduce it via reduce_2d_window_view.
     n = len(x)
     x = np.reshape(np.repeat(x, window_size), (n, window_size))
-    vals = reduce_2d_window_view(x, window_size=window_size, overlap=overlap)
+    vals = reduce_2d_window_view(x, overlap=overlap)
     if pad_end > 0:
       # Trim end if it has been padded
       vals = vals[:-pad_end]
