@@ -10,6 +10,7 @@ import numpy as np
 from scipy import signal, interpolate
 from scipy.sparse import spdiags
 import scipy.ndimage.filters as ndif
+import tensorflow as tf
 
 from propy.stride_tricks import window_view, resolve_1d_window_view
 
@@ -140,6 +141,54 @@ def butter_bandpass(data, lowcut, highcut, fs, axis=-1, order=5):
   b, a = butter_bandpass_filter(lowcut, highcut, fs, order=order)
   y = signal.lfilter(b, a, data, axis=axis)
   return y
+
+def normalized_diff_tf(x, axis=0):
+  """Compute first signal difference and then normalize.
+  Args:
+    x: The signal
+    axis: Scalar, the dimension across which to calculate normalized diff.
+  Returns:
+    y: The processed signal
+  """
+  def _diff(x, axis=0):
+    nd = x.shape.rank
+    slice1 = [slice(None)] * nd
+    slice2 = [slice(None)] * nd
+    slice1[axis] = slice(1, None)
+    slice2[axis] = slice(None, -1)
+    slice1 = tuple(slice1)
+    slice2 = tuple(slice2)
+    return x[slice1] - x[slice2]
+  # Compute first difference of signal
+  diff = _diff(x, axis=axis)
+  # Normalize
+  mean = tf.math.reduce_mean(diff, axis=axis, keepdims=True)
+  return diff - mean
+
+def standardized_diff_tf(x, axis=0):
+  """Compute first signal difference and then standardize.
+  Args:
+    x: The signal
+    axis: Scalar, the dimension across which to calculate standardized diff.
+  Returns:
+    y: The processed signal
+  """
+  def _diff(x, axis=0):
+    nd = x.shape.rank
+    slice1 = [slice(None)] * nd
+    slice2 = [slice(None)] * nd
+    slice1[axis] = slice(1, None)
+    slice2[axis] = slice(None, -1)
+    slice1 = tuple(slice1)
+    slice2 = tuple(slice2)
+    return x[slice1] - x[slice2]
+  # Compute first difference of signal
+  diff = _diff(x, axis=axis)
+  # Standardize
+  mean = tf.math.reduce_mean(diff, axis=axis, keepdims=True)
+  std = tf.math.reduce_std(diff, axis=axis, keepdims=True)
+  std = tf.clip_by_value(std, clip_value_min=1e-7, clip_value_max=100)
+  return (diff - mean)/std
 
 def estimate_freq(x, sampling_freq, axis=-1):
   """Use a fourier transform to determine maximum frequencies.
