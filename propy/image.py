@@ -21,7 +21,7 @@ def _reduction_dims_tf(x, axis):
       return tf.constant(np.arange(x_rank, dtype=np.int32))
     else:
       # Otherwise, we rely on Range and Rank to do the right thing at run-time.
-      return range(0, tf.rank(x))
+      return tf.range(0, tf.rank(x))
 
 def standardize_image_tf(images, axis=None):
   """Standardize image data to have zero mean and unit variance.
