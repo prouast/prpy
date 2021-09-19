@@ -185,14 +185,10 @@ def diff_tf(x, axis=0):
   Returns:
     y: The diff signal
   """
-  nd = x.shape.rank
-  slice1 = [slice(None)] * nd
-  slice2 = [slice(None)] * nd
-  slice1[axis] = slice(1, None)
-  slice2[axis] = slice(None, -1)
-  slice1 = tuple(slice1)
-  slice2 = tuple(slice2)
-  return x[slice1] - x[slice2]
+  assert axis==0 or axis==1, "Only axis=0 or axis=1 supported"
+  return tf.cond(tf.equal(axis, 0),
+    true_fn=lambda: x[1:] - x[:-1],
+    false_fn=lambda: x[:,1:] - x[:,:-1])
 
 def estimate_freq(x, sampling_freq, axis=-1):
   """Use a fourier transform to determine maximum frequencies.

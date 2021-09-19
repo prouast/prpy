@@ -73,30 +73,15 @@ def normalized_image_diff_tf(images, axis=0):
   Returns:
     images: The processed image data.
   """
-  def _diff(x, axis=0):
-    nd = x.shape.rank
-    slice1 = [slice(None)] * nd
-    slice2 = [slice(None)] * nd
-    slice1[axis] = slice(1, None)
-    slice2[axis] = slice(None, -1)
-    slice1 = tuple(slice1)
-    slice2 = tuple(slice2)
-    return x[slice1] - x[slice2]
-  def _sum(x, axis=0):
-    nd = x.shape.rank
-    slice1 = [slice(None)] * nd
-    slice2 = [slice(None)] * nd
-    slice1[axis] = slice(1, None)
-    slice2[axis] = slice(None, -1)
-    slice1 = tuple(slice1)
-    slice2 = tuple(slice2)
-    return x[slice1] + x[slice2]
-  nd = images.shape.rank
-  images_diff = _diff(images, axis=axis)
-  images_sum = _sum(images, axis=axis)
-  images_sum = tf.clip_by_value(
-    images_sum, clip_value_min=1e-7, clip_value_max=2)
-  return images_diff / images_sum
+  assert axis==0 or axis==1, "Only axis=0 or axis=1 supported"
+  diff = tf.cond(tf.equal(axis, 0),
+    true_fn=lambda: images[1:] - images[:-1],
+    false_fn=lambda: images[:,1:] - images[:,:-1])
+  sum = tf.cond(tf.equal(axis, 0),
+    true_fn=lambda: images[1:] + images[:-1],
+    false_fn=lambda: images[:,1:] + images[:,:-1])
+  sum = tf.clip_by_value(sum, clip_value_min=1e-7, clip_value_max=2)
+  return diff / sum
 
 def display_scale(image):
   """Scale any float32 image to the [0, 1] range for display"""
