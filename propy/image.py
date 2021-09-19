@@ -23,7 +23,7 @@ def _reduction_dims_tf(x, axis):
       # Otherwise, we rely on Range and Rank to do the right thing at run-time.
       return range(0, tf.rank(x))
 
-def standardize_tf(images, axis=None):
+def standardize_image_tf(images, axis=None):
   """Standardize image data to have zero mean and unit variance.
   Args:
     images: The image data.
@@ -46,7 +46,7 @@ def standardize_tf(images, axis=None):
   images = tf.divide(images, tf.maximum(std, min_std))
   return images
 
-def normalize_tf(images, axis=None):
+def normalize_image_tf(images, axis=None):
   """Normalize image data to have zero mean.
   Args:
     images: The image data.
@@ -64,7 +64,7 @@ def normalize_tf(images, axis=None):
   images = tf.subtract(images, mean)
   return images
 
-def normalized_diff_tf(images, axis=0):
+def normalized_image_diff_tf(images, axis=0):
   """Compute the normalized difference of adjacent images.
   Args:
     images: The image data as float32 in range [0, 1]
