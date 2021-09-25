@@ -14,6 +14,26 @@ import tensorflow as tf
 
 from propy.stride_tricks import window_view, resolve_1d_window_view
 
+def div0( a, b, fill=np.nan ):
+  """Divide after accounting for zeros in divisor, e.g.:
+      div0( [-1, 0, 1], 0, fill=np.nan) -> [nan nan nan]
+      div0( 1, 0, fill=np.inf ) -> inf
+    Source: https://stackoverflow.com/a/35696047/3595278
+  Args:
+    a: Dividend
+    b: Divisor
+    fill: Use this value to fill where b == 0.
+  Returns:
+    c: safe a/b
+  """
+  with np.errstate(divide='ignore', invalid='ignore'):
+    c = np.true_divide(a, b)
+  if np.isscalar(c):
+    return c if np.isfinite(c) else fill
+  else:
+    c[~np.isfinite(c)] = fill
+    return c
+
 def normalize(x, axis=-1):
   """Perform normalization
   Args:
@@ -28,6 +48,7 @@ def normalize(x, axis=-1):
 
 def standardize(x, axis=-1):
   """Perform standardization
+    Note: Returns zero if std == 0
   Args:
     x: The input data
     axis: Axis over which to standardize
@@ -36,7 +57,8 @@ def standardize(x, axis=-1):
   """
   x = np.asarray(x)
   x -= np.mean(x, axis=axis, keepdims=x.ndim>0)
-  x /= np.std(x, axis=axis, keepdims=x.ndim>0)
+  std = np.std(x, axis=axis, keepdims=x.ndim>0)
+  x = div0(x, std, fill=0)
   return x
 
 def normalize_tf(x, axis=-1):
@@ -240,6 +262,18 @@ def estimate_freq_at_f_res(x, f_s, f_res, axis=-1):
   # Return the maximum freq
   return f[np.argmax(pxx, axis=axis)]
 
+def interpolate_vals(x, val_fn=lambda x: np.isnan(x)):
+  """Interpolate vals matching val_fn
+  Args:
+    x: The values
+    val_fn: The function, values matching which will be interpolated
+  Returns:
+    x: The interpolated values
+  """
+  mask = val_fn(x)
+  x[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), x[~mask])
+  return x
+
 def interpolate_cubic_spline(x, y, xs):
   """Interpolate data with a cubic spline.
   Args:
@@ -271,7 +305,7 @@ def component_periodicity(x, axis=-1):
   w = np.fft.fft(x, axis=1)
   # Determine maximum frequency component of each dim
   w_ = np.square(np.abs(w[:,0:w.shape[1]//2]))
-  w_ = w_ / np.sum(w_, axis=1)[:, np.newaxis]
+  w_ = div0(w_, np.sum(w_, axis=1)[:, np.newaxis], fill=0)
   idxs = np.argmax(w_, axis=1)
   # Compute periodicity for maximum frequency component
   return [w_[i,idx] for i, idx in enumerate(idxs)]
