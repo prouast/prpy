@@ -283,6 +283,10 @@ def interpolate_cubic_spline(x, y, xs):
   Returns:
     ys: The interpolated y values
   """
+  if x.shape[0] == 1 or y.shape[0] == 1:
+    return y
+  if x == xs:
+    return y
   x = np.nan_to_num(x) # Replace NAs with 0
   y = np.nan_to_num(y) # Replace NAs with 0
   cs = interpolate.CubicSpline(x, y, axis=1)
