@@ -48,31 +48,38 @@ def window_view(x, min_window_size, max_window_size, overlap, pad_mode='constant
   # Return
   return y, pad_start, pad_end
 
-def reduce_2d_window_view(x, overlap, hanning=False):
-  """Reduce a window view by arranging the first dimension as sliding
+def reduce_window_view(x, overlap, hanning=False):
+  """Reduce an n-d window view by arranging the first dimension as sliding
     windows and then reducing it using the mean.
   Args:
-    x: The 2-d window view [n_windows, window_size]
+    x: The n-d window view [n_windows, window_size, ...]
     window_size: The window size with which the window view was created
     overlap: The overlap with which the window view was created
     hanning: Whether to reduce the window view with hanning windows
   Returns:
-    mean: The 1-d reduced window view
+    mean: The n-1-d reduced window view [original_len, ...]
   """
   # Infer number of windows and original length
-  num_windows, window_size = x.shape
+  num_windows = x.shape[0]
+  window_size = x.shape[1]
   original_len = num_windows * window_size - (num_windows-1) * overlap
   # Apply hanning window to taper x
   if hanning:
     x *= np.hanning(window_size)
   # Add padding to extend the matrix to the dimensions of the diagonal matrix
-  y = np.pad(x, ((0, 0), (0, original_len - window_size)), 'constant')
+  padding = ((0, 0), (0, original_len - window_size)) + ((0, 0),) * (x.ndim - 2)
+  y = np.pad(x, padding, 'constant')
   # Use as_strided to create a view of the diagonal matrix
   #  that aligns the windows temporally as they were generated
   # https://stackoverflow.com/a/60460462/3595278
   y_roll = y[:, [*range(y.shape[1]),*range(y.shape[1]-1)]].copy() #need `copy`
-  strd_0, strd_1 = y_roll.strides
-  view = np.lib.stride_tricks.as_strided(y_roll, (*y.shape, original_len), (strd_0, strd_1, strd_1))
+  view_strides = list(y_roll.strides)
+  view_strides.insert(1, y_roll.strides[1])
+  view_strides = tuple(view_strides)
+  view_shape = list(y.shape)
+  view_shape.insert(1, original_len)
+  view_shape = tuple(view_shape)
+  view = np.lib.stride_tricks.as_strided(y_roll, view_shape, view_strides)
   step_size = window_size - overlap
   m = np.asarray([step_size * i for i in range(num_windows)])
   view = view[np.arange(y.shape[0]), (original_len-m)%original_len]
@@ -111,10 +118,10 @@ def resolve_1d_window_view(x, window_size, overlap, pad_end, fill_method):
     vals = np.concatenate([np.repeat(fill, window_size-1), x])
   elif overlap < window_size - 1:
     # For any other overlaps, we will have to build an intermediate 2-d
-    # window view of the vals and reduce it via reduce_2d_window_view.
+    # window view of the vals and reduce it via reduce_window_view.
     n = len(x)
     x = np.reshape(np.repeat(x, window_size), (n, window_size))
-    vals = reduce_2d_window_view(x, overlap=overlap)
+    vals = reduce_window_view(x, overlap=overlap)
     if pad_end > 0:
       # Trim end if it has been padded
       vals = vals[:-pad_end]
