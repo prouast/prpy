@@ -274,12 +274,13 @@ def interpolate_vals(x, val_fn=lambda x: np.isnan(x)):
   x[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), x[~mask])
   return x
 
-def interpolate_cubic_spline(x, y, xs):
+def interpolate_cubic_spline(x, y, xs, axis=axis):
   """Interpolate data with a cubic spline.
   Args:
-    x: The x values of the data we want to interpolate
-    y: The y values of the data we want to interpolate
-    xs: The x values at which we want to interpolate
+    x: The x values of the data we want to interpolate. 1-dim.
+    y: The y values of the data we want to interpolate. Along the given axis,
+      shape of y must match shape of x.
+    xs: The x values at which we want to interpolate. 1-dim.
   Returns:
     ys: The interpolated y values
   """
@@ -289,7 +290,7 @@ def interpolate_cubic_spline(x, y, xs):
     return y
   if np.array_equal(x, xs):
     return y
-  cs = interpolate.CubicSpline(x, y, axis=1)
+  cs = interpolate.CubicSpline(x, y, axis=axis)
   return cs(xs)
 
 def component_periodicity(x, axis=-1):
