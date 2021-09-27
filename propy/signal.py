@@ -274,7 +274,7 @@ def interpolate_vals(x, val_fn=lambda x: np.isnan(x)):
   x[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), x[~mask])
   return x
 
-def interpolate_cubic_spline(x, y, xs, axis=axis):
+def interpolate_cubic_spline(x, y, xs, axis=0):
   """Interpolate data with a cubic spline.
   Args:
     x: The x values of the data we want to interpolate. 1-dim.
