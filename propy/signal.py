@@ -286,7 +286,7 @@ def interpolate_cubic_spline(x, y, xs, axis=0):
   """
   x = np.nan_to_num(x) # Replace NAs with 0
   y = np.nan_to_num(y) # Replace NAs with 0
-  if x.shape[axis] == 1 or y.shape[axis] == 1:
+  if x.shape[0] == 1 or y.shape[axis] == 1:
     return y
   if np.array_equal(x, xs):
     return y
