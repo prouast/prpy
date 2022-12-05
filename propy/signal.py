@@ -7,7 +7,7 @@
 
 import math
 import numpy as np
-from scipy import signal, interpolate
+from scipy import signal, interpolate, fft
 from scipy.sparse import spdiags
 import scipy.ndimage.filters as ndif
 import tensorflow as tf
@@ -212,27 +212,84 @@ def diff_tf(x, axis=0):
     true_fn=lambda: x[1:] - x[:-1],
     false_fn=lambda: x[:,1:] - x[:,:-1])
 
-def estimate_freq(x, sampling_freq, axis=-1):
-  """Use a fourier transform to determine maximum frequencies.
+def estimate_freq(x, sampling_freq, axis=-1, method='fft', range=None, max_periodicity_deviation=0.5):
+  """Determine maximum frequencies in x.
   Args:
-    x: The signal data
+    x: The signal data. Shape: (n_data,) or (n_sig, n_data)
     sampling_freq: The sampling frequency
     axis: The axis along which to estimate frequencies
+    method: The method to be used [fft or peak]
+    range: Optional expected range of freqs [Hz] - tuple (min, max)
+    max_periodicity_deviation: Maximum relative deviation of peaks from regular periodicity
   Returns:
-    freq_hz: The maximum frequency [Hz]
+    freq_hz: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
-  # Compute the fourier transform
+  if method == 'fft':
+    return estimate_freq_fft(x, sampling_freq=sampling_freq, axis=axis, range=range)
+  elif method == 'peak':
+    return estimate_freq_peak(x, sampling_freq=sampling_freq, axis=axis, range=range, max_periodicity_deviation=max_periodicity_deviation)
+  else:
+    return ValueError("method should be 'peak' or 'fft' but was {}".format(method))
+
+def estimate_freq_fft(x, sampling_freq, axis=-1, range=None):
+  """Use a fourier transform to determine maximum frequencies.
+  Args:
+    x: The signal data. Shape: (n_data,) or (n_sig, n_data)
+    sampling_freq: The sampling frequency
+    axis: The axis along which to estimate frequencies
+    range: Optional expected range of freqs [Hz] - tuple (min, max)
+  Returns:
+    freq_hz: The maximum frequencies [Hz]. Shape: (n_sig,)
+  """
+  assert range is None or (isinstance(range, tuple) and len(range) == 2)
   x = np.asarray(x)
   # Change to 2-dim array if necessary
   if len(x.shape) == 1:
     x = np.expand_dims(x, axis=0)
   # Run the fourier transform
-  w = np.fft.fft(x, axis=axis)
-  freqs = np.fft.fftfreq(x.shape[axis])
+  w = fft.rfft(x, axis=axis)
+  freqs = fft.rfftfreq(x.shape[axis], 1/sampling_freq)
+  # Restrict by range if necessary
+  if range is not None:
+    # Bandpass: Set w outside of range to zero
+    min_freq = min(np.amax(freqs), range[0])
+    max_freq = max(np.amin(freqs), range[1])
+    w = np.where(np.logical_or(freqs < min_freq, freqs > max_freq), 0, w)
   # Determine maximum frequency component
-  idx = np.argmax(np.abs(w[:,1:w.shape[axis]//2]), axis=axis) + 1
+  idx = np.argmax(np.abs(w), axis=axis)
   # Derive frequency in Hz
-  freq_hz = abs(freqs[idx] * sampling_freq)
+  freq = abs(freqs[idx])
+  # Squeeze if necessary
+  freq = np.squeeze(freq)
+  # Return
+  return freq
+
+def estimate_freq_peak(x, sampling_freq, axis=-1, range=None, max_periodicity_deviation=0.5):
+  """Use peak detection to determine maximum frequencies in x.
+  Args:
+    x: The signal data. Shape: (n_data,) or (n_sig, n_data)
+    sampling_freq: The sampling frequency
+    axis: The axis along which to estimate frequencies
+    range: Optional expected range of freqs [Hz] - tuple (min, max)
+    max_periodicity_deviation: Maximum relative deviation of peaks from regular periodicity
+  Returns:
+    freq_hz: The maximum frequencies [Hz]. Shape: (n_sig,)
+  """
+  x = np.asarray(x)
+  # Change to 2-dim array if necessary
+  if len(x.shape) == 1:
+    x = np.expand_dims(x, axis=0)
+  # Derive minimum distance between peaks if necessary
+  min_dist = max(1/range[1]*sampling_freq*(1-max_periodicity_deviation), 0) if range is not None else 0
+  # Peak detection is only available for 1-D tensors
+  def estimate_freq_peak_for_single_axis(x):
+    # Find peaks in the signal
+    det_idxs, _ = signal.find_peaks(x, height=0, distance=min_dist)
+    # Calculate diff
+    mean_idx_distance = np.mean(np.diff(det_idxs), axis=-1)
+    return sampling_freq/mean_idx_distance
+  # Apply function
+  freq_hz = np.apply_along_axis(estimate_freq_peak_for_single_axis, axis=axis, arr=x)
   # Squeeze if necessary
   freq_hz = np.squeeze(freq_hz)
   # Return
