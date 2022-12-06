@@ -21,6 +21,7 @@ def window_view(x, min_window_size, max_window_size, overlap, pad_mode='constant
     pad_start: How much padding was applied at the start (scalar)
     pad_end: How much padding was applied at the end (scalar)
   """
+  assert overlap < max_window_size, "overlap must be smaller than max_window_size"
   x = np.asarray(x)
   original_len = x.shape[0]
   step_size = max_window_size - overlap
@@ -48,26 +49,27 @@ def window_view(x, min_window_size, max_window_size, overlap, pad_mode='constant
   # Return
   return y, pad_start, pad_end
 
-def reduce_window_view(x, overlap, hanning=False):
+def reduce_window_view(x, overlap, pad_end=0, hanning=False):
   """Reduce an n-d window view by arranging the first dimension as sliding
     windows and then reducing it using the mean.
   Args:
     x: The n-d window view [n_windows, window_size, ...]
     window_size: The window size with which the window view was created
     overlap: The overlap with which the window view was created
+    pad_end: How much padding was applied to the end when the window view was created
     hanning: Whether to reduce the window view with hanning windows
   Returns:
     mean: The n-1-d reduced window view [original_len, ...]
   """
-  # Infer number of windows and original length
+  # Infer number of windows and original length (including extra padding)
   num_windows = x.shape[0]
   window_size = x.shape[1]
-  original_len = num_windows * window_size - (num_windows-1) * overlap
+  original_len_with_pad_end = num_windows * window_size - (num_windows-1) * overlap
   # Apply hanning window to taper x
   if hanning:
     x *= np.hanning(window_size)
   # Add padding to extend the matrix to the dimensions of the diagonal matrix
-  padding = ((0, 0), (0, original_len - window_size)) + ((0, 0),) * (x.ndim - 2)
+  padding = ((0, 0), (0, original_len_with_pad_end - window_size)) + ((0, 0),) * (x.ndim - 2)
   y = np.pad(x, padding, 'constant')
   # Use as_strided to create a view of the diagonal matrix
   #  that aligns the windows temporally as they were generated
@@ -77,17 +79,20 @@ def reduce_window_view(x, overlap, hanning=False):
   view_strides.insert(1, y_roll.strides[1])
   view_strides = tuple(view_strides)
   view_shape = list(y.shape)
-  view_shape.insert(1, original_len)
+  view_shape.insert(1, original_len_with_pad_end)
   view_shape = tuple(view_shape)
   view = np.lib.stride_tricks.as_strided(y_roll, view_shape, view_strides)
   step_size = window_size - overlap
   m = np.asarray([step_size * i for i in range(num_windows)])
-  view = view[np.arange(y.shape[0]), (original_len-m)%original_len]
+  view = view[np.arange(y.shape[0]), (original_len_with_pad_end-m)%original_len_with_pad_end]
   # Merge the windows by taking the mean across the time dimension
   mean = np.true_divide(
     view.sum(0), np.maximum((view != 0).sum(0), 1))
+  # Trim result by pad_end if necessary
+  if pad_end > 0: mean = mean[:-pad_end]
   return mean
 
+# TODO write tests
 def resolve_1d_window_view(x, window_size, overlap, pad_end, fill_method):
   """Resolve an 1-d window view by extending it to the expected shape. This
     is useful if processing on each window created a scalar value.

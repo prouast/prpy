@@ -57,7 +57,7 @@ def _probe_video_frames(path):
   communicate_kwargs = {}
   out, err = p.communicate(**communicate_kwargs)
   if p.returncode != 0:
-    raise ffprobe.Error('ffprobe', out, err)
+    raise RuntimeError('ffprobe', out, err)
   return json.loads(out.decode('utf-8')), err
   return out, err
 
