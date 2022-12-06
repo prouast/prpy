@@ -91,11 +91,11 @@ def moving_average_size_for_response(sampling_freq, cutoff_freq):
   Returns:
     size: The estimated moving average size
   """
+  assert cutoff_freq > 0, "Cutoff frequency needs to be greater than zero"
   # Adapted from https://dsp.stackexchange.com/a/14648
   # cutoff freq in Hz
   F = cutoff_freq / sampling_freq
   size = int(math.sqrt(0.196202 + F * F) / F)
-  #size = max(math.floor(size / 2.) * 2 + 1, 1)
   return max(size, 1)
 
 def moving_std(x, size, overlap, fill_method='mean'):
@@ -109,6 +109,7 @@ def moving_std(x, size, overlap, fill_method='mean'):
     std: The moving standard deviations
   """
   x = np.array(x)
+  assert len(x.shape) == 1, "Only 1-D arrays supported"
   x_view, _, pad_end = window_view(
     x=x,
     min_window_size=size,
@@ -156,6 +157,7 @@ def detrend(z, Lambda, axis=-1):
   # Return
   return proc_z
 
+# TODO write tests
 def butter_bandpass(data, lowcut, highcut, fs, axis=-1, order=5):
   """Apply a butterworth bandpass filter.
   Args:
