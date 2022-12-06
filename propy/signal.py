@@ -10,6 +10,7 @@ import numpy as np
 from scipy import signal, interpolate, fft
 from scipy.sparse import spdiags
 import scipy.ndimage.filters as ndif
+import logging
 
 from propy.stride_tricks import window_view, resolve_1d_window_view
 
@@ -301,7 +302,7 @@ def estimate_freq_periodogram(x, f_s, f_range=None, f_res=None, axis=-1):
   # Return
   return f_out
 
-def interpolate_vals(x, val_fn=lambda x: np.isnan(x)):
+def interpolate_vals(x, val_fn=lambda x: np.isnan(x), default=np.nan):
   """Interpolate vals matching val_fn
   Args:
     x: The values
@@ -309,6 +310,10 @@ def interpolate_vals(x, val_fn=lambda x: np.isnan(x)):
   Returns:
     x: The interpolated values
   """
+  assert len(x.shape) == 1, "Only 1-D arrays supported"
+  if val_fn(x).all():
+    logging.info("All elements in x fulfilled val_fn. Not doing anything.")
+    return x
   mask = val_fn(x)
   x[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), x[~mask])
   return x
@@ -330,6 +335,7 @@ def interpolate_cubic_spline(x, y, xs, axis=0):
   cs = interpolate.CubicSpline(x, y, axis=axis)
   return cs(xs)
 
+# TODO write tests
 def component_periodicity(x, axis=-1):
   """Compute the periodicity of the maximum frequency components
   Args:
@@ -352,6 +358,7 @@ def component_periodicity(x, axis=-1):
   # Compute periodicity for maximum frequency component
   return [w_[i,idx] for i, idx in enumerate(idxs)]
 
+# TODO write tests
 def select_most_periodic(x, axis=-1):
   """Select the most periodic signal
   Args:
@@ -372,6 +379,7 @@ def select_most_periodic(x, axis=-1):
   assert x.shape[1] == y.shape[0]
   return y
 
+# TODO write tests
 def windowed_standardize(x, window_size, windowed_mean=True, windowed_std=True):
   """Perform dynamic standardization based on windowed mean and std
   Args:

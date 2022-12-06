@@ -10,6 +10,7 @@ sys.path.append('../propy')
 
 from propy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend
 from propy.signal import estimate_freq_fft, estimate_freq_peak, estimate_freq_periodogram
+from propy.signal import interpolate_vals, interpolate_cubic_spline
 
 import numpy as np
 import pytest
@@ -163,3 +164,26 @@ def test_estimate_freq_periodogram(num, freq):
     estimate_freq_periodogram(x=y, f_s=len(x), f_range=(max(freq-2,1),freq+2), f_res=0.05),
     np.array([freq, freq]),
     rtol=0.01)
+
+def test_interpolate_vals():
+  # Check a default use case
+  np.testing.assert_allclose(
+    interpolate_vals(np.array([np.nan, 0., 0.2, np.nan, np.nan, 0.4, 1.2, 3.1])),
+    np.array([0., 0., 0.2, 0.266666667, 0.333333333, 0.4, 1.2, 3.1]))
+  # Check with all nan
+  np.testing.assert_allclose(
+    interpolate_vals(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan])),
+    np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]))
+  
+def test_interpolate_cubic_spline():
+  # Check a default use case
+  np.testing.assert_allclose(
+    interpolate_cubic_spline(
+      x=np.array([0, 2, 3, 4, 7, 8, 9]),
+      y=np.array([[0.1, 0.4, 0.3, 0.1, 0.2, 0.25, 0.4],
+                  [0.1, 0.4, 0.3, 0.1, 0.2, 0.25, 0.4]]),
+      xs=np.array([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5]),
+      axis=-1),
+    np.array([[.23781146, .38768688, .37072951, .19610327, .05045604, .06995432, .16060431, .22408638, .30091362, .57043189],
+              [.23781146, .38768688, .37072951, .19610327, .05045604, .06995432, .16060431, .22408638, .30091362, .57043189]]))
+              
