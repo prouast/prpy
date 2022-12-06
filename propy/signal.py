@@ -57,7 +57,6 @@ def standardize(x, axis=-1):
   x = np.asarray(x)
   x -= np.mean(x, axis=axis, keepdims=x.ndim>0)
   std = np.std(x, axis=axis, keepdims=x.ndim>0)
-  print(std)
   x = div0(x, std, fill=0)
   return x
 
