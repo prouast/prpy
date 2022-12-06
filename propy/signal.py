@@ -10,11 +10,10 @@ import numpy as np
 from scipy import signal, interpolate, fft
 from scipy.sparse import spdiags
 import scipy.ndimage.filters as ndif
-import tensorflow as tf
 
 from propy.stride_tricks import window_view, resolve_1d_window_view
 
-def div0( a, b, fill=np.nan ):
+def div0(a, b, fill=np.nan):
   """Divide after accounting for zeros in divisor, e.g.:
       div0( [-1, 0, 1], 0, fill=np.nan) -> [nan nan nan]
       div0( 1, 0, fill=np.inf ) -> inf
@@ -60,29 +59,6 @@ def standardize(x, axis=-1):
   std = np.std(x, axis=axis, keepdims=x.ndim>0)
   x = div0(x, std, fill=0)
   return x
-
-def normalize_tf(x, axis=-1):
-  """Perform standardization
-  Args:
-    x: The input data
-    axis: Axis over which to normalize
-  Returns:
-    x: The normalized data
-  """
-  mean = tf.math.reduce_mean(x, axis=axis, keepdims=True)
-  return x - mean
-
-def standardize_tf(x, axis=-1):
-  """Perform standardization
-  Args:
-    x: The input data
-    axis: Axis over which to standardize
-  Returns:
-    x: The standardized data
-  """
-  mean = tf.math.reduce_mean(x, axis=axis, keepdims=True)
-  std = tf.math.reduce_std(x, axis=axis, keepdims=True)
-  return (x - mean) / std
 
 def moving_average(x, size, axis=-1, pad_method='reflect'):
   """Perform moving average
@@ -198,19 +174,6 @@ def butter_bandpass(data, lowcut, highcut, fs, axis=-1, order=5):
   b, a = butter_bandpass_filter(lowcut, highcut, fs, order=order)
   y = signal.lfilter(b, a, data, axis=axis)
   return y
-
-def diff_tf(x, axis=0):
-  """Compute first signal difference.
-  Args:
-    x: The signal
-    axis: Scalar, the dimension across which to calculate diff.
-  Returns:
-    y: The diff signal
-  """
-  assert axis==0 or axis==1, "Only axis=0 or axis=1 supported"
-  return tf.cond(tf.equal(axis, 0),
-    true_fn=lambda: x[1:] - x[:-1],
-    false_fn=lambda: x[:,1:] - x[:,:-1])
 
 def estimate_freq(x, sampling_freq, axis=-1, method='fft', range=None, max_periodicity_deviation=0.5):
   """Determine maximum frequencies in x.
