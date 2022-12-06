@@ -57,27 +57,30 @@ def standardize(x, axis=-1):
   x = np.asarray(x)
   x -= np.mean(x, axis=axis, keepdims=x.ndim>0)
   std = np.std(x, axis=axis, keepdims=x.ndim>0)
+  print(std)
   x = div0(x, std, fill=0)
   return x
 
-def moving_average(x, size, axis=-1, pad_method='reflect'):
+def moving_average(x, size, axis=-1, pad_method='reflect', scale=False, scale_factor=1000000000.):
   """Perform moving average
   Args:
     x: The input data
     size: The size of the moving average window
     axis: Axis over which to calculate moving average
     pad_method: Method for padding ends to keep same dims
+    scale: Internally scale the input data up before applying filter
   Returns:
     x: The averaged data
   """
+  assert isinstance(size, int) and size > 0
   x = np.array(x)
   if np.isnan(x).any():
     return x
-  scaling_factor = 1000000000
-  x_scaled = x * scaling_factor
-  y_scaled = ndif.uniform_filter1d(
-    x_scaled, size, mode=pad_method, origin=0, axis=axis)
-  y = y_scaled / scaling_factor
+  if scale:
+    x *= scale_factor
+  y = ndif.uniform_filter1d(x, size, mode=pad_method, origin=0, axis=axis)
+  if scale:
+    y /= scale_factor
   return y
 
 def moving_average_size_for_response(sampling_freq, cutoff_freq):
@@ -365,7 +368,7 @@ def windowed_standardize(x, window_size, windowed_mean=True, windowed_std=True):
   """
   x = np.asarray(x)
   if windowed_mean:
-    mean = moving_average(x, size=window_size)
+    mean = moving_average(x, size=window_size, scale=True)
   else:
     mean = np.mean(x)
   if windowed_std:
