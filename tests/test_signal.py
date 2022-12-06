@@ -8,7 +8,8 @@
 import sys
 sys.path.append('../propy')
 
-from propy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend, estimate_freq_fft, estimate_freq_peak
+from propy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend
+from propy.signal import estimate_freq_fft, estimate_freq_peak, estimate_freq_periodogram
 
 import numpy as np
 import pytest
@@ -132,7 +133,7 @@ def test_estimate_freq_fft(num, freq):
   y = np.stack([y_, y_], axis=0)
   # Check a default use case with axis=-1
   np.testing.assert_allclose(
-    estimate_freq_fft(x=y, sampling_freq=len(x), range=(max(freq-2,1),freq+2)),
+    estimate_freq_fft(x=y, f_s=len(x), f_range=(max(freq-2,1),freq+2)),
     np.array([freq, freq]))
 
 @pytest.mark.parametrize("num", [100, 500, 1000])
@@ -145,7 +146,20 @@ def test_estimate_freq_peak(num, freq):
   y = np.stack([y_, y_], axis=0)
   # Check a default use case with axis=-1
   np.testing.assert_allclose(
-    estimate_freq_peak(x=y, sampling_freq=len(x), range=(max(freq-2,1),freq+2)),
+    estimate_freq_peak(x=y, f_s=len(x), f_range=(max(freq-2,1),freq+2)),
     np.array([freq, freq]),
     rtol=0.2)
 
+@pytest.mark.parametrize("num", [100, 500, 1000])
+@pytest.mark.parametrize("freq", [2.35, 4.89, 13.55])
+def test_estimate_freq_periodogram(num, freq):
+  # Test data
+  x = np.linspace(0, freq * 2 * np.pi, num=num)
+  np.random.seed(0)
+  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=x.size)
+  y = np.stack([y_, y_], axis=0)
+  # Check a default use case with axis=-1
+  np.testing.assert_allclose(
+    estimate_freq_periodogram(x=y, f_s=len(x), f_range=(max(freq-2,1),freq+2), f_res=0.05),
+    np.array([freq, freq]),
+    rtol=0.01)

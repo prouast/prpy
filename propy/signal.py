@@ -180,112 +180,127 @@ def butter_bandpass(data, lowcut, highcut, fs, axis=-1, order=5):
   y = signal.lfilter(b, a, data, axis=axis)
   return y
 
-def estimate_freq(x, sampling_freq, axis=-1, method='fft', range=None, max_periodicity_deviation=0.5):
+def estimate_freq(x, f_s, f_range=None, f_res=None, method='fft', max_periodicity_deviation=0.5, axis=-1):
   """Determine maximum frequencies in x.
   Args:
     x: The signal data. Shape: (n_data,) or (n_sig, n_data)
-    sampling_freq: The sampling frequency
-    axis: The axis along which to estimate frequencies
-    method: The method to be used [fft or peak]
-    range: Optional expected range of freqs [Hz] - tuple (min, max)
+    f_s: The sampling frequency [Hz]
+    f_range: Optional expected range of freqs [Hz] - tuple (min, max)
+    f_res: Optional frequency resolution for analysis [Hz] (useful if signal small; applies only to periodogram)
+    method: The method to be used [fft, peak, or periodogram]
     max_periodicity_deviation: Maximum relative deviation of peaks from regular periodicity
+    axis: The axis along which to estimate frequencies
   Returns:
-    freq_hz: The maximum frequencies [Hz]. Shape: (n_sig,)
+    f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
   if method == 'fft':
-    return estimate_freq_fft(x, sampling_freq=sampling_freq, axis=axis, range=range)
+    return estimate_freq_fft(x, f_s=f_s, f_range=f_range, axis=axis)
   elif method == 'peak':
-    return estimate_freq_peak(x, sampling_freq=sampling_freq, axis=axis, range=range, max_periodicity_deviation=max_periodicity_deviation)
+    return estimate_freq_peak(x, f_s=f_s, f_range=f_range, max_periodicity_deviation=max_periodicity_deviation, axis=axis)
+  elif method == 'periodogram':
+    return estimate_freq_periodogram(x, f_s=f_s, f_range=f_range, f_res=f_res, axis=axis)
   else:
-    return ValueError("method should be 'peak' or 'fft' but was {}".format(method))
+    return ValueError("method should be 'peak', 'fft', or 'periodogram' but was {}".format(method))
 
-def estimate_freq_fft(x, sampling_freq, axis=-1, range=None):
+def estimate_freq_fft(x, f_s, f_range=None, axis=-1):
   """Use a fourier transform to determine maximum frequencies.
   Args:
     x: The signal data. Shape: (n_data,) or (n_sig, n_data)
-    sampling_freq: The sampling frequency
+    f_s: The sampling frequency [Hz]
+    f_range: Optional expected range of freqs [Hz] - tuple (min, max)
     axis: The axis along which to estimate frequencies
-    range: Optional expected range of freqs [Hz] - tuple (min, max)
   Returns:
-    freq_hz: The maximum frequencies [Hz]. Shape: (n_sig,)
+    f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
-  assert range is None or (isinstance(range, tuple) and len(range) == 2)
+  assert f_range is None or (isinstance(f_range, tuple) and len(f_range) == 2)
   x = np.asarray(x)
   # Change to 2-dim array if necessary
   if len(x.shape) == 1:
     x = np.expand_dims(x, axis=0)
   # Run the fourier transform
   w = fft.rfft(x, axis=axis)
-  freqs = fft.rfftfreq(x.shape[axis], 1/sampling_freq)
+  f = fft.rfftfreq(x.shape[axis], 1/f_s)
   # Restrict by range if necessary
-  if range is not None:
+  if f_range is not None:
     # Bandpass: Set w outside of range to zero
-    min_freq = min(np.amax(freqs), range[0])
-    max_freq = max(np.amin(freqs), range[1])
-    w = np.where(np.logical_or(freqs < min_freq, freqs > max_freq), 0, w)
+    f_min = min(np.amax(f), f_range[0])
+    f_max = max(np.amin(f), f_range[1])
+    w = np.where(np.logical_or(f < f_min, f > f_max), 0, w)
   # Determine maximum frequency component
   idx = np.argmax(np.abs(w), axis=axis)
   # Derive frequency in Hz
-  freq = abs(freqs[idx])
+  f_out = abs(f[idx])
   # Squeeze if necessary
-  freq = np.squeeze(freq)
+  f_out = np.squeeze(f_out)
   # Return
-  return freq
+  return f_out
 
-def estimate_freq_peak(x, sampling_freq, axis=-1, range=None, max_periodicity_deviation=0.5):
+def estimate_freq_peak(x, f_s, f_range=None, max_periodicity_deviation=0.5, axis=-1):
   """Use peak detection to determine maximum frequencies in x.
   Args:
     x: The signal data. Shape: (n_data,) or (n_sig, n_data)
-    sampling_freq: The sampling frequency
-    axis: The axis along which to estimate frequencies
-    range: Optional expected range of freqs [Hz] - tuple (min, max)
+    f_s: The sampling frequency [Hz]
+    f_range: Optional expected range of freqs [Hz] - tuple (min, max)
     max_periodicity_deviation: Maximum relative deviation of peaks from regular periodicity
+    axis: The axis along which to estimate frequencies
   Returns:
-    freq_hz: The maximum frequencies [Hz]. Shape: (n_sig,)
+    f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
   x = np.asarray(x)
   # Change to 2-dim array if necessary
   if len(x.shape) == 1:
     x = np.expand_dims(x, axis=0)
   # Derive minimum distance between peaks if necessary
-  min_dist = max(1/range[1]*sampling_freq*(1-max_periodicity_deviation), 0) if range is not None else 0
+  min_dist = max(1/f_range[1]*f_s*(1-max_periodicity_deviation), 0) if f_range is not None else 0
   # Peak detection is only available for 1-D tensors
   def estimate_freq_peak_for_single_axis(x):
     # Find peaks in the signal
     det_idxs, _ = signal.find_peaks(x, height=0, distance=min_dist)
-    # Calculate diff
-    mean_idx_distance = np.mean(np.diff(det_idxs), axis=-1)
-    return sampling_freq/mean_idx_distance
+    # Calculate mean distance between peaks
+    mean_idx_dist = np.mean(np.diff(det_idxs), axis=-1)
+    # Derive the frequency
+    return f_s/mean_idx_dist
   # Apply function
-  freq_hz = np.apply_along_axis(estimate_freq_peak_for_single_axis, axis=axis, arr=x)
+  f_out = np.apply_along_axis(estimate_freq_peak_for_single_axis, axis=axis, arr=x)
   # Squeeze if necessary
-  freq_hz = np.squeeze(freq_hz)
+  f_out = np.squeeze(f_out)
   # Return
-  return freq_hz
+  return f_out
 
-def estimate_freq_at_f_res(x, f_s, f_res, axis=-1):
+def estimate_freq_periodogram(x, f_s, f_range=None, f_res=None, axis=-1):
   """Use a periodigram to estimate maximum frequencies at f_res.
   Args:
-    x: The signal data
-    f_s: The sampling frequency
-    f_res: The desired frequency resolution
+    x: The signal data. Shape: (n_data,) or (n_sig, n_data)
+    f_s: The sampling frequency [Hz]
+    f_range: Optional expected range of freqs [Hz] - tuple (min, max)
+    f_res: Optional frequency resolution for analysis [Hz] (useful if signal small; applies only to periodogram)
     axis: The axis along which to estimate frequencies
   Returns:
-    freq_hz: The maximum frequency [Hz]
+    f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
-  # Compute the fourier transform
+  assert f_range is None or (isinstance(f_range, tuple) and len(f_range) == 2)
   x = np.asarray(x)
   # Change to 2-dim array if necessary
   if len(x.shape) == 1:
     x = np.expand_dims(x, axis=0)
-  # Determine the length of the fft
-  n = f_s // f_res
+  # Determine the length of the fft if f_res specified
+  nfft = None if f_res is None else f_s // f_res
   # Compute
-  f, pxx = signal.periodogram(x, fs=f_s, nfft=n, detrend=False, axis=axis)
-  #f, pxx = signal.welch(x, fs=f_s, window='boxcar', nperseg=n, noverlap=0,
-  #  nfft=None, detrend='constant')
-  # Return the maximum freq
-  return f[np.argmax(pxx, axis=axis)]
+  f, pxx = signal.periodogram(x, fs=f_s, nfft=nfft, detrend=False, axis=axis)
+  # Restrict by range if necessary
+  if f_range is not None:
+    # Bandpass: Set w outside of range to zero
+    f_min = min(np.amax(f), f_range[0])
+    f_max = max(np.amin(f), f_range[1])
+    pxx = np.where(np.logical_or(f < f_min, f > f_max), 0, pxx)
+  # Determine maximum frequency component
+  idx = np.argmax(pxx, axis=axis)
+  # Maximum frequency in Hz
+  f_out = f[idx]
+  # Squeeze if necessary
+  f_out = np.squeeze(f_out)
+  # Return
+  return f_out
 
 def interpolate_vals(x, val_fn=lambda x: np.isnan(x)):
   """Interpolate vals matching val_fn
