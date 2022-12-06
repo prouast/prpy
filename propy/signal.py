@@ -335,45 +335,37 @@ def interpolate_cubic_spline(x, y, xs, axis=0):
   cs = interpolate.CubicSpline(x, y, axis=axis)
   return cs(xs)
 
-# TODO write tests
-def component_periodicity(x, axis=-1):
+def component_periodicity(x):
   """Compute the periodicity of the maximum frequency components
   Args:
-    x: The signal data
-    axis: The axis over which to compute perdiodicities
+    x: The signal data. Shape (n_sig, n_data)
   Returns:
-    result: The periodicities
+    result: The periodicities. Shape (n_sig,)
   """
-  axis = 1 if axis == -1 else axis
   x = np.asarray(x) # Make sure x is np array
   x = np.nan_to_num(x) # Replace NAs with 0
   assert x.ndim == 2, "x.ndim must equal 2"
-  if axis == 0: x = np.transpose(x)
   # Perform FFT
-  w = np.fft.fft(x, axis=1)
+  w = fft.rfft(x, axis=1)
   # Determine maximum frequency component of each dim
-  w_ = np.square(np.abs(w[:,0:w.shape[1]//2]))
+  w_ = np.square(np.abs(w))
   w_ = div0(w_, np.sum(w_, axis=1)[:, np.newaxis], fill=0)
   idxs = np.argmax(w_, axis=1)
   # Compute periodicity for maximum frequency component
   return [w_[i,idx] for i, idx in enumerate(idxs)]
 
-# TODO write tests
-def select_most_periodic(x, axis=-1):
+def select_most_periodic(x):
   """Select the most periodic signal
   Args:
-    x: The 2-d signal data
-    axis: The axis to reduce by selecting index with highest periodicity
+    x: The signal data. Shape (n_sig, n_data)
   Returns:
     y: Signal with highest periodicity
   """
-  axis = 1 if axis == -1 else axis
   x = np.asarray(x) # Make sure x is np array
   x = np.nan_to_num(x) # Replace NAs with 0
   assert x.ndim == 2, "x.ndim must equal 2"
-  if axis == 0: x = np.transpose(x)
   # Compute component periodicity
-  p = component_periodicity(x, 1)
+  p = component_periodicity(x)
   idx = np.argmax(p)
   y = x[idx]
   assert x.shape[1] == y.shape[0]

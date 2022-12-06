@@ -11,6 +11,7 @@ sys.path.append('../propy')
 from propy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend
 from propy.signal import estimate_freq_fft, estimate_freq_peak, estimate_freq_periodogram
 from propy.signal import interpolate_vals, interpolate_cubic_spline
+from propy.signal import component_periodicity, select_most_periodic
 
 import numpy as np
 import pytest
@@ -130,7 +131,7 @@ def test_estimate_freq_fft(num, freq):
   # Test data
   x = np.linspace(0, freq * 2 * np.pi, num=num)
   np.random.seed(0)
-  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=x.size)
+  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=num)
   y = np.stack([y_, y_], axis=0)
   # Check a default use case with axis=-1
   np.testing.assert_allclose(
@@ -143,7 +144,7 @@ def test_estimate_freq_peak(num, freq):
   # Test data
   x = np.linspace(0, freq * 2 * np.pi, num=num)
   np.random.seed(0)
-  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=x.size)
+  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=num)
   y = np.stack([y_, y_], axis=0)
   # Check a default use case with axis=-1
   np.testing.assert_allclose(
@@ -157,7 +158,7 @@ def test_estimate_freq_periodogram(num, freq):
   # Test data
   x = np.linspace(0, freq * 2 * np.pi, num=num)
   np.random.seed(0)
-  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=x.size)
+  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=num)
   y = np.stack([y_, y_], axis=0)
   # Check a default use case with axis=-1
   np.testing.assert_allclose(
@@ -186,4 +187,27 @@ def test_interpolate_cubic_spline():
       axis=-1),
     np.array([[.23781146, .38768688, .37072951, .19610327, .05045604, .06995432, .16060431, .22408638, .30091362, .57043189],
               [.23781146, .38768688, .37072951, .19610327, .05045604, .06995432, .16060431, .22408638, .30091362, .57043189]]))
-              
+
+def test_component_periodicity():
+  # Test data
+  x = np.stack([np.linspace(0, 1.3 * 2 * np.pi, num=300),
+                np.linspace(0, 3.6 * 2 * np.pi, num=300),
+                np.linspace(0, 7.1 * 2 * np.pi, num=300)], axis=0)
+  np.random.seed(0)
+  y = 100 * np.sin(x) + np.random.normal(scale=20, size=300)
+  # Check default use case
+  np.testing.assert_allclose(
+    component_periodicity(x=y),
+    np.array([0.700568859, 0.46774879, 0.875988998]))
+
+def test_select_most_periodic():
+  # Test data
+  x = np.linspace(0, 3.6 * 2 * np.pi, num=300)
+  np.random.seed(0)
+  y = np.stack([100 * np.sin(x) + np.random.normal(scale=50, size=300),
+                100 * np.sin(x) + np.random.normal(scale=10, size=300), # least noise
+                100 * np.sin(x) + np.random.normal(scale=100, size=300)], axis=0)
+  # Check default use case
+  np.testing.assert_allclose(
+    select_most_periodic(x=y),
+    y[1])
