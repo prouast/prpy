@@ -8,7 +8,7 @@
 import numpy as np
 import tensorflow as tf
 
-def _reduction_dims_tf(x, axis):
+def _reduction_dims(x, axis):
   """Resolve the reduction dims"""
   if axis is not None:
     return axis
@@ -23,7 +23,7 @@ def _reduction_dims_tf(x, axis):
       # Otherwise, we rely on Range and Rank to do the right thing at run-time.
       return tf.range(0, tf.rank(x))
 
-def standardize_image_tf(images, axis=None):
+def standardize_image(images, axis=None):
   """Standardize image data to have zero mean and unit variance.
   Args:
     images: The image data.
@@ -34,7 +34,7 @@ def standardize_image_tf(images, axis=None):
     images: The standardized image data.
   """
   # Resolve axis arg
-  axis = _reduction_dims_tf(images, axis)
+  axis = _reduction_dims(images, axis)
   # Compute the mean and std
   num_pixels = tf.math.reduce_prod(tf.gather(tf.shape(images), axis))
   mean = tf.math.reduce_mean(images, axis, keepdims=True)
@@ -46,7 +46,7 @@ def standardize_image_tf(images, axis=None):
   images = tf.divide(images, tf.maximum(std, min_std))
   return images
 
-def normalize_image_tf(images, axis=None):
+def normalize_image(images, axis=None):
   """Normalize image data to have zero mean.
   Args:
     images: The image data.
@@ -57,14 +57,14 @@ def normalize_image_tf(images, axis=None):
     images: The normalized image data.
   """
   # Resolve axis arg
-  axis = _reduction_dims_tf(images, axis)
+  axis = _reduction_dims(images, axis)
   # Compute the mean
   mean = tf.math.reduce_mean(images, axis, keepdims=True)
   # Perform normalization
   images = tf.subtract(images, mean)
   return images
 
-def normalized_image_diff_tf(images, axis=0):
+def normalized_image_diff(images, axis=0):
   """Compute the normalized difference of adjacent images.
   Args:
     images: The image data as float32 in range [0, 1]
