@@ -36,6 +36,16 @@ def test_reduce_window_view(max_window_size):
   x_view_reduced = reduce_window_view(x_view, overlap=overlap, pad_end=pad_end)
   np.testing.assert_allclose(x, x_view_reduced)
 
-def test_resolve_1d_window_view():
-  # TODO
-  pass
+@pytest.mark.parametrize("n_data", [6, 20])
+@pytest.mark.parametrize("window_size", [3, 5])
+@pytest.mark.parametrize("overlap", [0, 2])
+@pytest.mark.parametrize("fill_method", ['mean', 'zero', 'start'])
+def test_resolve_1d_window_view(n_data, window_size, overlap, fill_method):
+  x = np.zeros((n_data,))
+  x_view, _, pad_end = window_view(
+      x=x, min_window_size=window_size, max_window_size=window_size, overlap=overlap)
+  x_view_prc = np.nanmean(x_view, axis=-1)
+  x_view_prc_res = resolve_1d_window_view(
+      x=x_view_prc, window_size=window_size, overlap=overlap,
+      pad_end=pad_end, fill_method=fill_method)
+  np.testing.assert_allclose(x, x_view_prc_res)
