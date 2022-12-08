@@ -6,9 +6,6 @@
 ###############################################################################
 
 import ffmpeg
-from fractions import Fraction
-import itertools
-import json
 import logging
 import numpy as np
 import os
@@ -16,74 +13,8 @@ from PIL import Image
 import shutil
 import subprocess
 
-from propy.constants import FFPROBE_OK, FFPROBE_INFO, FFPROBE_CORR
-
-def probe_video(path):
-  # ffprobe -show_streams -count_frames -pretty video.mp4
-  try:
-    probe = ffmpeg.probe(filename=path)
-  except Exception as e:
-    # The exception returned by `ffprobe` is in bytes
-    logging.warn("Exception probing video: {}".format(e))
-  else:
-    video_stream = next(
-      (
-        stream
-        for stream in probe["streams"]
-        if stream["codec_type"] == "video"
-      ),
-      None,
-    )
-    try:
-      fps = float(Fraction(video_stream["avg_frame_rate"]))
-    except Exception as e:
-      fps = 0
-    try:
-      total_frames = int(video_stream["nb_frames"])
-    except Exception as e:
-      duration = float(video_stream['duration'])
-      total_frames = int(duration*fps)
-    width = video_stream["width"]
-    height = video_stream["height"]
-    codec = video_stream["codec_name"]
-    bitrate = float(video_stream["bit_rate"])/1000.0
-    return fps, total_frames, width, height, codec, bitrate
-
-def _probe_video_frames(path):
-  # ffprobe -select_streams v -show_frames video.mp4
-  args = ['ffprobe', '-show_frames', '-of', 'json', '-loglevel', 'repeat+debug']
-  args += [path]
-  p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-  communicate_kwargs = {}
-  out, err = p.communicate(**communicate_kwargs)
-  if p.returncode != 0:
-    raise RuntimeError('ffprobe', out, err)
-  return json.loads(out.decode('utf-8')), err
-  return out, err
-
-def identify_eoi_missing_idxs(path, total_frames):
-  try:
-    _, err = _probe_video_frames(path)
-  except Exception as e:
-    # The exception returned by `ffprobe` is in bytes
-    logging.warn("Exception probing video frames: {}".format(e.stderr.decode()))
-  else:
-    info = [f for f in err.split(b'\n') if (FFPROBE_OK in f) or (FFPROBE_CORR in f) or (FFPROBE_INFO) in f]
-    info = [0 if (FFPROBE_OK in f[0] and FFPROBE_OK in f[1]) else \
-            1 if (FFPROBE_OK in f[0] and FFPROBE_CORR in f[1]) else -1 \
-            for f in zip(info, info[1:] + [FFPROBE_OK])]
-    info = [f for f in info if f != -1]
-    assert total_frames == len(info), "len(info) {} should equal total_frames {}".format(
-      len(info), total_frames)
-    return info
-
-def _find_factors_near(i, f1, f2, f3, s1, s2, s3):
-  ts = [(t1, t2, t3) for t1, t2, t3 in list(itertools.product( \
-    range(f1-s1, f1+s1+1), range(f2-s2, f2+s2+1), range(f3-s3, f3+s3+1)))]
-  for t1, t2, t3 in ts:
-    if t1 * t2 * t3 == i:
-      return t1, t2, t3
-  raise RuntimeError("Could not find factors near the provided values")
+from propy.ffmpeg.probe import probe_video
+from propy.ffmpeg.utils import find_factors_near
 
 def _ffmpeg_input_from_path(path, fps, trim):
   """Use file as input part of ffmpeg command"""
@@ -96,6 +27,10 @@ def _ffmpeg_input_from_path(path, fps, trim):
 def _ffmpeg_input_from_pipe():
   """Use pipe as input part of ffmpeg command"""
   stream = ffmpeg.input("pipe:")
+  return stream
+
+def _ffmpeg_input_from_numpy(w, h, fps):
+  stream = ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(w, h), r=fps)
   return stream
 
 def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=None, trim=None, preserve_aspect_ratio=False):
@@ -171,19 +106,26 @@ def _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, sc
     out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=True)
   # Parse result
   frames = np.frombuffer(out, np.uint8)
-  adj_n, adh_h, adh_w = _find_factors_near(
+  adj_n, adh_h, adh_w = find_factors_near(
     frames.shape[0]/3, target_n, target_h, target_w, 2, 1, 1)
   assert adj_n * adh_h * adh_w * 3 == frames.shape[0]
   frames = frames.reshape([adj_n, adh_h, adh_w, 3])
   # Return
   return frames
 
-def _ffmpeg_output_to_file(stream, output_dir, output_file, crf=12):
+def _ffmpeg_output_to_file(stream, output_dir, output_file, from_stdin=None, pix_fmt='yuv420p', crf=12, overwrite=False):
   """Run the stream and encode to file as H264"""
   output_path = os.path.join(output_dir, output_file)
-  stream = ffmpeg.output(stream, output_path, crf=crf)
-  stream = stream.global_args("-vsync", "2")
-  stream.run(quiet=True)
+  stream = ffmpeg.output(stream, output_path, pix_fmt=pix_fmt, crf=crf)
+  if overwrite:
+    stream = stream.global_args("-vsync", "2", "-y")
+  else:
+    stream = stream.global_args("-vsync", "2")
+  if from_stdin is None:
+    stream.run(quiet=True)
+  else:
+    process = stream.run_async(pipe_stdin=True, quiet=True)
+    process.communicate(input=from_stdin)
 
 def _ffmpeg_output_to_jpegs(stream, output_dir, output_file_start, target_fps, target_n, target_w, target_h, scale_w=None, scale_h=None, crf=12, pix_fmt='bgr24', preserve_aspect_ratio=False):
   if crf is None:
@@ -203,7 +145,7 @@ def _ffmpeg_output_to_jpegs(stream, output_dir, output_file_start, target_fps, t
     out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=True)
   # Parse result
   frames = np.frombuffer(out, np.uint8)
-  adj_n, adh_h, adh_w = _find_factors_near(
+  adj_n, adh_h, adh_w = find_factors_near(
     frames.shape[0]/3, target_n, target_h, target_w, 2, 1, 1)
   assert adj_n * adh_h * adh_w * 3 == frames.shape[0]
   frames = frames.reshape([adj_n, adh_h, adh_w, 3])
@@ -276,6 +218,22 @@ def write_video_from_path(path, output_dir, output_file, target_fps=None, crop=N
   # Output
   _ffmpeg_output_to_file(stream, output_dir, output_file, crf)
 
+def write_video_from_numpy(data, fps, output_dir, output_file, pix_fmt='yuv420p', crf=12, overwrite=False):
+  """Write data from a numpy array to a video file.
+  Args:
+    data: The numpy array with video frames. Shape [N, H, W, 3]
+    fps: The frame rate
+    output_dir: The directory where the video will be written
+    ourput_file: The filename as which the video will be written
+    pix_fmt: The pixel format
+    crf: Constant rate factor for H.264 encoding (higher = more compression)
+    overwrite: Overwrite if file exists?
+  """
+  _, h, w, _ = data.shape
+  stream = _ffmpeg_input_from_numpy(w=w, h=h, fps=fps)
+  buffer = data.flatten().tobytes()
+  _ffmpeg_output_to_file(stream, output_dir=output_dir, output_file=output_file, from_stdin=buffer, crf=crf, pix_fmt=pix_fmt, overwrite=overwrite)
+
 def write_jpegs_from_path(path, output_dir, output_file_start, target_fps=None, crop=None, scale=None, trim=None, crf=None, preserve_aspect_ratio=False, order='scale_crf'):
   """Read a video from path and write back as jpegs, optionally transformed by
     downsampling, spatial cropping, spatial scaling (applied to result of
@@ -301,7 +259,7 @@ def write_jpegs_from_path(path, output_dir, output_file_start, target_fps=None, 
   stream = _ffmpeg_input_from_path(path, fps, trim)
   # Filtering
   scale_0 = scale if order == 'scale_crf' or crf == None else (0, 0)
-  stream, target_n, target_w, target_h, ds_factor = _ffmpeg_filtering(
+  stream, target_n, target_w, target_h, _ = _ffmpeg_filtering(
     stream, fps, n, w, h, target_fps, crop, scale_0, trim, preserve_aspect_ratio)
   # Output
   scale_1 = (0, 0) if order == 'scale_crf' or crf == None else scale

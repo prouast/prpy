@@ -1,2 +1,3 @@
 include README.md
 recursive-include propy/tensorflow *
+recursive-include propy/ffmpeg *

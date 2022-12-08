@@ -1,0 +1,4 @@
+ffmpeg-python
+numpy
+scipy
+tensorflow

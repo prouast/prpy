@@ -92,7 +92,6 @@ def reduce_window_view(x, overlap, pad_end=0, hanning=False):
   if pad_end > 0: mean = mean[:-pad_end]
   return mean
 
-# TODO write tests
 def resolve_1d_window_view(x, window_size, overlap, pad_end, fill_method):
   """Resolve an 1-d window view by extending it to the expected shape. This
     is useful if processing on each window created a scalar value.
