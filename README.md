@@ -1,2 +1,32 @@
+[![Tests](https://github.com/prouast/propy/actions/workflows/main.yml/badge.svg)](https://github.com/prouast/propy/actions/workflows/main.yml)
+
 # propy
-Collection of python utils
+
+A collection of Python utilities with a focus on signal, image, and video processing with `numpy`, `ffmpeg`, and `tensorflow`.
+
+## Dependencies
+
+General requirements are `python>=3.7` and `ffmpeg`.
+
+To install further required Python packages:
+
+```
+pip install -r requirements.txt
+```
+
+## Linting and tests
+
+To lint and run tests:
+
+```
+flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+pytest
+```
+
+## Build
+
+To build:
+
+```
+python -m build
+```
