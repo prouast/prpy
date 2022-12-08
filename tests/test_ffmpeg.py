@@ -5,15 +5,17 @@
 # Written by Philipp Rouast <philipp@rouast.com>, December 2022               #
 ###############################################################################
 
+import math
+import numpy as np
+import os
+import pytest
+
 import sys
 sys.path.append('../propy')
 
 from propy.ffmpeg.probe import probe_video
 from propy.ffmpeg.readwrite import read_video_from_path
-
-import math
-import numpy as np
-import pytest
+from propy.ffmpeg.readwrite import write_video_from_path, write_video_from_numpy
 
 SAMPLE_FPS = 25.
 SAMPLE_FRAMES = 250
@@ -50,3 +52,22 @@ def test_read_video_from_path(sample_video_file, target_fps, crop, scale, trim, 
   assert ds_factor == cor_ds_factor
   assert frames.shape == (cor_frames, cor_height, cor_width, SAMPLE_CHANNELS)
 
+def test_write_video_from_path(sample_video_file):
+  test_filename = "test_out.mp4"
+  write_video_from_path(
+    sample_video_file, output_dir="", output_file=test_filename, target_fps=None,
+    crop=None, scale=None, trim=None, crf=0, preserve_aspect_ratio=False, overwrite=True)
+  frames_orig, _ = read_video_from_path(path=sample_video_file)
+  frames_test, _ = read_video_from_path(path=test_filename)
+  np.testing.assert_allclose(frames_test, frames_orig, rtol=1e-4)
+  os.remove(test_filename)
+
+def test_write_video_from_numpy(sample_video_data):
+  test_filename = "test_out.mp4"
+  write_video_from_numpy(
+    sample_video_data, fps=SAMPLE_FPS, output_dir="", output_file=test_filename,
+    pix_fmt='rgb24', crf=0, overwrite=True)
+  frames_test, _ = read_video_from_path(path=test_filename, pix_fmt='rgb24')
+  np.testing.assert_allclose(frames_test, sample_video_data, rtol=1e-4, atol=2)
+  os.remove(test_filename)
+  

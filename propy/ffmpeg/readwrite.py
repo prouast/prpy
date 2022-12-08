@@ -127,7 +127,7 @@ def _ffmpeg_output_to_file(stream, output_dir, output_file, from_stdin=None, pix
     process = stream.run_async(pipe_stdin=True, quiet=True)
     process.communicate(input=from_stdin)
 
-def _ffmpeg_output_to_jpegs(stream, output_dir, output_file_start, target_fps, target_n, target_w, target_h, scale_w=None, scale_h=None, crf=12, pix_fmt='bgr24', preserve_aspect_ratio=False):
+def _ffmpeg_output_to_jpegs(stream, output_dir, output_file_start, target_fps, target_n, target_w, target_h, scale=None, crf=12, pix_fmt='bgr24', preserve_aspect_ratio=False):
   if crf is None:
     # Run stream straight to raw video
     stream = stream.output("pipe:", vsync=0, format="rawvideo", pix_fmt=pix_fmt)
@@ -140,7 +140,7 @@ def _ffmpeg_output_to_jpegs(stream, output_dir, output_file_start, target_fps, t
     # Run stream to decode H264 to raw video
     stream = _ffmpeg_input_from_pipe()
     stream, _, target_w, target_h, _ = _ffmpeg_filtering(
-      stream, fps=target_fps, n=target_n, w=target_w, h=target_h, scale_w=scale_w, scale_h=scale_h)
+      stream, fps=target_fps, n=target_n, w=target_w, h=target_h, scale=scale)
     stream = stream.output("pipe:", vsync=0, format="rawvideo", pix_fmt=pix_fmt)
     out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=True)
   # Parse result
@@ -178,20 +178,23 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
     ds_factor: The applied downsampling factor
   """
   # Get metadata of original video
-  fps, n, w, h, _, _ = probe_video(path)
+  fps, n, w, h, _, _ = probe_video(path=path)
   # Input
-  stream = _ffmpeg_input_from_path(path, fps, trim)
+  stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
   scale_0 = scale if order == 'scale_crf' or crf == None else (0, 0)
   stream, target_n, target_w, target_h, ds_factor = _ffmpeg_filtering(
-    stream, fps, n, w, h, target_fps, crop, scale_0, trim, preserve_aspect_ratio)
+    stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0, trim=trim,
+    preserve_aspect_ratio=preserve_aspect_ratio)
   # Output
   scale_1 = (0, 0) if order == 'scale_crf' or crf == None else scale
-  frames = _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, scale_1, crf, pix_fmt)
+  frames = _ffmpeg_output_to_numpy(
+    stream=stream, target_fps=target_fps, target_n=target_n,
+    target_w=target_w, target_h=target_h, scale=scale_1, crf=crf, pix_fmt=pix_fmt)
   # Return
   return frames, ds_factor
 
-def write_video_from_path(path, output_dir, output_file, target_fps=None, crop=None, scale=None, trim=None, crf=12, preserve_aspect_ratio=False):
+def write_video_from_path(path, output_dir, output_file, target_fps=None, crop=None, scale=None, trim=None, pix_fmt='yuv420p', crf=12, preserve_aspect_ratio=False, overwrite=False):
   """Read a video from path and write back to a video file, optionally
     transformed by downsampling, spatial cropping, spatial scaling (applied to
     result of cropping if specified), and temporal trimming.
@@ -209,14 +212,16 @@ def write_video_from_path(path, output_dir, output_file, target_fps=None, crop=N
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
   """
   # Get metadata of original video
-  fps, n, w, h, _, _ = probe_video(path)
+  fps, n, w, h, _, _ = probe_video(path=path)
   # Input
-  stream = _ffmpeg_input_from_path(path, fps, trim)
+  stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
   stream, _, _, _, _ = _ffmpeg_filtering(
-      stream, fps, n, w, h, target_fps, crop, scale, trim, preserve_aspect_ratio)
+      stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale,
+      trim=trim, preserve_aspect_ratio=preserve_aspect_ratio)
   # Output
-  _ffmpeg_output_to_file(stream, output_dir, output_file, crf)
+  _ffmpeg_output_to_file(
+    stream, output_dir=output_dir, output_file=output_file, pix_fmt=pix_fmt, crf=crf, overwrite=overwrite)
 
 def write_video_from_numpy(data, fps, output_dir, output_file, pix_fmt='yuv420p', crf=12, overwrite=False):
   """Write data from a numpy array to a video file.
@@ -232,7 +237,9 @@ def write_video_from_numpy(data, fps, output_dir, output_file, pix_fmt='yuv420p'
   _, h, w, _ = data.shape
   stream = _ffmpeg_input_from_numpy(w=w, h=h, fps=fps)
   buffer = data.flatten().tobytes()
-  _ffmpeg_output_to_file(stream, output_dir=output_dir, output_file=output_file, from_stdin=buffer, crf=crf, pix_fmt=pix_fmt, overwrite=overwrite)
+  _ffmpeg_output_to_file(
+    stream, output_dir=output_dir, output_file=output_file, from_stdin=buffer,
+    crf=crf, pix_fmt=pix_fmt, overwrite=overwrite)
 
 def write_jpegs_from_path(path, output_dir, output_file_start, target_fps=None, crop=None, scale=None, trim=None, crf=None, preserve_aspect_ratio=False, order='scale_crf'):
   """Read a video from path and write back as jpegs, optionally transformed by
@@ -254,18 +261,19 @@ def write_jpegs_from_path(path, output_dir, output_file_start, target_fps=None, 
     order: scale_crf or crf_scale - specifies order of application
   """
   # Get metadata of original video
-  fps, n, w, h, _, _ = probe_video(path)
+  fps, n, w, h, _, _ = probe_video(path=path)
   # Input
-  stream = _ffmpeg_input_from_path(path, fps, trim)
+  stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
   scale_0 = scale if order == 'scale_crf' or crf == None else (0, 0)
   stream, target_n, target_w, target_h, _ = _ffmpeg_filtering(
-    stream, fps, n, w, h, target_fps, crop, scale_0, trim, preserve_aspect_ratio)
+    stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0,
+    trim=trim, preserve_aspect_ratio=preserve_aspect_ratio)
   # Output
   scale_1 = (0, 0) if order == 'scale_crf' or crf == None else scale
   _ffmpeg_output_to_jpegs(
-    stream, output_dir, output_file_start, target_fps, target_n, target_w,
-    target_h, scale_1, crf)
+    stream=stream, output_dir=output_dir, output_file_start=output_file_start, target_fps=target_fps,
+    target_n=target_n, target_w=target_w, target_h=target_h, scale=scale_1, crf=crf)
 
 def stream_to_mp4_container(stream_filename, video_filename, framerate, delete_stream=False):
   """Like ffmpeg -framerate 60 -i input.h264 -c copy output.mp4"""
