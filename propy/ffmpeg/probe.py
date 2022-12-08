@@ -9,6 +9,7 @@ import ffmpeg
 from fractions import Fraction
 import json
 import logging
+import subprocess
 
 from propy.constants import FFPROBE_OK, FFPROBE_INFO, FFPROBE_CORR
 
