@@ -15,6 +15,7 @@ def normalize(x, axis=-1):
   Returns:
     x: The normalized data
   """
+  # Convert to tf.Tensor if necessary
   if not tf.is_tensor(x):
     x = tf.convert_to_tensor(x)
   mean = tf.math.reduce_mean(x, axis=axis, keepdims=True)
@@ -28,6 +29,7 @@ def standardize(x, axis=-1):
   Returns:
     x: The standardized data
   """
+  # Convert to tf.Tensor if necessary
   if not tf.is_tensor(x):
     x = tf.convert_to_tensor(x)
   mean = tf.math.reduce_mean(x, axis=axis, keepdims=True)
@@ -42,6 +44,7 @@ def diff(x, axis=0):
   Returns:
     y: The diff signal
   """
+  # Convert to tf.Tensor if necessary
   if not tf.is_tensor(x):
     x = tf.convert_to_tensor(x)
   assert axis==0 or axis==1, "Only axis=0 or axis=1 supported"

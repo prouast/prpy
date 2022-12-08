@@ -23,16 +23,21 @@ def _reduction_dims(x, axis):
       # Otherwise, we rely on Range and Rank to do the right thing at run-time.
       return tf.range(0, tf.rank(x))
 
-def standardize_image(images, axis=None):
+def standardize_images(images, axis=None):
   """Standardize image data to have zero mean and unit variance.
   Args:
-    images: The image data.
+    images: The image data. 
     axis: The dimensions to standardize across. Exclude the axes that should be
       treated separately, e.g. the channel axis if desiring per-channel
       standardization. If None, standardize across all dimensions.
   Returns:
-    images: The standardized image data.
+    images: The standardized image data as tf.float32.
   """
+  # Convert to tf.Tensor if necessary
+  if not tf.is_tensor(images):
+    images = tf.convert_to_tensor(images)
+  # We are working with tf.float32
+  images = tf.cast(images, dtype=tf.float32)
   # Resolve axis arg
   axis = _reduction_dims(images, axis)
   # Compute the mean and std
@@ -46,7 +51,7 @@ def standardize_image(images, axis=None):
   images = tf.divide(images, tf.maximum(std, min_std))
   return images
 
-def normalize_image(images, axis=None):
+def normalize_images(images, axis=None):
   """Normalize image data to have zero mean.
   Args:
     images: The image data.
@@ -56,6 +61,11 @@ def normalize_image(images, axis=None):
   Returns:
     images: The normalized image data.
   """
+  # Convert to tf.Tensor if necessary
+  if not tf.is_tensor(images):
+    images = tf.convert_to_tensor(images)
+  # We are working with tf.float32
+  images = tf.cast(images, dtype=tf.float32)
   # Resolve axis arg
   axis = _reduction_dims(images, axis)
   # Compute the mean
@@ -69,11 +79,16 @@ def normalized_image_diff(images, axis=0):
   Args:
     images: The image data as float32 in range [0, 1]
     axis: Scalar, the dimension across which to calculate difference
-      normalization.
+      normalization (e.g., the temporal/sequence dimension).
   Returns:
     images: The processed image data.
   """
   assert axis==0 or axis==1, "Only axis=0 or axis=1 supported"
+  # Convert to tf.Tensor if necessary
+  if not tf.is_tensor(images):
+    images = tf.convert_to_tensor(images)
+  # We are working with tf.float32
+  images = tf.cast(images, dtype=tf.float32)
   diff = tf.cond(tf.equal(axis, 0),
     true_fn=lambda: images[1:] - images[:-1],
     false_fn=lambda: images[:,1:] - images[:,:-1])
