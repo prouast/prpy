@@ -2,7 +2,7 @@
 
 # propy
 
-A collection of Python utilities with a focus on signal, image, and video processing with `numpy`, `ffmpeg`, and `tensorflow`.
+A collection of Python utilities with a focus on signal, image, and video processing with `numpy`, `ffmpeg`, `tensorflow`, and `torch`.
 
 ## Dependencies
 

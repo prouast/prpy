@@ -10,8 +10,13 @@ sys.path.append('../propy')
 
 from propy.tensorflow.signal import normalize, standardize, diff
 from propy.tensorflow.image import normalize_images, standardize_images, normalized_image_diff
+from propy.tensorflow.model_saver import Candidate, ModelSaver
 
+import logging
 import numpy as np
+import os
+import pytest
+import shutil
 import tensorflow as tf
 
 # https://stackoverflow.com/questions/40710094/how-to-suppress-py-test-internal-deprecation-warnings
@@ -121,3 +126,69 @@ def test_normalized_image_diff():
     tf.convert_to_tensor([[[ .3333333, -.3333333,  0.        ],
                            [-.3333333, -.50000006, -.3333333 ],
                            [ .3333333, -.3333333,  0.        ]]]))
+
+def test_candidate():
+  cand = Candidate(score=0.5, dir='testdir', filename='test')
+  assert cand.filepath == 'testdir/test'
+  assert cand.score == 0.5
+
+@pytest.mark.parametrize("save_format", ["tf", "h5"])
+@pytest.mark.parametrize("save_optimizer", [False, True])
+def test_model_saver(save_format, save_optimizer):
+  model_saver = ModelSaver(
+      dir='checkpoints', keep_best=2, keep_latest=1, save_format=save_format,
+      save_optimizer=save_optimizer, compare_fn=lambda x,y: x.score > y.score,
+      sort_reverse=True, log_fn=logging.info)
+  # Dummy model
+  inputs = tf.keras.Input(shape=(2,))
+  outputs = tf.keras.layers.Dense(1, activation=tf.nn.softmax)(inputs)
+  model = tf.keras.Model(inputs=inputs, outputs=outputs)
+  if save_format == 'h5':
+    suffix = '.h5'
+  elif save_format == 'tf' and save_optimizer:
+    suffix = ''
+  else:
+    suffix = '.index'
+  # Save latest
+  model_saver.save_latest(model=model, step=0, name='model')
+  assert len(model_saver.latest_candidates) == 1
+  assert len(model_saver.best_candidates) == 0
+  assert os.path.exists('checkpoints/model_latest_0{}'.format(suffix))
+  # Save best
+  model_saver.save_best(model=model, score=0.1, step=10, name='model')
+  assert len(model_saver.latest_candidates) == 1
+  assert len(model_saver.best_candidates) == 1
+  assert os.path.exists('checkpoints/model_best_10{}'.format(suffix))
+  # Save latest
+  model_saver.save_latest(model=model, step=20, name='model')
+  assert len(model_saver.latest_candidates) == 1
+  assert len(model_saver.best_candidates) == 1
+  assert not os.path.exists('checkpoints/model_latest_0{}'.format(suffix))
+  assert os.path.exists('checkpoints/model_latest_20{}'.format(suffix))
+  # Save best
+  model_saver.save_best(model=model, score=0.2, step=30, name='model')
+  assert len(model_saver.latest_candidates) == 1
+  assert len(model_saver.best_candidates) == 2
+  assert os.path.exists('checkpoints/model_best_10{}'.format(suffix))
+  assert os.path.exists('checkpoints/model_best_30{}'.format(suffix))
+  # Save latest
+  model_saver.save_latest(model=model, step=40, name='model')
+  assert len(model_saver.latest_candidates) == 1
+  assert len(model_saver.best_candidates) == 2
+  assert not os.path.exists('checkpoints/model_latest_0{}'.format(suffix))
+  assert not os.path.exists('checkpoints/model_latest_20{}'.format(suffix))
+  assert os.path.exists('checkpoints/model_latest_40{}'.format(suffix))
+  # Save best
+  model_saver.save_best(model=model, score=0.3, step=50, name='model')
+  assert len(model_saver.latest_candidates) == 1
+  assert len(model_saver.best_candidates) == 2
+  assert not os.path.exists('checkpoints/model_best_10{}'.format(suffix))
+  assert os.path.exists('checkpoints/model_best_30{}'.format(suffix))
+  assert os.path.exists('checkpoints/model_best_50{}'.format(suffix))
+  # Save keep
+  model_saver.save_keep(model=model, step=60, name='model')
+  assert len(model_saver.latest_candidates) == 1
+  assert len(model_saver.best_candidates) == 2
+  assert os.path.exists('checkpoints/model_keep_60{}'.format(suffix))
+  # Remove files
+  shutil.rmtree('checkpoints')
