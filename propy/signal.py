@@ -10,6 +10,7 @@ import numpy as np
 from scipy import signal, interpolate, fft
 from scipy.sparse import spdiags
 import scipy.ndimage.filters as ndif
+from sklearn.linear_model import RANSACRegressor
 import logging
 
 from propy.stride_tricks import window_view, resolve_1d_window_view
@@ -334,6 +335,44 @@ def interpolate_cubic_spline(x, y, xs, axis=0):
     return y
   cs = interpolate.CubicSpline(x, y, axis=axis)
   return cs(xs)
+
+def interpolate_linear_sequence_outliers(t, max_diff_rel=1.0, max_diff_abs=None):
+  """Interpolate outliers in an otherwise linear sequence (e.g., measurement timestamps).
+     I.e., Goal is to make the sequence strictly increasing with roughly constant diff.
+  Args:
+    t: The sequence vals to fix. 1-dim.
+    max_diff_rel: Maximum relative difference from regular linear increasing value [%]
+    max_diff_abs: Maximum absolute difference from regular linear increasing value
+  Returns:
+    t: The interpolated sequence of strictly increasing vals. 1-dim.
+  """
+  t = np.asarray(t)
+  size = len(t)
+  indices = np.arange(size)
+  # Calculate max diff
+  max_diff = max_diff_abs if max_diff_abs is not None else np.abs(np.median(np.diff(t)) * max_diff_rel)
+  # Stage 1: Fit robust regression model
+  reg = RANSACRegressor(random_state=0).fit(indices[:,np.newaxis], t)
+  # Stage 1: Identify idxs for regression outliers
+  t_preds = reg.predict(indices[:,np.newaxis])
+  not_reg_outlier = np.abs(t_preds - t) < max_diff 
+  # Stage 1: Fix regression outliers
+  indices = np.arange(size)
+  f_1 = interpolate.interp1d(indices[not_reg_outlier], t[not_reg_outlier],
+    kind='linear', fill_value="extrapolate")
+  t_1 = f_1(indices)
+  # Stage 2: Identify idxs that are non strictly increasing
+  not_si_outlier = np.concatenate([[True], t_1[1:] - t_1[:-1] > 0])
+  # Stage 2: Fix not strictly increasing outliers
+  if np.logical_and.reduce(not_si_outlier) == False:
+    f_2 = interpolate.interp1d(indices[not_si_outlier], t_1[not_si_outlier],
+      kind='linear', fill_value="extrapolate")
+    t_2 = f_2(indices)
+  else:
+    t_2 = t_1
+  # Assert strictly increasing
+  assert np.logical_and.reduce(np.diff(t_2) > 0)
+  return t_2
 
 def component_periodicity(x):
   """Compute the periodicity of the maximum frequency components

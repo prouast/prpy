@@ -10,7 +10,7 @@ sys.path.append('../propy')
 
 from propy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend
 from propy.signal import estimate_freq_fft, estimate_freq_peak, estimate_freq_periodogram
-from propy.signal import interpolate_vals, interpolate_cubic_spline
+from propy.signal import interpolate_vals, interpolate_cubic_spline, interpolate_linear_sequence_outliers
 from propy.signal import component_periodicity, select_most_periodic
 
 import numpy as np
@@ -176,6 +176,38 @@ def test_interpolate_vals():
     interpolate_vals(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan])),
     np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]))
   
+def test_interpolate_linear_sequence_outliers():
+  # Check an easy case
+  np.testing.assert_allclose(
+    interpolate_linear_sequence_outliers(
+      np.array([1, 4, 14, 12, 16])),
+    np.array([1, 4, 8, 12, 16]))
+  # More complicated
+  np.testing.assert_allclose(
+    interpolate_linear_sequence_outliers(
+      np.array([1, 4, 7, 12, 12, 18, 21, 30, 28, 33, 37])),
+    np.array([1, 4, 7, 12, 15, 18, 21, 24.5, 28, 33, 37]))
+  # First element outlier
+  np.testing.assert_allclose(
+    interpolate_linear_sequence_outliers(
+      np.array([80, 4, 7, 12, 12, 18, 21, 30, 28, 33, 37])),
+    np.array([1, 4, 7, 12, 15, 18, 21, 24.5, 28, 33, 37]))
+  # Last element outlier
+  np.testing.assert_allclose(
+    interpolate_linear_sequence_outliers(
+      np.array([1, 4, 7, 12, 12, 18, 21, 30, 28, 33, 90])),
+    np.array([1, 4, 7, 12, 15, 18, 21, 24.5, 28, 33, 38]))
+  # Double outlier
+  np.testing.assert_allclose(
+    interpolate_linear_sequence_outliers(
+      np.array([1, 4, 7, 12, 79, 83, 21, 30, 28, 33, 38])),
+    np.array([1, 4, 7, 12, 15, 18, 21, 30, 31.5, 33, 38]))
+  # Longer sequence with massive outliers and duplicate value
+  np.testing.assert_allclose(
+    interpolate_linear_sequence_outliers(
+      np.array([1, 4, 6, 10, 50, 16, 20, 24, 27, 30, 32, 35, -300, 40, 43, 46, 50, 50, 53, 56, 58, 61])),
+    np.array([1, 4, 6, 10, 13, 16, 20, 24, 27, 30, 32, 35, 37.5, 40, 43, 46, 50, 51.5, 53, 56, 58, 61]))
+
 def test_interpolate_cubic_spline():
   # Check a default use case
   np.testing.assert_allclose(
