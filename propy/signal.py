@@ -355,9 +355,8 @@ def interpolate_linear_sequence_outliers(t, max_diff_rel=1.0, max_diff_abs=None)
   reg = RANSACRegressor(random_state=0).fit(indices[:,np.newaxis], t)
   # Stage 1: Identify idxs for regression outliers
   t_preds = reg.predict(indices[:,np.newaxis])
-  not_reg_outlier = np.abs(t_preds - t) < max_diff 
+  not_reg_outlier = np.abs(t_preds - t) < max_diff
   # Stage 1: Fix regression outliers
-  indices = np.arange(size)
   f_1 = interpolate.interp1d(indices[not_reg_outlier], t[not_reg_outlier],
     kind='linear', fill_value="extrapolate")
   t_1 = f_1(indices)
