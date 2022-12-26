@@ -103,3 +103,33 @@ def display_scale(image):
   min = tf.math.reduce_min(image)
   range = tf.math.reduce_max(image) - min
   return tf.clip_by_value((image-min) * 1.0/range, 0, 1)
+
+def resize_with_random_method(image, target_shape=(640, 640)):
+  """Resize an image to square with input_size"""
+  # Draw a random number to determine resize method
+  resize_method = tf.random.uniform([], 0, 5, dtype=tf.int32)
+  def resize(method):
+    def _resize():
+      return tf.image.resize(
+        image, target_shape, method=method, antialias=True, preserve_aspect_ratio=False)
+    return _resize
+  # Resize using a random method
+  image = tf.case([(tf.equal(resize_method, 0), resize('bicubic')),
+                   (tf.equal(resize_method, 1), resize('area')),
+                   (tf.equal(resize_method, 2), resize('nearest')),
+                   (tf.equal(resize_method, 3), resize('lanczos3'))],
+                  default=resize('bilinear'))
+  return image
+
+def random_distortion(image):
+  """Apply random distortion to image
+  Args:
+    image: The image [H, W, 3]
+  Returns:
+    image: The image [H, W, 3]
+  """
+  image = tf.image.random_brightness(image, 0.4)
+  image = tf.image.random_contrast(image, 0.5, 1.5)
+  image = tf.image.random_saturation(image, 0.5, 1.5)
+  image = tf.image.random_hue(image, 0.1)
+  return image
