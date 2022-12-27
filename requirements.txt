@@ -1,5 +1,6 @@
 ffmpeg-python
 numpy
+opencv-python-headless
 Pillow
 scikit-learn
 scipy
