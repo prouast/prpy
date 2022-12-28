@@ -77,7 +77,7 @@ def crop_slice_resize(inputs, target_size, roi=None, target_idxs=None, preserve_
     # Add temporal dim if necessary - might have been lost when slicing
     newaxis = tf.newaxis if method == 'tf' else np.newaxis
     out = out[newaxis,:,:,:]
-  else:
+  elif not keepdims and len(out.shape) == 4:
     # Remove temporal dim if necessary
     squeeze = tf.squeeze if method == 'tf' else np.squeeze
     if out.shape[0] == 1:

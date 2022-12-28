@@ -44,9 +44,17 @@ def test_crop_slice_resize(target_size, n_frames, roi, target_idxs, preserve_asp
       expected_shape = (target_size[0], target_size[0], 3)
     else:
       expected_shape = (target_size[0], target_size[1], 3)
-  expected_shape = (expected_frames,) + expected_shape if n_frames is not None else expected_shape
+  expected_shape = (expected_frames,) + expected_shape if expected_frames is not None else expected_shape
   assert images_out.shape == expected_shape
   if method == 'tf':
     assert tf.is_tensor(images_out)
   else:
     assert isinstance(images_out, np.ndarray)
+
+def test_crop_slice_resize_retinaface():
+  images_in = np.random.uniform(size=(480, 640, 3), low=0, high=255)  
+  images_in = images_in.astype(np.uint8)
+  images_out = crop_slice_resize(
+    inputs=images_in, target_size=224, roi=(0, 0, 480, 640), target_idxs=None,
+    method='tf', preserve_aspect_ratio=True, keepdims=True)
+  assert images_out.shape == (1, 224, 224, 3)
