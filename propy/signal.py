@@ -5,6 +5,8 @@
 # Written by Philipp Rouast <philipp@rouast.com>, September 2021              #
 ###############################################################################
 
+# TODO move to numpy folder
+
 import math
 import numpy as np
 from scipy import signal, interpolate, fft

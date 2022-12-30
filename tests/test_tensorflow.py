@@ -12,6 +12,7 @@ from propy.tensorflow.signal import normalize, standardize, diff
 from propy.tensorflow.image import normalize_images, standardize_images, normalized_image_diff
 from propy.tensorflow.image import resize_with_random_method, random_distortion
 from propy.tensorflow.model_saver import Candidate, ModelSaver
+from propy.tensorflow.loss import balanced_sample_weights, smooth_l1_loss, mae_loss
 
 import logging
 import os
@@ -26,6 +27,8 @@ def tf_function_wrapper(func):
   def tf_function_func(*args, **kwargs):
     return func(*args, **kwargs)
   return tf_function_func
+
+## Signal
 
 @pytest.mark.parametrize("tf_function", [False, True])
 def test_normalize(tf_function):
@@ -72,6 +75,8 @@ def test_diff(tf_function):
   tf.debugging.assert_near(
     diff_f(x=tf.convert_to_tensor([[0., 1., -3., 2., -1.], [0., 5., -3., 2., 1.]]), axis=0),
     tf.convert_to_tensor([0., 4., 0., 0., 2.]))
+
+## Image
 
 @pytest.mark.parametrize("tf_function", [False, True])
 def test_normalize_images(tf_function):
@@ -160,6 +165,8 @@ def test_random_distortion(tf_function):
   out = random_distortion_f(tf.ones(shape=(12, 12, 3)))
   assert out.shape == (12, 12, 3)
 
+## Model saver
+
 def test_candidate():
   cand = Candidate(score=0.5, dir='testdir', filename='test')
   assert cand.filepath == 'testdir/test'
@@ -225,3 +232,109 @@ def test_model_saver(save_format, save_optimizer):
   assert os.path.exists('checkpoints/model_keep_60{}'.format(suffix))
   # Remove files
   shutil.rmtree('checkpoints')
+
+## Loss
+
+@pytest.mark.parametrize("tf_function", [False, True])
+def test_smooth_l1_loss(tf_function):
+  smooth_l1_loss_f = tf_function_wrapper(smooth_l1_loss) if tf_function else smooth_l1_loss
+  # Basic example 1-d
+  tf.debugging.assert_near(
+    smooth_l1_loss_f(
+      y_true=tf.convert_to_tensor([0.1, 0.5, 1.8, 3.2]),
+      y_pred=tf.convert_to_tensor([1.1, -2.5, 1.7, 3.2]),
+      keepdims=True),
+    tf.convert_to_tensor([0.5, 2.5, .005, 0]))
+  tf.debugging.assert_near(
+    smooth_l1_loss_f(
+      y_true=tf.convert_to_tensor([0.1, 0.5, 1.8, 3.2]),
+      y_pred=tf.convert_to_tensor([1.1, -2.5, 1.7, 3.2]),
+      keepdims=False),
+    tf.convert_to_tensor(0.75125))
+  # 2-d
+  tf.debugging.assert_near(
+    smooth_l1_loss_f(
+      y_true=tf.convert_to_tensor([[0.1, 0.5, 1.8, 3.2], [-.3, 0.8, 2.1, 1.0]]),
+      y_pred=tf.convert_to_tensor([[1.1, -2.5, 1.7, 3.2], [-.6, 0.2, 2.9, 0.0]]),
+      keepdims=True),
+    tf.convert_to_tensor([[0.5, 2.5, .005, 0], [.045, .18, .32, .5]]))
+  tf.debugging.assert_near(
+    smooth_l1_loss_f(
+      y_true=tf.convert_to_tensor([[0.1, 0.5, 1.8, 3.2], [-.3, 0.8, 2.1, 1.0]]),
+      y_pred=tf.convert_to_tensor([[1.1, -2.5, 1.7, 3.2], [-.6, 0.2, 2.9, 0.0]]),
+      keepdims=False),
+    tf.convert_to_tensor(0.50625))
+  # 3-d
+  tf.debugging.assert_near(
+    smooth_l1_loss_f(
+      y_true=tf.convert_to_tensor([[[0.1, 0.5], [1.8, 3.2]], [[-.3, 0.8], [2.1, 1.0]]]),
+      y_pred=tf.convert_to_tensor([[[1.1, -2.5], [1.7, 3.2]], [[-.6, 0.2], [2.9, 0.0]]]),
+      keepdims=True),
+    tf.convert_to_tensor([[[0.5, 2.5], [.005, 0]], [[.045, .18], [.32, .5]]]))
+  tf.debugging.assert_near(
+    smooth_l1_loss_f(
+      y_true=tf.convert_to_tensor([[[0.1, 0.5], [1.8, 3.2]], [[-.3, 0.8], [2.1, 1.0]]]),
+      y_pred=tf.convert_to_tensor([[[1.1, -2.5], [1.7, 3.2]], [[-.6, 0.2], [2.9, 0.0]]]),
+      keepdims=False),
+    tf.convert_to_tensor(0.50625))
+
+@pytest.mark.parametrize("tf_function", [False, True])
+def test_mae_loss(tf_function):
+  mae_loss_f = tf_function_wrapper(mae_loss) if tf_function else mae_loss
+  # Basic example 1-d
+  tf.debugging.assert_near(
+    mae_loss_f(
+      y_true=tf.convert_to_tensor([0.1, 0.5, 1.8, 3.2]),
+      y_pred=tf.convert_to_tensor([1.1, -2.5, 1.7, 3.2]),
+      keepdims=True),
+    tf.convert_to_tensor(1.025))
+  tf.debugging.assert_near(
+    mae_loss_f(
+      y_true=tf.convert_to_tensor([0.1, 0.5, 1.8, 3.2]),
+      y_pred=tf.convert_to_tensor([1.1, -2.5, 1.7, 3.2]),
+      keepdims=False),
+    tf.convert_to_tensor(1.025))
+  # 2-d
+  tf.debugging.assert_near(
+    mae_loss_f(
+      y_true=tf.convert_to_tensor([[0.1, 0.5, 1.8, 3.2], [-.3, 0.8, 2.1, 1.0]]),
+      y_pred=tf.convert_to_tensor([[1.1, -2.5, 1.7, 3.2], [-.6, 0.2, 2.9, 0.0]]),
+      keepdims=True),
+    tf.convert_to_tensor([1.025, 0.675]))
+  tf.debugging.assert_near(
+    mae_loss_f(
+      y_true=tf.convert_to_tensor([[0.1, 0.5, 1.8, 3.2], [-.3, 0.8, 2.1, 1.0]]),
+      y_pred=tf.convert_to_tensor([[1.1, -2.5, 1.7, 3.2], [-.6, 0.2, 2.9, 0.0]]),
+      keepdims=False),
+    tf.convert_to_tensor(0.85))
+  # 3-d
+  tf.debugging.assert_near(
+    mae_loss_f(
+      y_true=tf.convert_to_tensor([[[0.1, 0.5], [1.8, 3.2]], [[-.3, 0.8], [2.1, 1.0]]]),
+      y_pred=tf.convert_to_tensor([[[1.1, -2.5], [1.7, 3.2]], [[-.6, 0.2], [2.9, 0.0]]]),
+      keepdims=True),
+    tf.convert_to_tensor([[2.0, .05], [.45, .9]]))
+  tf.debugging.assert_near(
+    mae_loss_f(
+      y_true=tf.convert_to_tensor([[[0.1, 0.5], [1.8, 3.2]], [[-.3, 0.8], [2.1, 1.0]]]),
+      y_pred=tf.convert_to_tensor([[[1.1, -2.5], [1.7, 3.2]], [[-.6, 0.2], [2.9, 0.0]]]),
+      keepdims=False),
+    tf.convert_to_tensor(0.85))
+  
+@pytest.mark.parametrize("tf_function", [False, True])
+def test_balanced_sample_weights(tf_function):
+  balanced_sample_weights_f = tf_function_wrapper(balanced_sample_weights) if tf_function else balanced_sample_weights
+  # Basic use case with shape (5,)
+  tf.debugging.assert_near(
+    balanced_sample_weights_f(
+      labels=tf.convert_to_tensor([1, 1, 2, 4, 1, 2]),
+      unique=tf.range(5)
+    ),
+    tf.convert_to_tensor([0.6666667, 0.6666667, 1., 2., 0.6666667, 1.]))
+  # Basic use case with shape (5, 1) 
+  tf.debugging.assert_near(
+    balanced_sample_weights_f(
+      labels=tf.convert_to_tensor([[1], [1], [2], [4], [1], [2]]),
+      unique=tf.range(5)
+    ),
+    tf.convert_to_tensor([[0.6666667], [0.6666667], [1.], [2.], [0.6666667], [1.]]))

@@ -7,6 +7,7 @@
 
 import numpy as np
 
+# TODO extend to support cropping roi ndarray with len(roi) == len(inputs)
 def crop_slice_resize(inputs, target_size, roi=None, target_idxs=None, preserve_aspect_ratio=False, keepdims=True, method='cv2'):
   """Crop, slice, and resize images with all same settings.
   Args:
