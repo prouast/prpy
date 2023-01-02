@@ -5,8 +5,6 @@
 # Written by Philipp Rouast <philipp@rouast.com>, September 2021              #
 ###############################################################################
 
-# TODO move to numpy folder
-
 import numpy as np
 
 def window_view(x, min_window_size, max_window_size, overlap, pad_mode='constant', const_val=np.nan):

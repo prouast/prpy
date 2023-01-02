@@ -8,12 +8,6 @@
 import sys
 sys.path.append('../propy')
 
-from propy.tensorflow.signal import normalize, standardize, diff
-from propy.tensorflow.image import normalize_images, standardize_images, normalized_image_diff
-from propy.tensorflow.image import resize_with_random_method, random_distortion
-from propy.tensorflow.model_saver import Candidate, ModelSaver
-from propy.tensorflow.loss import balanced_sample_weights, smooth_l1_loss, mae_loss
-
 import logging
 import os
 import pytest
@@ -29,6 +23,8 @@ def tf_function_wrapper(func):
   return tf_function_func
 
 ## Signal
+
+from propy.tensorflow.signal import normalize, standardize, diff
 
 @pytest.mark.parametrize("tf_function", [False, True])
 def test_normalize(tf_function):
@@ -77,6 +73,9 @@ def test_diff(tf_function):
     tf.convert_to_tensor([0., 4., 0., 0., 2.]))
 
 ## Image
+
+from propy.tensorflow.image import normalize_images, standardize_images, normalized_image_diff
+from propy.tensorflow.image import resize_with_random_method, random_distortion
 
 @pytest.mark.parametrize("tf_function", [False, True])
 def test_normalize_images(tf_function):
@@ -167,6 +166,8 @@ def test_random_distortion(tf_function):
 
 ## Model saver
 
+from propy.tensorflow.model_saver import Candidate, ModelSaver
+
 def test_candidate():
   cand = Candidate(score=0.5, dir='testdir', filename='test')
   assert cand.filepath == 'testdir/test'
@@ -234,6 +235,8 @@ def test_model_saver(save_format, save_optimizer):
   shutil.rmtree('checkpoints')
 
 ## Loss
+
+from propy.tensorflow.loss import balanced_sample_weights, smooth_l1_loss, mae_loss
 
 @pytest.mark.parametrize("tf_function", [False, True])
 def test_smooth_l1_loss(tf_function):
@@ -338,3 +341,34 @@ def test_balanced_sample_weights(tf_function):
       unique=tf.range(5)
     ),
     tf.convert_to_tensor([[0.6666667], [0.6666667], [1.], [2.], [0.6666667], [1.]]))
+
+## Optimizer
+
+from propy.tensorflow.optimizer import Adam, LossScaleOptimizer
+
+def test_adam():
+  optimizer = Adam()
+  assert optimizer.epochs == 0
+  optimizer.finish_epoch()
+  assert optimizer.epochs == 1
+
+def test_loss_scale_optimizer():
+  optimizer = Adam()
+  optimizer = LossScaleOptimizer(inner_optimizer=optimizer, dynamic=True)
+  assert optimizer.epochs == 0
+  optimizer.finish_epoch()
+  assert optimizer.epochs == 1
+
+## LR schedule
+
+from propy.tensorflow.lr_schedule import PiecewiseConstantDecayWithWarmup
+
+def test_piecewise_constant_decay_with_warmup():
+  lr_schedule = PiecewiseConstantDecayWithWarmup(
+    boundaries=[9, 19], values=[0.1, 0.01, 0.001], warmup_init_lr=0.01, warmup_steps=3)
+  lr_vals = [lr_schedule(i) for i in range(30)]
+  tf.debugging.assert_near(
+    tf.convert_to_tensor(lr_vals),
+    tf.convert_to_tensor([0.01, 0.04, 0.07, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+                          0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01,
+                          0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001]))

@@ -8,7 +8,7 @@
 import sys
 sys.path.append('../propy')
 
-from propy.stride_tricks import window_view, reduce_window_view, resolve_1d_window_view
+from propy.numpy.stride_tricks import window_view, reduce_window_view, resolve_1d_window_view
 
 import numpy as np
 import pytest

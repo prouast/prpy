@@ -5,8 +5,6 @@
 # Written by Philipp Rouast <philipp@rouast.com>, September 2021              #
 ###############################################################################
 
-# TODO move to numpy folder
-
 import math
 import numpy as np
 from scipy import signal, interpolate, fft
@@ -15,7 +13,7 @@ import scipy.ndimage.filters as ndif
 from sklearn.linear_model import RANSACRegressor
 import logging
 
-from propy.stride_tricks import window_view, resolve_1d_window_view
+from propy.numpy.stride_tricks import window_view, resolve_1d_window_view
 
 def div0(a, b, fill=np.nan):
   """Divide after accounting for zeros in divisor, e.g.:

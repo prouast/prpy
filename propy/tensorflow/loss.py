@@ -21,7 +21,6 @@ def balanced_sample_weights(labels, unique):
   """
   # Remove empty dim if necessary
   f_labels = tf.cast(tf.squeeze(labels), tf.int32)
-  n_labels = unique.shape[0]
   # Determine count of labels in batch
   # Cannot use bincount to be compatible with XLA
   # count = tf.math.bincount(f_labels, minlength=n_labels)
