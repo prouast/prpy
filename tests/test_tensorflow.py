@@ -373,7 +373,7 @@ def test_epoch_loss_scale_optimizer():
   lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
     boundaries=[0, 1], values=[0.1, 0.01, 0.001])
   optimizer = EpochAdam(learning_rate=lr_schedule)
-  ls_optimizer = EpochLossScaleOptimizer(optimizer)
+  ls_optimizer = EpochLossScaleOptimizer(inner_optimizer=optimizer, dynamic=True)
   assert ls_optimizer.epochs == 0
   if version.parse(tf.__version__) <= version.parse("2.6.5"):
     assert ls_optimizer._optimizer._decayed_lr(var_dtype=tf.float32) == 0.1
