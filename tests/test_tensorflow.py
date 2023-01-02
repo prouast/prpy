@@ -10,6 +10,7 @@ sys.path.append('../propy')
 
 import logging
 import os
+from packaging import version
 import pytest
 import shutil
 import tensorflow as tf
@@ -344,20 +345,52 @@ def test_balanced_sample_weights(tf_function):
 
 ## Optimizer
 
-from propy.tensorflow.optimizer import Adam, LossScaleOptimizer
+from propy.tensorflow.optimizer import EpochAdam, EpochLossScaleOptimizer
 
-def test_adam():
-  optimizer = Adam()
+def test_epoch_adam():
+  lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
+    boundaries=[0, 1], values=[0.1, 0.01, 0.001])
+  optimizer = EpochAdam(learning_rate=lr_schedule)
   assert optimizer.epochs == 0
+  if version.parse(tf.__version__) <= version.parse("2.6.5"):
+    assert optimizer._decayed_lr(var_dtype=tf.float32) == 0.1
+  else:
+    assert optimizer._current_learning_rate == 0.1
   optimizer.finish_epoch()
   assert optimizer.epochs == 1
-
-def test_loss_scale_optimizer():
-  optimizer = Adam()
-  optimizer = LossScaleOptimizer(inner_optimizer=optimizer, dynamic=True)
-  assert optimizer.epochs == 0
+  if version.parse(tf.__version__) <= version.parse("2.6.5"):
+    assert optimizer._decayed_lr(var_dtype=tf.float32) == 0.01
+  else:
+    assert optimizer._current_learning_rate == 0.01
   optimizer.finish_epoch()
-  assert optimizer.epochs == 1
+  assert optimizer.epochs == 2
+  if version.parse(tf.__version__) <= version.parse("2.6.5"):
+    assert optimizer._decayed_lr(var_dtype=tf.float32) == 0.001
+  else:
+    assert optimizer._current_learning_rate == 0.001
+  
+def test_epoch_loss_scale_optimizer():
+  lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
+    boundaries=[0, 1], values=[0.1, 0.01, 0.001])
+  optimizer = EpochAdam(learning_rate=lr_schedule)
+  ls_optimizer = EpochLossScaleOptimizer(optimizer)
+  assert ls_optimizer.epochs == 0
+  if version.parse(tf.__version__) <= version.parse("2.6.5"):
+    assert ls_optimizer._optimizer._decayed_lr(var_dtype=tf.float32) == 0.1
+  else:
+    assert ls_optimizer._optimizer._current_learning_rate == 0.1
+  ls_optimizer.finish_epoch()
+  assert ls_optimizer.epochs == 1
+  if version.parse(tf.__version__) <= version.parse("2.6.5"):
+    assert ls_optimizer._optimizer._decayed_lr(var_dtype=tf.float32) == 0.01
+  else:
+    assert ls_optimizer._optimizer._current_learning_rate == 0.01
+  ls_optimizer.finish_epoch()
+  assert ls_optimizer.epochs == 2
+  if version.parse(tf.__version__) <= version.parse("2.6.5"):
+    assert ls_optimizer._optimizer._decayed_lr(var_dtype=tf.float32) == 0.001
+  else:
+    assert ls_optimizer._optimizer._current_learning_rate == 0.001
 
 ## LR schedule
 
