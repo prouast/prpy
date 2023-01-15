@@ -20,7 +20,7 @@ class Candidate(object):
 
 class ModelSaver(object):
   """Save the best models to disk"""
-  def __init__(self, dir="checkpoints", keep_best=5, keep_latest=1, save_format="tf", save_optimizer=False, compare_fn=lambda x,y: x.score < y.score, sort_reverse=True, log_fn=logging.info):
+  def __init__(self, dir="checkpoints", keep_best=5, keep_latest=1, save_format="tf", save_optimizer=False, compare_fn=lambda x,y: x.score < y.score, sort_reverse=False, log_fn=logging.info):
     """Init the ModelSaver"""
     self.best_candidates = []
     self.latest_candidates = []
