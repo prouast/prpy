@@ -24,27 +24,28 @@ def test_get_forehead_roi_from_det():
   roi = get_forehead_roi_from_det(det)
   assert roi == (128, 118, 152, 130)
 
-def test_get_upper_body_roi_from_det():
+@pytest.mark.parametrize("cropped", [True, False])
+def test_get_upper_body_roi_from_det(cropped):
   # No violations
   det = (100, 100, 180, 220)
-  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300))
-  assert roi == (86, 68, 194, 274)
+  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
+  assert roi == (86, 82, 194, 256) if cropped else roi == (80, 76, 200, 268)
   # Shift to left
   det = (10, 100, 90, 220)
-  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300))
-  assert roi == (0, 68, 104, 274)
+  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
+  assert roi == (0, 82, 104, 256) if cropped else roi == (0, 76, 110, 268)
   # Shift to right
   det = (140, 100, 220, 220)
-  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300))
-  assert roi == (126, 68, 220, 274)
+  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
+  assert roi == (126, 82, 220, 256) if cropped else roi == (120, 76, 220, 268)
   # Shift to top
   det = (100, 20, 180, 140)
-  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300))
-  assert roi == (86, 0, 194, 194)
+  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
+  assert roi == (86, 2, 194, 176) if cropped else roi == (80, 0, 200, 188)
   # Shift to bottom
   det = (100, 140, 180, 260)
-  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300))
-  assert roi == (86, 108, 194, 300)
+  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
+  assert roi == (86, 122, 194, 296) if cropped else roi == (80, 116, 200, 300)
 
 def test_get_meta_roi_from_det():
   # No violations
@@ -76,7 +77,7 @@ def test_get_roi_from_det():
   assert get_roi_from_det(det, roi_method='meta', clip_dims=(220, 300)) == get_meta_roi_from_det(det, clip_dims=(220, 300))
   assert get_roi_from_det(det, roi_method=None) == det
 
-@pytest.mark.parametrize("roi_method", ['face', 'forehead', 'upper_body', 'meta', None])
+@pytest.mark.parametrize("roi_method", ['face', 'forehead', 'upper_body', 'upper_body_cropped', 'meta', None])
 @pytest.mark.parametrize("method", ['PIL', 'cv2', 'tf'])
 def test_crop_resize_from_det(roi_method, method):
   # Uses propy, only check shapes

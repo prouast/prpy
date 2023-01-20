@@ -280,12 +280,13 @@ def estimate_freq_periodogram(x, f_s, f_range=None, f_res=None, axis=-1):
     f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
   assert f_range is None or (isinstance(f_range, tuple) and len(f_range) == 2)
+  assert f_res > 0
   x = np.asarray(x)
   # Change to 2-dim array if necessary
   if len(x.shape) == 1:
     x = np.expand_dims(x, axis=0)
   # Determine the length of the fft if f_res specified
-  nfft = None if f_res is None else f_s // f_res
+  nfft = None if f_res is None else int(f_s // f_res)
   # Compute
   f, pxx = signal.periodogram(x, fs=f_s, nfft=nfft, detrend=False, axis=axis)
   # Restrict by range if necessary
@@ -351,27 +352,29 @@ def interpolate_linear_sequence_outliers(t, max_diff_rel=1.0, max_diff_abs=None)
   indices = np.arange(size)
   # Calculate max diff
   max_diff = max_diff_abs if max_diff_abs is not None else np.abs(np.median(np.diff(t)) * max_diff_rel)
-  # Stage 1: Fit robust regression model
-  reg = RANSACRegressor(random_state=0).fit(indices[:,np.newaxis], t)
-  # Stage 1: Identify idxs for regression outliers
-  t_preds = reg.predict(indices[:,np.newaxis])
-  not_reg_outlier = np.abs(t_preds - t) < max_diff
-  # Stage 1: Fix regression outliers
-  f_1 = interpolate.interp1d(indices[not_reg_outlier], t[not_reg_outlier],
-    kind='linear', fill_value="extrapolate")
-  t_1 = f_1(indices)
-  # Stage 2: Identify idxs that are non strictly increasing
-  not_si_outlier = np.concatenate([[True], t_1[1:] - t_1[:-1] > 0])
-  # Stage 2: Fix not strictly increasing outliers
-  if np.logical_and.reduce(not_si_outlier) == False:
-    f_2 = interpolate.interp1d(indices[not_si_outlier], t_1[not_si_outlier],
+  # Stage 1
+  def interpolate_regression_outliers(t, max_diff):
+    # Stage 1: Fit robust regression model
+    reg = RANSACRegressor(random_state=0).fit(indices[:,np.newaxis], t)
+    # Stage 1: Identify idxs for regression outliers
+    t_preds = reg.predict(indices[:,np.newaxis])
+    not_reg_outlier = np.abs(t_preds - t) < max_diff
+    # Stage 1: Fix regression outliers
+    f = interpolate.interp1d(indices[not_reg_outlier], t[not_reg_outlier],
       kind='linear', fill_value="extrapolate")
-    t_2 = f_2(indices)
-  else:
-    t_2 = t_1
+    return f(indices)
+  t = interpolate_regression_outliers(t, max_diff=max_diff)
+  # Stage 2
+  def interpolate_non_strictly_increasing(t):
+    not_si_outlier = np.concatenate([[True], t[1:] - t[:-1] > 0])
+    f = interpolate.interp1d(indices[not_si_outlier], t[not_si_outlier],
+      kind='linear', fill_value="extrapolate")
+    return f(indices)
+  while not np.logical_and.reduce(np.diff(t) > 0):
+    t = interpolate_non_strictly_increasing(t)
   # Assert strictly increasing
-  assert np.logical_and.reduce(np.diff(t_2) > 0)
-  return t_2
+  assert np.logical_and.reduce(np.diff(t) > 0)
+  return t
 
 def component_periodicity(x):
   """Compute the periodicity of the maximum frequency components

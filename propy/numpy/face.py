@@ -17,6 +17,8 @@ def _get_roi_from_det(det, rel_change, clip_dims=None):
   Returns:
     out: The roi [0, H/W]. Tuple (x0, y0, x1, y1)
   """
+  assert det[2] > det[0]
+  assert det[3] > det[1]
   def _clip_dims(val, min_dim, max_dim):
     return min(max(val, min_dim), max_dim)
   det_w = det[2]-det[0]
@@ -54,7 +56,7 @@ def get_forehead_roi_from_det(det):
   """
   return _get_roi_from_det(det=det, rel_change=(-0.35, -0.15, -0.35, -0.75))
 
-def get_upper_body_roi_from_det(det, clip_dims):
+def get_upper_body_roi_from_det(det, clip_dims, cropped=False):
   """Convert face detection into upper body roi and clip to frame constraints.
   Args:
     det: The face detection [0, H/W]. Tuple (x0, y0, x1, y1)
@@ -62,8 +64,12 @@ def get_upper_body_roi_from_det(det, clip_dims):
   Returns:
     out: The roi [0, H/W]. Tuple (x0, y0, x1, y1)
   """
-  return _get_roi_from_det(
-    det=det, rel_change=(.175, .27, .175, .45), clip_dims=clip_dims) # alt: .25, .3, .25, .5
+  if not cropped:
+    return _get_roi_from_det(
+      det=det, rel_change=(.25, .2, .25, .4), clip_dims=clip_dims)
+  else:
+    return _get_roi_from_det(
+      det=det, rel_change=(.175, .15, .175, .3), clip_dims=clip_dims)
 
 def get_meta_roi_from_det(det, clip_dims):
   """Convert face detection into meta roi and clip to frame constraints.
@@ -80,7 +86,7 @@ def get_roi_from_det(det, roi_method, clip_dims=None):
   """Convert face detection into specified roi.
   Args:
     det: The face detection [0, H/W]. Tuple (x0, y0, x1, y1)
-    roi_method: Which roi method to use. Use 'forehead', 'face', 'upper_body', None (directly use det)
+    roi_method: Which roi method to use. Use 'forehead', 'face', 'upper_body', 'upper_body_cropped', None (directly use det)
     clip_dims: None or tuple (frame_w, frame_h) to clip the result to.
   Returns:
     out: The roi [0, H/W]. Tuple (x0, y0, x1, y1)
@@ -91,7 +97,10 @@ def get_roi_from_det(det, roi_method, clip_dims=None):
     return get_forehead_roi_from_det(det)
   elif roi_method == 'upper_body':
     assert clip_dims is not None
-    return get_upper_body_roi_from_det(det, clip_dims=clip_dims)
+    return get_upper_body_roi_from_det(det, clip_dims=clip_dims, cropped=False)
+  elif roi_method == 'upper_body_cropped':
+    assert clip_dims is not None
+    return get_upper_body_roi_from_det(det, clip_dims=clip_dims, cropped=True)
   elif roi_method == 'meta':
     assert clip_dims is not None
     return get_meta_roi_from_det(det, clip_dims=clip_dims)
