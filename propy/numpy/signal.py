@@ -10,7 +10,6 @@ import numpy as np
 from scipy import signal, interpolate, fft
 from scipy.sparse import spdiags
 import scipy.ndimage.filters as ndif
-from sklearn.linear_model import RANSACRegressor
 import logging
 
 from propy.numpy.stride_tricks import window_view, resolve_1d_window_view
@@ -347,6 +346,7 @@ def interpolate_linear_sequence_outliers(t, max_diff_rel=1.0, max_diff_abs=None)
   Returns:
     t: The interpolated sequence of strictly increasing vals. 1-dim.
   """
+  from sklearn.linear_model import RANSACRegressor
   t = np.asarray(t)
   size = len(t)
   indices = np.arange(size)
