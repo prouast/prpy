@@ -64,12 +64,13 @@ def get_upper_body_roi_from_det(det, clip_dims, cropped=False):
   Returns:
     out: The roi [0, H/W]. Tuple (x0, y0, x1, y1)
   """
+  # Old: (.25, .2, .25, .4) shrink by 10% -> (.175, .15, .175, .3)
   if not cropped:
     return _get_roi_from_det(
-      det=det, rel_change=(.25, .2, .25, .4), clip_dims=clip_dims)
+      det=det, rel_change=(.25, .1, .25, .5), clip_dims=clip_dims)
   else:
     return _get_roi_from_det(
-      det=det, rel_change=(.175, .15, .175, .3), clip_dims=clip_dims)
+      det=det, rel_change=(.175, .075, .175, .375), clip_dims=clip_dims)
 
 def get_meta_roi_from_det(det, clip_dims):
   """Convert face detection into meta roi and clip to frame constraints.

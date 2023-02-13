@@ -29,23 +29,23 @@ def test_get_upper_body_roi_from_det(cropped):
   # No violations
   det = (100, 100, 180, 220)
   roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
-  assert roi == (86, 82, 194, 256) if cropped else roi == (80, 76, 200, 268)
+  assert roi == (86, 91, 194, 265) if cropped else roi == (80, 88, 200, 280)
   # Shift to left
   det = (10, 100, 90, 220)
   roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
-  assert roi == (0, 82, 104, 256) if cropped else roi == (0, 76, 110, 268)
+  assert roi == (0, 91, 104, 265) if cropped else roi == (0, 88, 110, 280)
   # Shift to right
   det = (140, 100, 220, 220)
   roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
-  assert roi == (126, 82, 220, 256) if cropped else roi == (120, 76, 220, 268)
+  assert roi == (126, 91, 220, 265) if cropped else roi == (120, 88, 220, 280)
   # Shift to top
   det = (100, 20, 180, 140)
   roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
-  assert roi == (86, 2, 194, 176) if cropped else roi == (80, 0, 200, 188)
+  assert roi == (86, 11, 194, 185) if cropped else roi == (80, 8, 200, 200)
   # Shift to bottom
   det = (100, 140, 180, 260)
   roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
-  assert roi == (86, 122, 194, 296) if cropped else roi == (80, 116, 200, 300)
+  assert roi == (86, 131, 194, 300) if cropped else roi == (80, 128, 200, 300)
 
 def test_get_meta_roi_from_det():
   # No violations
