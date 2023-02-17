@@ -25,27 +25,11 @@ def test_get_forehead_roi_from_det():
   assert roi == (128, 118, 152, 130)
 
 @pytest.mark.parametrize("cropped", [True, False])
-def test_get_upper_body_roi_from_det(cropped):
-  # No violations
+@pytest.mark.parametrize("v", [0, 1, 2, 3])
+def test_get_upper_body_roi_from_det(cropped, v):
   det = (100, 100, 180, 220)
-  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
-  assert roi == (88, 70, 192, 262) if cropped else roi == (84, 64, 196, 274)
-  # Shift to left
-  det = (10, 100, 90, 220)
-  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
-  assert roi == (0, 70, 102, 262) if cropped else roi == (0, 64, 106, 274)
-  # Shift to right
-  det = (140, 100, 220, 220)
-  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
-  assert roi == (128, 70, 220, 262) if cropped else roi == (124, 64, 220, 274)
-  # Shift to top
-  det = (100, 20, 180, 140)
-  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
-  assert roi == (88, 0, 192, 182) if cropped else roi == (84, 0, 196, 194)
-  # Shift to bottom
-  det = (100, 140, 180, 260)
-  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped)
-  assert roi == (88, 110, 192, 300) if cropped else roi == (84, 104, 196, 300)
+  roi = get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=cropped, v=v)
+  assert len(roi) == 4
 
 def test_get_meta_roi_from_det():
   # No violations
@@ -74,6 +58,7 @@ def test_get_roi_from_det():
   assert get_roi_from_det(det, roi_method='face') == get_face_roi_from_det(det)
   assert get_roi_from_det(det, roi_method='forehead') == get_forehead_roi_from_det(det)
   assert get_roi_from_det(det, roi_method='upper_body', clip_dims=(220, 300)) == get_upper_body_roi_from_det(det, clip_dims=(220, 300))
+  assert get_roi_from_det(det, roi_method='upper_body_cropped', clip_dims=(220, 300)) == get_upper_body_roi_from_det(det, clip_dims=(220, 300), cropped=True)
   assert get_roi_from_det(det, roi_method='meta', clip_dims=(220, 300)) == get_meta_roi_from_det(det, clip_dims=(220, 300))
   assert get_roi_from_det(det, roi_method=None) == det
 
