@@ -56,7 +56,7 @@ def get_forehead_roi_from_det(det):
   """
   return _get_roi_from_det(det=det, rel_change=(-0.35, -0.15, -0.35, -0.75))
 
-def get_upper_body_roi_from_det(det, clip_dims, cropped=False, v=0):
+def get_upper_body_roi_from_det(det, clip_dims, cropped=False, v=1):
   """Convert face detection into upper body roi and clip to frame constraints.
   Args:
     det: The face detection [0, H/W]. Tuple (x0, y0, x1, y1)
