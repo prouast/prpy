@@ -21,6 +21,20 @@ def normalize(x, axis=-1):
   mean = tf.math.reduce_mean(x, axis=axis, keepdims=True)
   return x - mean
 
+def scale(x, axis=-1):
+  """Perform scaling
+  Args:
+    x: The input data
+    axis: Axis over which to scale
+  Returns:
+    x: The scaled data
+  """
+  # Convert to tf.Tensor if necessary
+  if not tf.is_tensor(x):
+    x = tf.convert_to_tensor(x)
+  std = tf.math.reduce_std(x, axis=axis, keepdims=True)
+  return tf.math.divide_no_nan(x, std)
+
 def standardize(x, axis=-1):
   """Perform standardization
   Args:
@@ -34,7 +48,7 @@ def standardize(x, axis=-1):
     x = tf.convert_to_tensor(x)
   mean = tf.math.reduce_mean(x, axis=axis, keepdims=True)
   std = tf.math.reduce_std(x, axis=axis, keepdims=True)
-  return (x - mean) / std
+  return tf.math.divide_no_nan(x - mean, std)
 
 def diff(x, axis=0):
   """Compute first signal difference.

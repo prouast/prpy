@@ -25,7 +25,7 @@ def tf_function_wrapper(func):
 
 ## Signal
 
-from propy.tensorflow.signal import normalize, standardize, diff
+from propy.tensorflow.signal import normalize, scale, standardize, diff
 
 @pytest.mark.parametrize("tf_function", [False, True])
 def test_normalize(tf_function):
@@ -42,6 +42,24 @@ def test_normalize(tf_function):
   tf.debugging.assert_near(
     normalize_f(x=tf.convert_to_tensor([[0., 1., -3., 2., -1.], [0., 5., -3., 2., 1.]]), axis=(0,1)),
     tf.convert_to_tensor([[-.4, .6, -3.4, 1.6, -1.4], [-.4, 4.6, -3.4, 1.6, .6]]))
+
+@pytest.mark.parametrize("tf_function", [False, True])
+def test_scale(tf_function):
+  scale_f = tf_function_wrapper(scale) if tf_function else scale
+  # Check with axis=-1
+  tf.debugging.assert_near(
+    x=scale_f(x=tf.convert_to_tensor([[0., 1., -3., 2., -1.], [0., 5., -3., 2., 1.]]), axis=-1),
+    y=tf.convert_to_tensor([[0., 0.5812382, -1.7437146, 1.1624764, -0.5812382],
+                            [0., 1.9174124, -1.1504475, 0.766965, 0.3834825]]))
+  # Check with axis=0
+  tf.debugging.assert_near(
+    scale_f(x=tf.convert_to_tensor([[0., 1., -3., 2., -1.], [0., 5., -3., 2., 1.]]), axis=0),
+    tf.convert_to_tensor([[0., 0.5, 0., 0., -1.], [0., 2.5, 0., 0., 1.]]))
+  # Check with axis=(0,1)
+  tf.debugging.assert_near(
+    scale_f(x=tf.convert_to_tensor([[0., 1., -3., 2., -1.], [0., 5., -3., 2., 1.]]), axis=(0,1)),
+    tf.convert_to_tensor([[0., 0.436852, -1.310556, 0.873704, -0.436852],
+                          [0., 2.1842601, -1.310556, 0.873704, 0.436852]]))
 
 @pytest.mark.parametrize("tf_function", [False, True])
 def test_standardize(tf_function):
