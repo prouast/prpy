@@ -269,6 +269,8 @@ def estimate_freq_peak(x, f_s, f_range=None, max_periodicity_deviation=0.5, axis
 
 def estimate_freq_periodogram(x, f_s, f_range=None, f_res=None, axis=-1):
   """Use a periodigram to estimate maximum frequencies at f_res.
+     When signal is sampled at a lower frequency than f_res, this is essentially done by interpolating
+     in the frequency domain.
   Args:
     x: The signal data. Shape: (n_data,) or (n_sig, n_data)
     f_s: The sampling frequency [Hz]
@@ -285,6 +287,7 @@ def estimate_freq_periodogram(x, f_s, f_range=None, f_res=None, axis=-1):
   if len(x.shape) == 1:
     x = np.expand_dims(x, axis=0)
   # Determine the length of the fft if f_res specified
+  # Large nfft > x.length leads to zero padding of x before fft (like interpolating frequency domain)
   nfft = None if f_res is None else int(f_s // f_res)
   # Compute
   f, pxx = signal.periodogram(x, fs=f_s, nfft=nfft, detrend=False, axis=axis)
