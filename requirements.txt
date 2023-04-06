@@ -5,4 +5,4 @@ Pillow
 scikit-learn
 scipy
 tensorflow
-torch
+torch==1.13.1
