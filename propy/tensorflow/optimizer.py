@@ -11,9 +11,12 @@ import tensorflow as tf
 if version.parse(tf.__version__) <= version.parse("2.6.5"):
   from tensorflow.keras.optimizers import Adam # Legacy / V2 optimizer
   from tensorflow.keras.mixed_precision import LossScaleOptimizer
-else:
+elif version.parse(tf.__version__) >= version.parse("2.9"):
   from keras.optimizers.optimizer_experimental.adam import Adam # Experimental / V3 optimizer
+  from keras.optimizers.optimizer_experimental.adamw import AdamW # Experimental / V3 optimizer
   from keras.mixed_precision.loss_scale_optimizer import LossScaleOptimizerV3 as LossScaleOptimizer
+else:
+  raise ImportError("This version of TensorFlow is not compatible.")
 
 class EpochAdamMetaclass(type):
   """Metaclass that delegates EpochAdam instance creation."""
@@ -23,11 +26,82 @@ class EpochAdamMetaclass(type):
     else:
       return EpochAdamExperimental(**kwargs)
 
+class EpochAdamWMetaclass(type):
+  """Metaclass that delegates EpochAdamW instance creation."""
+  def __call__(cls, **kwargs):
+    if version.parse(tf.__version__) > version.parse("2.9"):
+      return EpochAdamWExperimental(**kwargs)
+    else:
+      raise ImportError("This version of TensorFlow is not compatible.")
+
 class EpochAdam(metaclass=EpochAdamMetaclass):
+  pass
+
+class EpochAdamW(metaclass=EpochAdamWMetaclass):
   pass
 
 class EpochAdamExperimental(Adam):
   """Experimental Adam optimizer that retrieves learning rate based on epochs"""
+  def __init__(self, **kwargs):
+    # Create epochs counter variable
+    with tf.init_scope():
+      # Lift the variable creation to init scope to avoid environment issue.
+      self._epochs = tf.Variable(
+        0, name="epochs", dtype=tf.int64, trainable=False)
+    super().__init__(**kwargs)
+    self._variables.append(self._epochs)
+  @property
+  def epochs(self):
+    return self._epochs
+  @epochs.setter
+  def epochs(self, variable):
+    if getattr(self, "_built", False):
+      raise RuntimeError(
+          "Cannot set `epochs` to a new Variable after "
+          "the Optimizer weights have been created. Here it is "
+          f"attempting to set `iterations` to {variable}."
+          "Usually this means you are trying to set `iterations`"
+          " after calling `apply_gradients()`. Please set "
+          "`iterations` before calling `apply_gradients()`.")
+    self._epochs = variable 
+  def _build_learning_rate(self, learning_rate):
+    with tf.init_scope():
+      if isinstance(learning_rate, tf.keras.optimizers.schedules.LearningRateSchedule):
+        # Create a variable to hold the current learning rate.
+        current_learning_rate = tf.convert_to_tensor(
+            learning_rate(self.epochs))
+        self._current_learning_rate = tf.Variable(
+            current_learning_rate,
+            name="current_learning_rate",
+            dtype=current_learning_rate.dtype,
+            trainable=False)
+        return learning_rate
+      return tf.Variable(
+        learning_rate,
+        name="learning_rate",
+        dtype=tf.float32,
+        trainable=False)
+  def _compute_current_learning_rate(self):
+    if isinstance(self._learning_rate, tf.keras.optimizers.schedules.LearningRateSchedule):
+      # Compute the current learning rate at the beginning of variable update.
+      if hasattr(self, "_current_learning_rate"):
+        self._current_learning_rate.assign(
+            self._learning_rate(self.epochs))
+      else:
+        current_learning_rate = tf.convert_to_tensor(
+          self._learning_rate(self.epochs))
+        self._current_learning_rate = tf.Variable(
+          current_learning_rate,
+          name="current_learning_rate",
+          dtype=current_learning_rate.dtype,
+          trainable=False)
+  def finish_epoch(self):
+    """Increment epoch count and re-compute lr"""
+    self._epochs.assign_add(1)
+    self._compute_current_learning_rate()
+
+class EpochAdamWExperimental(AdamW):
+  """Experimental AdamW optimizer that retrieves learning rate based on epochs"""
   def __init__(self, **kwargs):
     # Create epochs counter variable
     with tf.init_scope():

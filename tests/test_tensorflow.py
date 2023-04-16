@@ -363,7 +363,7 @@ def test_balanced_sample_weights(tf_function):
 
 ## Optimizer
 
-from propy.tensorflow.optimizer import EpochAdam, EpochLossScaleOptimizer
+from propy.tensorflow.optimizer import EpochAdam, EpochAdamW, EpochLossScaleOptimizer
 
 def test_epoch_adam():
   lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
@@ -386,7 +386,20 @@ def test_epoch_adam():
     assert optimizer._decayed_lr(var_dtype=tf.float32) == 0.001
   else:
     assert optimizer._current_learning_rate == 0.001
-  
+
+def test_epoch_adam_w():
+  lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
+    boundaries=[0, 1], values=[0.1, 0.01, 0.001])
+  optimizer = EpochAdamW(learning_rate=lr_schedule)
+  assert optimizer.epochs == 0
+  assert optimizer._current_learning_rate == 0.1
+  optimizer.finish_epoch()
+  assert optimizer.epochs == 1
+  assert optimizer._current_learning_rate == 0.01
+  optimizer.finish_epoch()
+  assert optimizer.epochs == 2
+  assert optimizer._current_learning_rate == 0.001
+
 def test_epoch_loss_scale_optimizer():
   lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
     boundaries=[0, 1], values=[0.1, 0.01, 0.001])
