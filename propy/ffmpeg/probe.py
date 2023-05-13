@@ -41,7 +41,10 @@ def probe_video(path):
     width = video_stream["width"]
     height = video_stream["height"]
     codec = video_stream["codec_name"]
-    bitrate = float(video_stream["bit_rate"])/1000.0
+    try:
+      bitrate = float(video_stream["bit_rate"])/1000.0
+    except Exception as e:
+      bitrate = 0.0  
     return fps, total_frames, width, height, codec, bitrate
 
 def _probe_video_frames(path):
