@@ -7,6 +7,7 @@
 
 import ffmpeg
 import itertools
+import logging
 
 def find_factors_near(i, f1, f2, f3, s1, s2, s3):
   ts = [(t1, t2, t3) for t1, t2, t3 in list(itertools.product( \
@@ -14,6 +15,7 @@ def find_factors_near(i, f1, f2, f3, s1, s2, s3):
   for t1, t2, t3 in ts:
     if t1 * t2 * t3 == i:
       return t1, t2, t3
+  logging.error("Total={}; Failed to find factors near f1={} f2={} f3={}".format(i, f1, f2, f3))
   raise RuntimeError("Could not find factors near the provided values")
 
 def create_test_video_stream(t):
