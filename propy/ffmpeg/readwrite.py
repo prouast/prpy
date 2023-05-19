@@ -107,7 +107,7 @@ def _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, sc
   # Parse result
   frames = np.frombuffer(out, np.uint8)
   adj_n, adh_h, adh_w = find_factors_near(
-    frames.shape[0]/3, target_n, target_h, target_w, 10, 9, 9)
+    frames.shape[0]/3, target_n, target_h, target_w, max_delta=10)
   assert adj_n * adh_h * adh_w * 3 == frames.shape[0]
   frames = frames.reshape([adj_n, adh_h, adh_w, 3])
   # Return
