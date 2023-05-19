@@ -20,7 +20,7 @@ def find_factors_near(i, f1, f2, f3, max_delta_1, max_delta_2, max_delta_3):
     for t1, t2, t3 in ts:
       if t1 * t2 * t3 == i:
         return t1, t2, t3
-  logging.error("Total={}; Failed to find factors near f1={} f2={} f3={} with max_delta={}".format(i, f1, f2, f3, max_delta))
+  logging.error("Total={}; Failed to find factors near f1={} f2={} f3={}".format(i, f1, f2, f3))
   raise RuntimeError("Could not find factors near the provided values")
 
 def create_test_video_stream(t):
