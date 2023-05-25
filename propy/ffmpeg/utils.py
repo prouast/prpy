@@ -11,7 +11,7 @@ import logging
 
 def find_factors_near(i, f1, f2, f3, max_delta_1, max_delta_2, max_delta_3):
   # Iterative deepening
-  for delta in range(max(max_delta_1+1, max_delta_2+1, max_delta_3+1)):
+  for delta in range(max(max_delta_1, max_delta_2, max_delta_3)+1):
     delta_1 = min(delta, max_delta_1)
     delta_2 = min(delta, max_delta_2)
     delta_3 = min(delta, max_delta_3)
