@@ -36,7 +36,8 @@ def test_probe_video(sample_video_file):
 def test_read_video_from_path(sample_video_file, target_fps, crop, scale, trim, preserve_aspect_ratio):
   frames, ds_factor = read_video_from_path(
       path=sample_video_file, target_fps=target_fps, crop=crop, scale=scale,
-      trim=trim, preserve_aspect_ratio=preserve_aspect_ratio)
+      trim=trim, preserve_aspect_ratio=preserve_aspect_ratio,
+      dim_deltas=(1, 1, 1))
   cor_ds_factor = SAMPLE_FPS // target_fps
   cor_frames = SAMPLE_FRAMES if trim is None else SAMPLE_FRAMES - (trim[1] - trim[0])
   cor_frames = math.ceil(cor_frames / cor_ds_factor)

@@ -86,7 +86,7 @@ def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=No
   # Return
   return stream, target_n, target_w, target_h, ds_factor
 
-def _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, scale=None, crf=None, pix_fmt='bgr24', preserve_aspect_ratio=False):
+def _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, scale=None, crf=None, pix_fmt='bgr24', preserve_aspect_ratio=False, dim_deltas=(0, 0, 0)):
   """Run the stream and capture the raw video output in a numpy array"""
   if crf is None:
     # Run stream straight to raw video
@@ -107,7 +107,7 @@ def _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, sc
   # Parse result
   frames = np.frombuffer(out, np.uint8)
   adj_n, adh_h, adh_w = find_factors_near(
-    frames.shape[0]/3, target_n, target_h, target_w, 50, 1, 1)
+    frames.shape[0]/3, target_n, target_h, target_w, dim_deltas[0], dim_deltas[1], dim_deltas[2])
   assert adj_n * adh_h * adh_w * 3 == frames.shape[0]
   frames = frames.reshape([adj_n, adh_h, adh_w, 3])
   # Return
@@ -156,7 +156,7 @@ def _ffmpeg_output_to_jpegs(stream, output_dir, output_file_start, target_fps, t
     # TODO specify jpeg quality?
     Image.fromarray(frame).save(frame_path)
 
-def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None, crf=None, pix_fmt='bgr24', preserve_aspect_ratio=False, order='scale_crf'):
+def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None, crf=None, pix_fmt='bgr24', preserve_aspect_ratio=False, order='scale_crf', dim_deltas=(0, 0, 0)):
   """Read a video from path into a numpy array, optionally transformed by
     downsampling, spatial cropping, spatial scaling (applied to result of
     cropping if specified), temporal trimming, and intermediate encoding.
@@ -173,6 +173,7 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
     pix_fmt: Pixel format
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
     order: scale_crf or crf_scale - specifies order of application
+    dim_deltas: Allowed deviation from target (n_franes, height, width)
   Returns:
     frames: The frames [N, H, W, 3]
     ds_factor: The applied downsampling factor
@@ -189,8 +190,8 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
   # Output
   scale_1 = (0, 0) if order == 'scale_crf' or crf == None else scale
   frames = _ffmpeg_output_to_numpy(
-    stream=stream, target_fps=target_fps, target_n=target_n,
-    target_w=target_w, target_h=target_h, scale=scale_1, crf=crf, pix_fmt=pix_fmt)
+    stream=stream, target_fps=target_fps, target_n=target_n, target_w=target_w,
+    target_h=target_h, scale=scale_1, crf=crf, pix_fmt=pix_fmt, dim_deltas=dim_deltas)
   # Return
   return frames, ds_factor
 
