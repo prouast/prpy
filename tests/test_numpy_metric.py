@@ -42,10 +42,9 @@ def test_cor(shape):
   if len(shape) == 1:
     np.testing.assert_allclose(out, np.corrcoef(y_true, y_pred)[0,1])
 
-@pytest.mark.parametrize("shape", [(6,), (2, 6)])
+@pytest.mark.parametrize("shape", [(6,), (10, 6)])
 def test_snr(shape):
   f_true = np.random.uniform(size=shape[:-1])
   y_pred = np.random.uniform(size=shape)
   out = snr(f_true, y_pred, f_s=5., f_res=.1)
   assert out.shape == shape[:-1]
-

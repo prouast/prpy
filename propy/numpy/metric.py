@@ -113,9 +113,10 @@ def snr(f_true, y_pred, f_s, f_res, tol=0.1, f_min=0.5, f_max=4):
       f_true = f_true[...,np.newaxis]
     gt_mask_1 = (f >= f_true - tol) & (f <= f_true + tol)
     gt_mask_2 = (f >= f_true * 2 - tol) & (f <= f_true * 2 + tol)
-    s_power = np.sum(np.take(pxx, np.where(gt_mask_1 | gt_mask_2)), axis=-1)
+    gt_mask = gt_mask_1 | gt_mask_2
+    s_power = np.sum(pxx * gt_mask, axis=-1)
     f_mask = (f >= f_min) & (f <= f_max)
-    all_power = np.sum(np.take(pxx, np.where(f_mask)), axis=-1)
+    all_power = np.sum(pxx * f_mask, axis=-1)
     snr = mag2db(s_power / (all_power - s_power))
     return np.squeeze(snr)
   else:
