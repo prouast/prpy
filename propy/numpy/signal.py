@@ -7,7 +7,7 @@
 
 import math
 import numpy as np
-from scipy import signal, interpolate, fft
+from scipy import signal, interpolate, fft, stats
 from scipy.sparse import spdiags
 import scipy.ndimage.filters as ndif
 import logging
@@ -378,6 +378,38 @@ def interpolate_linear_sequence_outliers(t, max_diff_rel=1.0, max_diff_abs=None)
   # Assert strictly increasing
   assert np.logical_and.reduce(np.diff(t) > 0)
   return t
+
+def interpolate_data_outliers(vals, z_score=3):
+  """Recursively interpolate outliers in sensor data (e.g., ecg signal).
+     I.e., Goal is to remove outliers in sensor data which may be caused by electrical interference etc.
+  Args:
+    vals: The signal data to fix. 1-dim.
+    z_score: Significance score required for a data point to be interpolated
+  Returns:
+    vals: The interpolated signal data. 1-dim.
+  """
+  def interpolation_step(vals, z_score):
+    vals_z_score = stats.zscore(vals)
+    if np.isnan(vals_z_score).all():
+      return vals
+    not_outlier = np.abs(vals_z_score) <= z_score
+    indices = np.arange(len(vals))
+    interp = interpolate.interp1d(indices[not_outlier], vals[not_outlier],
+      kind='linear', fill_value='extrapolate')
+    new_vals = interp(indices)
+    new_outlier = np.abs(stats.zscore(new_vals)) > z_score
+    if len(np.where(new_outlier)[0]) > 0:
+      if new_outlier[0]:
+        # Set first to mean if it is an outlier to avoid infinite recursion
+        new_vals[0] = np.mean(new_vals[~new_outlier])
+      if new_outlier[-1]:
+        # Set last to mean if it is an outlier to avoid infinite recursion
+        new_vals[-1] = np.mean(new_vals[~new_outlier])
+      return interpolation_step(new_vals, z_score)
+    else:
+      return new_vals
+  # Recursive interpolation of data outliers
+  return interpolation_step(vals, z_score)
 
 def component_periodicity(x):
   """Compute the periodicity of the maximum frequency components

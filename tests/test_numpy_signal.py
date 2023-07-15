@@ -10,7 +10,7 @@ sys.path.append('../propy')
 
 from propy.numpy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend
 from propy.numpy.signal import estimate_freq_fft, estimate_freq_peak, estimate_freq_periodogram
-from propy.numpy.signal import interpolate_vals, interpolate_cubic_spline, interpolate_linear_sequence_outliers
+from propy.numpy.signal import interpolate_vals, interpolate_cubic_spline, interpolate_linear_sequence_outliers, interpolate_data_outliers
 from propy.numpy.signal import component_periodicity, select_most_periodic
 
 import numpy as np
@@ -207,6 +207,31 @@ def test_interpolate_linear_sequence_outliers():
     interpolate_linear_sequence_outliers(
       np.array([1, 4, 6, 10, 50, 16, 20, 24, 27, 30, 32, 35, -300, 40, 43, 46, 50, 50, 53, 56, 58, 61])),
     np.array([1, 4, 6, 10, 13, 16, 20, 24, 27, 30, 32, 35, 37.5, 40, 43, 46, 50, 51.5, 53, 56, 58, 61]))
+
+def test_interpolate_data_outliers():
+  # Check an easy case
+  np.testing.assert_allclose(
+    interpolate_data_outliers(
+      np.array([0.9, 1.6, 1.1, 1.3, 1.6, 1000.0, 0.8, 1.0, 1.3, 0.9, 0.8, 1.2]), z_score=3.),
+    np.array([0.9, 1.6, 1.1, 1.3, 1.6, 1.2, 0.8, 1.0, 1.3, 0.9, 0.8, 1.2]))
+  # Two outliers, next to each other in middle
+  np.testing.assert_allclose(
+    interpolate_data_outliers(
+      np.array([0.9, 1.6, 1.1, 1.3, 1.6, 1.2, 1000., 1000., 1.3, 0.9, 0.8, 1.2]), z_score=2.),
+    np.array([0.9, 1.6, 1.1, 1.3, 1.6, 1.2, 1.23333, 1.266667, 1.3, 0.9, 0.8, 1.2]),
+    atol=1e-4, rtol=1e-4)
+  # Two outliers, one at edge
+  np.testing.assert_allclose(
+    interpolate_data_outliers(
+      np.array([1000., 1.6, 1.1, 1.3, 1.6, 1000.0, 0.8, 1.0, 1.3, 0.9, 0.8, 1.2]), z_score=2.),
+    np.array([1.163636, 1.6, 1.1, 1.3, 1.6, 1.2, 0.8, 1.0, 1.3, 0.9, 0.8, 1.2]),
+    atol=1e-4, rtol=1e-4)
+  # Two outliers, both at edge
+  np.testing.assert_allclose(
+    interpolate_data_outliers(
+      np.array([0.9, 1.6, 1.1, 1.3, 1.6, 1.2, 0.8, 1.0, 1.3, 0.9, 1000., 1000.]), z_score=2.),
+    np.array([0.9, 1.6, 1.1, 1.3, 1.6, 1.2, 0.8, 1.0, 1.3, 0.9, 0.5, 1.109091]),
+    atol=1e-4, rtol=1e-4)
 
 def test_interpolate_cubic_spline():
   # Check a default use case
