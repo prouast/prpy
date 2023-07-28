@@ -10,10 +10,14 @@ from fractions import Fraction
 import json
 import logging
 import subprocess
+import os
 
 from propy.constants import FFPROBE_OK, FFPROBE_INFO, FFPROBE_CORR
 
 def probe_video(path):
+  # Check if file exists
+  if not os.path.exists(path):
+    raise FileNotFoundError("File {} does not exist".format(path))
   # ffprobe -show_streams -count_frames -pretty video.mp4
   try:
     probe = ffmpeg.probe(filename=path)
