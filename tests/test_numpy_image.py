@@ -16,10 +16,12 @@ import tensorflow as tf
 @pytest.mark.parametrize("roi", [(2, 2, 7, 7), None])
 @pytest.mark.parametrize("target_idxs", [None, [0, 2]])
 @pytest.mark.parametrize("preserve_aspect_ratio", [True, False])
-@pytest.mark.parametrize("method", ["cv2", "tf", "PIL"])
+@pytest.mark.parametrize("library", ["cv2", "tf", "PIL"])
+@pytest.mark.parametrize("scale_algorithm", ["bicubic", "area", "lanczos", "bilinear"])
 @pytest.mark.parametrize("keepdims", [True, False])
-def test_crop_slice_resize(target_size, n_frames, roi, target_idxs, preserve_aspect_ratio, method, keepdims):
-  if n_frames is None and target_idxs is not None:
+def test_crop_slice_resize(target_size, n_frames, roi, target_idxs, preserve_aspect_ratio, library, scale_algorithm, keepdims):
+  if (n_frames is None and target_idxs is not None) or \
+     (library == "PIL" and scale_algorithm == "area"):
     pytest.skip("Skip because parameter combination does not work")
   if n_frames is None:
     images_in = np.random.uniform(size=(8, 12, 3), low=0, high=255)
@@ -28,7 +30,8 @@ def test_crop_slice_resize(target_size, n_frames, roi, target_idxs, preserve_asp
   images_in = images_in.astype(np.uint8)
   images_out = crop_slice_resize(
     inputs=images_in, target_size=target_size, roi=roi, target_idxs=target_idxs,
-    method=method, preserve_aspect_ratio=preserve_aspect_ratio, keepdims=keepdims)
+    library=library, preserve_aspect_ratio=preserve_aspect_ratio,
+    keepdims=keepdims, scale_algorithm=scale_algorithm)
   expected_frames = len(target_idxs) if target_idxs is not None else n_frames
   if expected_frames == 1 or expected_frames is None:
     expected_frames = 1 if keepdims else None
@@ -46,7 +49,7 @@ def test_crop_slice_resize(target_size, n_frames, roi, target_idxs, preserve_asp
       expected_shape = (target_size[0], target_size[1], 3)
   expected_shape = (expected_frames,) + expected_shape if expected_frames is not None else expected_shape
   assert images_out.shape == expected_shape
-  if method == 'tf':
+  if library == 'tf':
     assert tf.is_tensor(images_out)
   else:
     assert isinstance(images_out, np.ndarray)
@@ -56,5 +59,5 @@ def test_crop_slice_resize_retinaface():
   images_in = images_in.astype(np.uint8)
   images_out = crop_slice_resize(
     inputs=images_in, target_size=224, roi=(0, 0, 480, 640), target_idxs=None,
-    method='tf', preserve_aspect_ratio=True, keepdims=True)
+    library='tf', preserve_aspect_ratio=True, keepdims=True, scale_algorithm='bicubic')
   assert images_out.shape == (1, 224, 224, 3)

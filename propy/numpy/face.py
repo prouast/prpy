@@ -135,7 +135,7 @@ def get_roi_from_det(det, roi_method, clip_dims=None):
   else:
     raise ValueError("roi method {} is not supported".format(roi_method))
 
-def crop_resize_from_det(video, det, size, roi_method, method):
+def crop_resize_from_det(video, det, size, roi_method, library, scale_algorithm):
   """Crop and resize a video. Crop for face roi based on a single detection.
   Resize to specified size with specified method.
   Args:
@@ -143,7 +143,8 @@ def crop_resize_from_det(video, det, size, roi_method, method):
     det: The face detection. Shape [4]
     size: The target size for resize - tuple (h, w)
     roi_method: Which roi method to use. Use 'forehead', 'face', 'upper_body', 'meta', None (directly use det)
-    method: The resize method (tf, PIL, or cv2)
+    library: The resize library (tf, PIL, or cv2)
+    scale_algorithm: The algorithm used for scaling
   Returns:
     result: Cropped and resized video. Shape [n_frames, size[0], size[1], c]
   """
@@ -151,4 +152,5 @@ def crop_resize_from_det(video, det, size, roi_method, method):
   roi = get_roi_from_det(det, roi_method=roi_method, clip_dims=(width, height))
   roi = np.asarray(roi, dtype=np.int64)
   return crop_slice_resize(
-    inputs=video, target_size=size, roi=roi, method=method, preserve_aspect_ratio=False)
+    inputs=video, target_size=size, roi=roi, library=library,
+    preserve_aspect_ratio=False, scale_algorithm=scale_algorithm)

@@ -63,12 +63,12 @@ def test_get_roi_from_det():
   assert get_roi_from_det(det, roi_method=None) == det
 
 @pytest.mark.parametrize("roi_method", ['face', 'forehead', 'upper_body', 'upper_body_cropped', 'meta', None])
-@pytest.mark.parametrize("method", ['PIL', 'cv2', 'tf'])
-def test_crop_resize_from_det(roi_method, method):
+@pytest.mark.parametrize("library", ['PIL', 'cv2', 'tf'])
+def test_crop_resize_from_det(roi_method, library):
   # Uses propy, only check shapes
   inputs = np.zeros((3, 300, 220, 3))
   inputs = inputs.astype(np.uint8)
   det = (100, 100, 180, 220)
   # face
-  out = crop_resize_from_det(inputs, det=det, size=(36, 36), roi_method=roi_method, method=method)
+  out = crop_resize_from_det(inputs, det=det, size=(36, 36), roi_method=roi_method, library=library, scale_algorithm='bicubic')
   assert out.shape == (3, 36, 36, 3)

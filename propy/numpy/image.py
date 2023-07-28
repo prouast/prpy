@@ -7,8 +7,7 @@
 
 import numpy as np
 
-# TODO extend to support cropping roi ndarray with len(roi) == len(inputs)
-def crop_slice_resize(inputs, target_size, roi=None, target_idxs=None, preserve_aspect_ratio=False, keepdims=True, method='cv2'):
+def crop_slice_resize(inputs, target_size, roi=None, target_idxs=None, preserve_aspect_ratio=False, keepdims=True, library='cv2', scale_algorithm='bicubic'):
   """Crop, slice, and resize images with all same settings.
   Args:
     inputs: The inputs as uint8 shape [H, W, 3] or [n_frames, H, W, 3]
@@ -16,7 +15,9 @@ def crop_slice_resize(inputs, target_size, roi=None, target_idxs=None, preserve_
     roi: The region of interest, shape [x0, y0, x1, y1]. Use None to keep all.
     target_idxs: The frame indices to be used (list). Use None to keep all.
     preserve_aspect_ratio: Preserve the aspect ratio?
-    method: The method to use -> `cv2` or `PIL` (return np ndarray) or `tf` (returns tf Tensor) 
+    library: The library to use -> `cv2` or `PIL` (return np ndarray) or `tf` (returns tf Tensor)
+    scale_algorithm: The algorithm used for scaling.
+      Supports: bicubic, bilinear, area (not for PIL!), lanczos. Default: bicubic
     keepdims: If True, always keep n_frames dim. Otherwise, may drop n_frames dim.
   Returns:
     result: The resized frames as float32 shape [H, W, 3] or [n_frames, H, W, 3]
@@ -55,32 +56,51 @@ def crop_slice_resize(inputs, target_size, roi=None, target_idxs=None, preserve_
     out = inputs.astype(np.float32)
   else:
     # Resize to out_size
-    if method == 'tf':
+    if library == 'tf':
       import tensorflow as tf
+      # https://www.tensorflow.org/api_docs/python/tf/image/ResizeMethod
+      mapping = {"bicubic": "bicubic", "bilinear": "bilinear", "lanczos": "lanczos3", "area": "area"}
+      try:
+        library_algorithm = mapping[scale_algorithm]
+      except KeyError:
+        raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
       out = tf.image.resize(
         images=inputs, size=(target_height, target_width),
-        preserve_aspect_ratio=preserve_aspect_ratio, method='bilinear', antialias=False)
-    elif method == 'PIL':
+        preserve_aspect_ratio=preserve_aspect_ratio,
+        method=library_algorithm, antialias=False)
+    elif library == 'PIL':
       from PIL import Image
+      # https://pillow.readthedocs.io/en/stable/releasenotes/2.7.0.html#image-resizing-filters
+      mapping = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR, "lanczos": Image.LANCZOS}
+      try:
+        library_algorithm = mapping[scale_algorithm]
+      except KeyError:
+        raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
       # PIL requires (width, height)
       out_size = (out_size[1], out_size[0])
       out = np.asarray([
-        np.asarray(Image.fromarray(f).resize(out_size, resample=Image.BICUBIC)) for f in inputs])
-    elif method == 'cv2':
+        np.asarray(Image.fromarray(f).resize(out_size, resample=library_algorithm)) for f in inputs])
+    elif library == 'cv2':
       import cv2
+      # https://docs.opencv.org/3.4/da/d54/group__imgproc__transform.html
+      mapping = {"bicubic": cv2.INTER_CUBIC, "bilinear": cv2.INTER_LINEAR, "lanczos": cv2.INTER_LANCZOS4, "area": cv2.INTER_AREA}
+      try:
+        library_algorithm = mapping[scale_algorithm]
+      except KeyError:
+        raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
       # cv2 requires (width, height)
       out_size = (out_size[1], out_size[0])
       out = np.asarray([
-        cv2.resize(src=f, dsize=out_size, interpolation=cv2.INTER_AREA) for f in inputs])
+        cv2.resize(src=f, dsize=out_size, interpolation=library_algorithm) for f in inputs])
     else:
-      raise ValueError("Method {} not supported".format(method))
+      raise ValueError("Library {} not supported".format(library))
   if keepdims and len(out.shape) == 3:
     # Add temporal dim if necessary - might have been lost when slicing
-    newaxis = tf.newaxis if method == 'tf' else np.newaxis
+    newaxis = tf.newaxis if library == 'tf' else np.newaxis
     out = out[newaxis,:,:,:]
   elif not keepdims and len(out.shape) == 4:
     # Remove temporal dim if necessary
-    squeeze = tf.squeeze if method == 'tf' else np.squeeze
+    squeeze = tf.squeeze if library == 'tf' else np.squeeze
     if out.shape[0] == 1:
       out = squeeze(out, axis=0)
   return out

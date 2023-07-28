@@ -33,11 +33,12 @@ def test_probe_video(sample_video_file):
 @pytest.mark.parametrize("scale", [None, (40, 40)])
 @pytest.mark.parametrize("preserve_aspect_ratio", [False, True])
 @pytest.mark.parametrize("trim", [None, (124, 249)])
-def test_read_video_from_path(sample_video_file, target_fps, crop, scale, trim, preserve_aspect_ratio):
+@pytest.mark.parametrize("scale_algorithm", ["bicubic", "bilinear", "area", "lanczos"])
+def test_read_video_from_path(sample_video_file, target_fps, crop, scale, trim, preserve_aspect_ratio, scale_algorithm):
   frames, ds_factor = read_video_from_path(
       path=sample_video_file, target_fps=target_fps, crop=crop, scale=scale,
       trim=trim, preserve_aspect_ratio=preserve_aspect_ratio,
-      dim_deltas=(1, 1, 1))
+      dim_deltas=(1, 1, 1), scale_algorithm=scale_algorithm)
   cor_ds_factor = SAMPLE_FPS // target_fps
   cor_frames = SAMPLE_FRAMES if trim is None else SAMPLE_FRAMES - (trim[1] - trim[0])
   cor_frames = math.ceil(cor_frames / cor_ds_factor)

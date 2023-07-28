@@ -46,7 +46,8 @@ def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=No
     trim: Tuple with frame numbers for temporal trimming (start, end).
       Ignore if None.
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
-    scale_algorithm: The algorithm used for scaling. Default: bicubic
+    scale_algorithm: The algorithm used for scaling.
+      Supported: bicubic, bilinear, area, lanczos. Default: bicubic
   Returns:
     stream: The modified ffmpeg stream
     target_n: The target number of frames
@@ -174,7 +175,8 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
       If specified, do intermediate encoding, otherwise ignore.
     pix_fmt: Pixel format
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
-    scale_algorithm: The algorithm used for scaling. Default: bicubic
+    scale_algorithm: The algorithm used for scaling.
+      Supported: bicubic, bilinear, area, lanczos. Default: bicubic
     order: scale_crf or crf_scale - specifies order of application
     dim_deltas: Allowed deviation from target (n_franes, height, width)
   Returns:
