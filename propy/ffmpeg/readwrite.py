@@ -183,6 +183,9 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
     frames: The frames [N, H, W, 3]
     ds_factor: The applied downsampling factor
   """
+  # Check if file exists
+  if not os.path.exists(path):
+    raise FileNotFoundError("File {} does not exist".format(path))
   # Get metadata of original video
   fps, n, w, h, _, _ = probe_video(path=path)
   # Input
