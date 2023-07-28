@@ -33,7 +33,7 @@ def _ffmpeg_input_from_numpy(w, h, fps):
   stream = ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(w, h), r=fps)
   return stream
 
-def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=None, trim=None, preserve_aspect_ratio=False):
+def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=None, trim=None, preserve_aspect_ratio=False, scale_algorithm='bicubic'):
   """Take an ffmpeg stream and optionally add filtering operations:
     downsampling, spatial cropping, spatial scaling (applied to result of
     cropping if specified) and temporal trimming.
@@ -46,6 +46,7 @@ def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=No
     trim: Tuple with frame numbers for temporal trimming (start, end).
       Ignore if None.
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
+    scale_algorithm: The algorithm used for scaling. Default: bicubic
   Returns:
     stream: The modified ffmpeg stream
     target_n: The target number of frames
@@ -81,12 +82,13 @@ def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=No
   if crop is not None:
     stream = stream.crop(crop[0], crop[1], crop[2], crop[3])
   # Scaling
+  # http://trac.ffmpeg.org/wiki/Scaling#Specifyingscalingalgorithm
   if scale not in [None, (0, 0)]:
-    stream = ffmpeg.filter(stream, 'scale', target_w, target_h, 'bicubic')
+    stream = ffmpeg.filter(stream, 'scale', target_w, target_h, scale_algorithm)
   # Return
   return stream, target_n, target_w, target_h, ds_factor
 
-def _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, scale=None, crf=None, pix_fmt='bgr24', preserve_aspect_ratio=False, dim_deltas=(0, 0, 0)):
+def _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, scale=None, crf=None, pix_fmt='bgr24', preserve_aspect_ratio=False, scale_algorithm='bicubic', dim_deltas=(0, 0, 0)):
   """Run the stream and capture the raw video output in a numpy array"""
   if crf is None:
     # Run stream straight to raw video
@@ -101,7 +103,7 @@ def _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, sc
     stream = _ffmpeg_input_from_pipe()
     stream, _, target_w, target_h, _ = _ffmpeg_filtering(
       stream, fps=target_fps, n=target_n, w=target_w, h=target_h, scale=scale,
-      preserve_aspect_ratio=preserve_aspect_ratio)
+      preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
     stream = stream.output("pipe:", vsync=0, format="rawvideo", pix_fmt=pix_fmt)
     out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=True)
   # Parse result
@@ -156,7 +158,7 @@ def _ffmpeg_output_to_jpegs(stream, output_dir, output_file_start, target_fps, t
     # TODO specify jpeg quality?
     Image.fromarray(frame).save(frame_path)
 
-def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None, crf=None, pix_fmt='bgr24', preserve_aspect_ratio=False, order='scale_crf', dim_deltas=(0, 0, 0)):
+def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None, crf=None, pix_fmt='bgr24', preserve_aspect_ratio=False, scale_algorithm='bicubic', order='scale_crf', dim_deltas=(0, 0, 0)):
   """Read a video from path into a numpy array, optionally transformed by
     downsampling, spatial cropping, spatial scaling (applied to result of
     cropping if specified), temporal trimming, and intermediate encoding.
@@ -172,6 +174,7 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
       If specified, do intermediate encoding, otherwise ignore.
     pix_fmt: Pixel format
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
+    scale_algorithm: The algorithm used for scaling. Default: bicubic
     order: scale_crf or crf_scale - specifies order of application
     dim_deltas: Allowed deviation from target (n_franes, height, width)
   Returns:
@@ -186,7 +189,7 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
   scale_0 = scale if order == 'scale_crf' or crf == None else (0, 0)
   stream, target_n, target_w, target_h, ds_factor = _ffmpeg_filtering(
     stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0, trim=trim,
-    preserve_aspect_ratio=preserve_aspect_ratio)
+    preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
   # Output
   scale_1 = (0, 0) if order == 'scale_crf' or crf == None else scale
   frames = _ffmpeg_output_to_numpy(
@@ -195,7 +198,7 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
   # Return
   return frames, ds_factor
 
-def write_video_from_path(path, output_dir, output_file, target_fps=None, crop=None, scale=None, trim=None, pix_fmt='yuv420p', crf=12, preserve_aspect_ratio=False, overwrite=False):
+def write_video_from_path(path, output_dir, output_file, target_fps=None, crop=None, scale=None, trim=None, pix_fmt='yuv420p', crf=12, preserve_aspect_ratio=False, scale_algorithm='bicubic', overwrite=False):
   """Read a video from path and write back to a video file, optionally
     transformed by downsampling, spatial cropping, spatial scaling (applied to
     result of cropping if specified), and temporal trimming.
@@ -211,6 +214,7 @@ def write_video_from_path(path, output_dir, output_file, target_fps=None, crop=N
       Ignore if None.
     crf: Constant rate factor for H.264 encoding (higher = more compression)
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
+    scale_algorithm: The algorithm used for scaling. Default: bicubic
   """
   # Get metadata of original video
   fps, n, w, h, _, _ = probe_video(path=path)
@@ -219,7 +223,7 @@ def write_video_from_path(path, output_dir, output_file, target_fps=None, crop=N
   # Filtering
   stream, _, _, _, _ = _ffmpeg_filtering(
       stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale,
-      trim=trim, preserve_aspect_ratio=preserve_aspect_ratio)
+      trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
   # Output
   _ffmpeg_output_to_file(
     stream, output_dir=output_dir, output_file=output_file, pix_fmt=pix_fmt, crf=crf, overwrite=overwrite)
