@@ -140,7 +140,7 @@ def crop_resize_from_det(video, det, size, roi_method, library, scale_algorithm)
   Resize to specified size with specified method.
   Args:
     video: The video. Shape [n_frames, h, w, c]
-    det: The face detection. Shape [4]
+    det: The face detection. Shape [4] in form [x_0, y_0, x_1, y_1]
     size: The target size for resize - tuple (h, w)
     roi_method: Which roi method to use. Use 'forehead', 'face', 'upper_body', 'meta', None (directly use det)
     library: The resize library (tf, PIL, or cv2)
