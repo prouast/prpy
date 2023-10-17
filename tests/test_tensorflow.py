@@ -440,7 +440,7 @@ def test_piecewise_constant_decay_with_warmup():
 
 ## nan
 
-from propy.tensorflow.nan import reduce_nanmean
+from propy.tensorflow.nan import reduce_nanmean, reduce_nansum
 
 def assert_near_nan(x, y, tol=1e-7):
   nan_mask_x = tf.math.is_nan(x)
@@ -465,4 +465,22 @@ def test_reduce_nanmean(tf_function):
   assert_near_nan(
     x=reduce_nanmean_f(x=x, axis=(0,2)),
     y=tf.convert_to_tensor([[1., 2., np.nan]]))
+
+@pytest.mark.parametrize("tf_function", [False, True])
+def test_reduce_nansum(tf_function):
+  reduce_nansum_f = tf_function_wrapper(reduce_nansum) if tf_function else reduce_nansum
+  x = tf.convert_to_tensor([[[1., 1.], [2., np.nan], [np.nan, np.nan]],
+                            [[1., 1.], [2., np.nan], [np.nan, np.nan]]])
+  # Reduce all
+  tf.debugging.assert_near(
+    x=reduce_nansum_f(x=x),
+    y=tf.convert_to_tensor(8.))
+  # Reduce one axis
+  assert_near_nan(
+    x=reduce_nansum_f(x=x, axis=-1),
+    y=tf.convert_to_tensor([[2., 2., 0.], [2., 2., 0.]]))
+  # Reduce multiple axes
+  assert_near_nan(
+    x=reduce_nansum_f(x=x, axis=(0,2)),
+    y=tf.convert_to_tensor([[4., 4., 0.]]))
   

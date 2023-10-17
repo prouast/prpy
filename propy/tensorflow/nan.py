@@ -19,3 +19,16 @@ def reduce_nanmean(x, axis=None):
   numerator = tf.reduce_sum(tf.where(mask, x, tf.zeros_like(x)), axis=axis)
   denominator = tf.reduce_sum(tf.cast(mask, dtype=x.dtype), axis=axis)
   return numerator / denominator
+
+def reduce_nansum(x, axis=None):
+  """tf.reduce_sum, ignoring nan. Returns nan for all-nan slices.
+  Args:
+    x: The input tensor.
+    axis: The dimension to reduce.
+  Returns:
+    The reduced tensor.
+  """
+  mask = tf.math.is_finite(x)
+  sum = tf.reduce_sum(tf.where(mask, x, tf.zeros_like(x)), axis=axis)
+  return sum
+  
