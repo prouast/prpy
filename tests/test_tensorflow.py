@@ -9,6 +9,7 @@ import sys
 sys.path.append('../propy')
 
 import logging
+import numpy as np
 import os
 from packaging import version
 import pytest
@@ -436,3 +437,32 @@ def test_piecewise_constant_decay_with_warmup():
     tf.convert_to_tensor([0.01, 0.04, 0.07, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
                           0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01,
                           0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001]))
+
+## nan
+
+from propy.tensorflow.nan import reduce_nanmean
+
+def assert_near_nan(x, y, tol=1e-7):
+  nan_mask_x = tf.math.is_nan(x)
+  nan_mask_y = tf.math.is_nan(y)
+  tf.debugging.assert_equal(nan_mask_x, nan_mask_y)
+  tf.debugging.assert_near(tf.boolean_mask(x, ~nan_mask_x), tf.boolean_mask(y, ~nan_mask_y), atol=tol)
+
+@pytest.mark.parametrize("tf_function", [False, True])
+def test_reduce_nanmean(tf_function):
+  reduce_nanmean_f = tf_function_wrapper(reduce_nanmean) if tf_function else reduce_nanmean
+  x = tf.convert_to_tensor([[[1., 1.], [2., np.nan], [np.nan, np.nan]],
+                            [[1., 1.], [2., np.nan], [np.nan, np.nan]]])
+  # Reduce all
+  tf.debugging.assert_near(
+    x=reduce_nanmean_f(x=x),
+    y=tf.convert_to_tensor(4./3.))
+  # Reduce one axis
+  assert_near_nan(
+    x=reduce_nanmean_f(x=x, axis=-1),
+    y=tf.convert_to_tensor([[1., 2., np.nan], [1., 2., np.nan]]))
+  # Reduce multiple axes
+  assert_near_nan(
+    x=reduce_nanmean_f(x=x, axis=(0,2)),
+    y=tf.convert_to_tensor([[1., 2., np.nan]]))
+  
