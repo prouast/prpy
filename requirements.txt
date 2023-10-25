@@ -1,8 +1,11 @@
+build
 ffmpeg-python
+flake8
 numpy
 opencv-python
 Pillow
+pytest
 scikit-learn
 scipy
 tensorflow==2.11.0
-torch==1.13.1
+torch==2.1.0
