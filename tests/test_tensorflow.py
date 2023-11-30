@@ -476,7 +476,7 @@ def test_reduce_nanmean(tf_function):
 @pytest.mark.parametrize("scenario", [([[1., 1.], [2., np.nan], [np.nan, np.nan]], 8., None, None), # Reduce all
                                       ([[1., 1.], [2., np.nan], [np.nan, np.nan]], 12., [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], None), # Reduce all with mask
                                       ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 2., np.nan], [2., 2., np.nan]], None, -1), # Reduce one axis
-                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 4., np.nan], [2., 4., np.nan]], [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], -1), # Reduce one axis with mask
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 4., np.nan], [2., 4., np.nan]], [[1., 1.], [2., 2.], [1., 1.]], -1), # Reduce one axis with mask that needs to be broadcast
                                       ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[4., 4., np.nan]], None, (0,2)), # Reduce multiple axes
                                       ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[4., 8., np.nan]], [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], (0,2)), # Reduce multiple axes with mask
                                       ([[np.nan, np.nan], [np.nan, np.nan], [np.nan, np.nan]], [[np.nan, np.nan, np.nan]], None, (0,2))]) # 

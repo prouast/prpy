@@ -24,7 +24,7 @@ def reduce_nansum(x, weight=None, axis=None):
   """tf.reduce_sum, weighted by weight, ignoring nan. Returns nan for all-nan slices.
   Args:
     x: The input tensor.
-    weight: The weight tensor, with the same shape as x.
+    weight: The weight tensor, with the same shape as x or broadcastable to it.
     axis: The dimension to reduce.
   Returns:
     The reduced tensor.
@@ -35,9 +35,8 @@ def reduce_nansum(x, weight=None, axis=None):
   else:
     weight = tf.where(mask, weight, tf.zeros_like(weight))
     sum = tf.reduce_sum(tf.where(mask, x * weight, tf.zeros_like(x)), axis=axis)
-  # Check if all elements are NaN, and if so, return NaN
-  result = tf.where(tf.reduce_all(tf.logical_not(mask), axis=axis),
-                    tf.constant(float('nan'), dtype=tf.float32),
-                    sum)
-  return result
+  # If there are no finite elements in a slice, return nan.
+  return tf.where(tf.reduce_all(tf.logical_not(mask), axis=axis),
+                  tf.constant(float('nan'), dtype=tf.float32),
+                  sum)
   
