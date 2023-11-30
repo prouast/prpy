@@ -446,6 +446,12 @@ def assert_near_nan(x, y, tol=1e-7):
   nan_mask_x = tf.math.is_nan(x)
   nan_mask_y = tf.math.is_nan(y)
   tf.debugging.assert_equal(nan_mask_x, nan_mask_y)
+  if nan_mask_x.get_shape().ndims == 0:
+    x = x[tf.newaxis]
+    nan_mask_x = nan_mask_x[tf.newaxis]
+  if nan_mask_y.get_shape().ndims == 0:
+    y = y[tf.newaxis]
+    nan_mask_y = nan_mask_y[tf.newaxis] 
   tf.debugging.assert_near(tf.boolean_mask(x, ~nan_mask_x), tf.boolean_mask(y, ~nan_mask_y), atol=tol)
 
 @pytest.mark.parametrize("tf_function", [False, True])
@@ -467,20 +473,17 @@ def test_reduce_nanmean(tf_function):
     y=tf.convert_to_tensor([[1., 2., np.nan]]))
 
 @pytest.mark.parametrize("tf_function", [False, True])
-def test_reduce_nansum(tf_function):
+@pytest.mark.parametrize("scenario", [([[1., 1.], [2., np.nan], [np.nan, np.nan]], 8., None, None), # Reduce all
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], 12., [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], None), # Reduce all with mask
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 2., np.nan], [2., 2., np.nan]], None, -1), # Reduce one axis
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 4., np.nan], [2., 4., np.nan]], [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], -1), # Reduce one axis with mask
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[4., 4., np.nan]], None, (0,2)), # Reduce multiple axes
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[4., 8., np.nan]], [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], (0,2)), # Reduce multiple axes with mask
+                                      ([[np.nan, np.nan], [np.nan, np.nan], [np.nan, np.nan]], [[np.nan, np.nan, np.nan]], None, (0,2))]) # 
+def test_reduce_nansum(tf_function, scenario):
   reduce_nansum_f = tf_function_wrapper(reduce_nansum) if tf_function else reduce_nansum
-  x = tf.convert_to_tensor([[[1., 1.], [2., np.nan], [np.nan, np.nan]],
-                            [[1., 1.], [2., np.nan], [np.nan, np.nan]]])
-  # Reduce all
-  tf.debugging.assert_near(
-    x=reduce_nansum_f(x=x),
-    y=tf.convert_to_tensor(8.))
-  # Reduce one axis
+  x = tf.convert_to_tensor([scenario[0], scenario[0]])
+  y = tf.convert_to_tensor(scenario[1])
   assert_near_nan(
-    x=reduce_nansum_f(x=x, axis=-1),
-    y=tf.convert_to_tensor([[2., 2., 0.], [2., 2., 0.]]))
-  # Reduce multiple axes
-  assert_near_nan(
-    x=reduce_nansum_f(x=x, axis=(0,2)),
-    y=tf.convert_to_tensor([[4., 4., 0.]]))
-  
+    x=reduce_nansum_f(x=x, weight=scenario[2], axis=scenario[3]),
+    y=y)
