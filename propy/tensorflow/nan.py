@@ -20,8 +20,8 @@ def reduce_nanmean(x, axis=None):
   denominator = tf.reduce_sum(tf.cast(mask, dtype=x.dtype), axis=axis)
   return numerator / denominator
 
-def reduce_nansum(x, weight=None, axis=None):
-  """tf.reduce_sum, weighted by weight, ignoring nan. Returns nan for all-nan slices.
+def reduce_nansum(x, weight=None, axis=None, default=float('nan')):
+  """tf.reduce_sum, weighted by weight, ignoring nan. Returns default for all-nan slices.
   Args:
     x: The input tensor.
     weight: The weight tensor, with the same shape as x or broadcastable to it.
@@ -35,8 +35,8 @@ def reduce_nansum(x, weight=None, axis=None):
   else:
     weight = tf.where(mask, weight, tf.zeros_like(weight))
     sum = tf.reduce_sum(tf.where(mask, x * weight, tf.zeros_like(x)), axis=axis)
-  # If there are no finite elements in a slice, return nan.
+  # If there are no finite elements in a slice, return the default.
   return tf.where(tf.reduce_all(tf.logical_not(mask), axis=axis),
-                  tf.constant(float('nan'), dtype=tf.float32),
+                  tf.constant(default, dtype=tf.float32),
                   sum)
   

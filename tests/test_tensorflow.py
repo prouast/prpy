@@ -473,17 +473,17 @@ def test_reduce_nanmean(tf_function):
     y=tf.convert_to_tensor([[1., 2., np.nan]]))
 
 @pytest.mark.parametrize("tf_function", [False, True])
-@pytest.mark.parametrize("scenario", [([[1., 1.], [2., np.nan], [np.nan, np.nan]], 8., None, None), # Reduce all
-                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], 12., [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], None), # Reduce all with mask
-                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 2., np.nan], [2., 2., np.nan]], None, -1), # Reduce one axis
-                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 4., np.nan], [2., 4., np.nan]], [[1., 1.], [2., 2.], [1., 1.]], -1), # Reduce one axis with mask that needs to be broadcast
-                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[4., 4., np.nan]], None, (0,2)), # Reduce multiple axes
-                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[4., 8., np.nan]], [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], (0,2)), # Reduce multiple axes with mask
-                                      ([[np.nan, np.nan], [np.nan, np.nan], [np.nan, np.nan]], [[np.nan, np.nan, np.nan]], None, (0,2))]) # 
+@pytest.mark.parametrize("scenario", [([[1., 1.], [2., np.nan], [np.nan, np.nan]], 8., None, None, float('nan')), # Reduce all
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], 12., [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], None, float('nan')), # Reduce all with mask
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 2., 0.], [2., 2., 0.]], None, -1, 0), # Reduce one axis
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 4., np.nan], [2., 4., np.nan]], [[1., 1.], [2., 2.], [1., 1.]], -1, float('nan')), # Reduce one axis with mask that needs to be broadcast
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[4., 4., np.nan]], None, (0,2), float('nan')), # Reduce multiple axes
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[4., 8., np.nan]], [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], (0,2), float('nan')), # Reduce multiple axes with mask
+                                      ([[np.nan, np.nan], [np.nan, np.nan], [np.nan, np.nan]], [[np.nan, np.nan, np.nan]], None, (0,2), float('nan'))]) # 
 def test_reduce_nansum(tf_function, scenario):
   reduce_nansum_f = tf_function_wrapper(reduce_nansum) if tf_function else reduce_nansum
   x = tf.convert_to_tensor([scenario[0], scenario[0]])
   y = tf.convert_to_tensor(scenario[1])
   assert_near_nan(
-    x=reduce_nansum_f(x=x, weight=scenario[2], axis=scenario[3]),
+    x=reduce_nansum_f(x=x, weight=scenario[2], axis=scenario[3], default=scenario[4]),
     y=y)
