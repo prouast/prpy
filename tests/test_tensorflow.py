@@ -441,6 +441,7 @@ def test_piecewise_constant_decay_with_warmup():
 ## nan
 
 from propy.tensorflow.nan import reduce_nanmean, reduce_nansum
+from propy.tensorflow.nan import ReduceNanSum, ReduceNanMean
 
 def assert_near_nan(x, y, tol=1e-7):
   nan_mask_x = tf.math.is_nan(x)
@@ -455,22 +456,40 @@ def assert_near_nan(x, y, tol=1e-7):
   tf.debugging.assert_near(tf.boolean_mask(x, ~nan_mask_x), tf.boolean_mask(y, ~nan_mask_y), atol=tol)
 
 @pytest.mark.parametrize("tf_function", [False, True])
-def test_reduce_nanmean(tf_function):
+@pytest.mark.parametrize("scenario", [([[1., 1.], [2., np.nan], [np.nan, np.nan]], 4./3., None), # Reduce all
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[1., 2., np.nan], [1., 2., np.nan]], -1), # Reduce one axis
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[1., 2., np.nan]], (0,2)), # Reduce multiple axes
+                                      ([[np.nan, np.nan], [np.nan, np.nan], [np.nan, np.nan]], [[np.nan, np.nan, np.nan]], (0,2))]) # 
+def test_reduce_nanmean(tf_function, scenario):
   reduce_nanmean_f = tf_function_wrapper(reduce_nanmean) if tf_function else reduce_nanmean
-  x = tf.convert_to_tensor([[[1., 1.], [2., np.nan], [np.nan, np.nan]],
-                            [[1., 1.], [2., np.nan], [np.nan, np.nan]]])
-  # Reduce all
-  tf.debugging.assert_near(
-    x=reduce_nanmean_f(x=x),
-    y=tf.convert_to_tensor(4./3.))
+  x = tf.convert_to_tensor([scenario[0], scenario[0]])
+  y = tf.convert_to_tensor(scenario[1])
   # Reduce one axis
   assert_near_nan(
-    x=reduce_nanmean_f(x=x, axis=-1),
-    y=tf.convert_to_tensor([[1., 2., np.nan], [1., 2., np.nan]]))
-  # Reduce multiple axes
-  assert_near_nan(
-    x=reduce_nanmean_f(x=x, axis=(0,2)),
-    y=tf.convert_to_tensor([[1., 2., np.nan]]))
+    x=reduce_nanmean_f(x=x, axis=scenario[2]),
+    y=y)
+
+@pytest.mark.parametrize("tf_function", [False, True])
+@pytest.mark.parametrize("scenario", [([[1., 1.], [2., np.nan], [np.nan, np.nan]], 4./3., [[1./6., 1./6.,], [1./6., 0.], [0., 0.]], None), # Reduce all
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[1., 2., np.nan], [1., 2., np.nan]], [[1./2., 1./2.,], [1., 0.], [0., 0.]], -1), # Reduce one axis
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[1., 2., np.nan]], [[1./4., 1./4.,], [1./2., 0.], [0., 0.]], (0,2)), # Reduce multiple axes
+                                      ([[np.nan, np.nan], [np.nan, np.nan], [np.nan, np.nan]], [[np.nan, np.nan, np.nan]], [[0., 0.], [0., 0.], [0., 0.]], (0,2))]) # 
+def test_reduce_nanmean_grad(tf_function, scenario):
+  reduce_nanmean_grad = ReduceNanMean(axis=scenario[3])
+  reduce_nanmean_grad_f = tf_function_wrapper(reduce_nanmean_grad) if tf_function else reduce_nanmean_grad
+  x = tf.convert_to_tensor([scenario[0], scenario[0]])
+  y = tf.convert_to_tensor(scenario[1])
+  g = tf.convert_to_tensor([scenario[2], scenario[2]])
+  # Compute
+  with tf.GradientTape() as tape:
+    tape.watch(x)
+    out = reduce_nanmean_grad_f(x)
+  # Check outputs
+  assert_near_nan(x=out, y=y)
+  # Check gradients
+  gradients = tape.gradient(out, x)
+  # Perform assertions for the gradients
+  tf.debugging.assert_near(x=gradients, y=g)
 
 @pytest.mark.parametrize("tf_function", [False, True])
 @pytest.mark.parametrize("scenario", [([[1., 1.], [2., np.nan], [np.nan, np.nan]], 8., None, None, float('nan')), # Reduce all
@@ -487,3 +506,28 @@ def test_reduce_nansum(tf_function, scenario):
   assert_near_nan(
     x=reduce_nansum_f(x=x, weight=scenario[2], axis=scenario[3], default=scenario[4]),
     y=y)
+
+@pytest.mark.parametrize("tf_function", [False, True])
+@pytest.mark.parametrize("scenario", [([[1., 1.], [2., np.nan], [np.nan, np.nan]], 8., [[1., 1.,], [1., 0.], [0., 0.]], None, None, float('nan')), # Reduce all
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], 12., [[1., 1.,], [1., 0.], [0., 0.]], [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], None, float('nan')), # Reduce all with mask
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 2., 0.], [2., 2., 0.]], [[1., 1.,], [1., 0.], [0., 0.]], None, -1, 0), # Reduce one axis
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[2., 4., np.nan], [2., 4., np.nan]], [[1., 1.,], [1., 0.], [0., 0.]], [[1., 1.], [2., 2.], [1., 1.]], -1, float('nan')), # Reduce one axis with mask that needs to be broadcast
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[4., 4., np.nan]], [[1., 1.,], [1., 0.], [0., 0.]], None, (0,2), float('nan')), # Reduce multiple axes
+                                      ([[1., 1.], [2., np.nan], [np.nan, np.nan]], [[4., 8., np.nan]], [[1., 1.,], [1., 0.], [0., 0.]], [[[1., 1.], [2., 2.], [1., 1.]], [[1., 1.], [2., 2.], [1., 1.]]], (0,2), float('nan')), # Reduce multiple axes with mask
+                                      ([[np.nan, np.nan], [np.nan, np.nan], [np.nan, np.nan]], [[np.nan, np.nan, np.nan]], [[0., 0.,], [0., 0.], [0., 0.]], None, (0,2), float('nan'))]) # 
+def test_reduce_nansum_grad(tf_function, scenario):
+  reduce_nansum_grad = ReduceNanSum(weight=scenario[3], axis=scenario[4], default=scenario[5])
+  reduce_nansum_grad_f = tf_function_wrapper(reduce_nansum_grad) if tf_function else reduce_nansum_grad
+  x = tf.convert_to_tensor([scenario[0], scenario[0]])
+  y = tf.convert_to_tensor(scenario[1])
+  g = tf.convert_to_tensor([scenario[2], scenario[2]])
+  # Compute
+  with tf.GradientTape() as tape:
+    tape.watch(x)
+    out = reduce_nansum_grad_f(x)
+  # Check outputs
+  assert_near_nan(x=out, y=y)
+  # Check gradients
+  gradients = tape.gradient(out, x)
+  # Perform assertions for the gradients
+  tf.debugging.assert_near(x=gradients, y=g)
