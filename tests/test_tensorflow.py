@@ -441,7 +441,7 @@ def test_piecewise_constant_decay_with_warmup():
 ## nan
 
 from propy.tensorflow.nan import reduce_nanmean, reduce_nansum
-from propy.tensorflow.nan import ReduceNanSum, ReduceNanMean
+from propy.tensorflow.nan import ReduceNanSum, ReduceNanMean, NanLinearCombination
 
 def assert_near_nan(x, y, tol=1e-7):
   nan_mask_x = tf.math.is_nan(x)
@@ -531,3 +531,31 @@ def test_reduce_nansum_grad(tf_function, scenario):
   gradients = tape.gradient(out, x)
   # Perform assertions for the gradients
   tf.debugging.assert_near(x=gradients, y=g)
+
+@pytest.mark.parametrize("tf_function", [False, True])
+@pytest.mark.parametrize("scenario", [([.4, .7, 1.], [0.], [1., 2., .5], [.4, 1.4, .5], [1., 2., .5], [.6, .3, 0.], [.4, .7, 1.]), # 
+                                      ([.4, .7, 1.], [0., 1., 1.], [1., 2., .5], [.4, 1.7, .5], [1., 1., -.5], [.6, .3, 0.], [.4, .7, 1.]),
+                                      ([.4, .7, 1.], [0., np.nan, 1.], [1., 2., .5], [.4, np.nan, .5], [1., 0., -.5], [.6, .3, 0.], [.4, .7, 1.])])
+def test_nan_linear_combination(tf_function, scenario):
+  nan_linear_combination = NanLinearCombination()
+  nan_linear_combination_f = tf_function_wrapper(nan_linear_combination) if tf_function else nan_linear_combination
+  x = tf.convert_to_tensor(scenario[0])
+  val_1 = tf.broadcast_to(tf.convert_to_tensor(scenario[1]), x.shape)
+  val_2 = tf.broadcast_to(tf.convert_to_tensor(scenario[2]), x.shape)
+  y = tf.convert_to_tensor(scenario[3])
+  g_x = tf.convert_to_tensor(scenario[4])
+  g_val_1 = tf.convert_to_tensor(scenario[5])
+  g_val_2 = tf.convert_to_tensor(scenario[6])
+  # Compute
+  with tf.GradientTape() as tape:
+    tape.watch([x, val_1, val_2])
+    out = nan_linear_combination_f(x, val_1, val_2)
+  # Check outputs
+  assert_near_nan(x=out, y=y)
+  # Check gradients
+  gradients = tape.gradient(out, [x, val_1, val_2])
+  # Perform assertions for the gradients
+  tf.debugging.assert_near(x=gradients[0], y=g_x)
+  tf.debugging.assert_near(x=gradients[1], y=g_val_1)
+  tf.debugging.assert_near(x=gradients[2], y=g_val_2)
+  

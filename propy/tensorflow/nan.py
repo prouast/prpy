@@ -22,7 +22,12 @@ def reduce_nanmean(x, axis=None):
   return numerator / denominator
 
 class ReduceNanMean:
-  """tf.reduce_mean, ignoring non-finite values. Supports gradient. Return nan for all-non-finite slices."""
+  """tf.reduce_mean, ignoring non-finite values. Supports gradient.
+    - Behavior when x is non-finite:
+      out: Non-finite vals in a slice contribute 0
+      out: All-non-finite slices are nan
+      grad = 0
+  """
   def __init__(self, axis=None):
     """Initialize.
     Args:
@@ -83,7 +88,12 @@ def reduce_nansum(x, weight=None, axis=None, default=float('nan')):
                   sum)
 
 class ReduceNanSum:
-  """tf.reduce_sum, weighted by weight, ignoring non-finite values. Supports gradient."""
+  """tf.reduce_sum, weighted by weight, ignoring non-finite values. Supports gradient.
+    - Behavior when x is non-finite:
+      out: Non-finite vals in a slice contribute 0
+      out: All-non-finite slices are set to default value
+      grad = 0
+  """
   def __init__(self, weight=None, axis=None, default=float('nan')):
     """Initialize.
     Args:
@@ -127,3 +137,34 @@ class ReduceNanSum:
       dout_dx = tf.where(mask, upstream, tf.zeros_like(x))
       return dout_dx
     return out, grad
+
+class NanLinearCombination:
+  """Linear combination with one fixed element. Supports gradient.
+    - Calculates (1 - x) * val_1 + x * val_2
+    - Behavior when val_1 or val_2 are non-finite:
+      out = nan
+      grad = 0
+  """
+  @tf.custom_gradient
+  def __call__(self, x, val_1, val_2):
+    """Compute the linear combination.
+    Args:
+      x: The combination weight. All elements must be in [0, 1]
+      val_1: The second value used in the linear combination.
+      val_2: The second value used in the linear combination.
+    Returns:
+      out: The computed sum.
+      grad: Function calculating the gradient
+    """
+    # Compute the linear combination
+    val_1 = tf.broadcast_to(val_1, x.shape)
+    val_2 = tf.broadcast_to(val_2, x.shape)
+    out = (1 - x) * val_1 + x * val_2
+    def grad(upstream):
+      mask = tf.math.logical_and(tf.math.is_finite(val_1), tf.math.is_finite(val_2))
+      dout_dx = tf.where(mask, upstream * (val_2 - val_1), tf.zeros_like(x))
+      dout_dval_1 = upstream * (1 - x)
+      dout_dval_2 = upstream * x
+      return dout_dx, dout_dval_1, dout_dval_2
+    return out, grad
+  
