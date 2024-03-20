@@ -29,8 +29,8 @@ def _ffmpeg_input_from_pipe():
   stream = ffmpeg.input("pipe:")
   return stream
 
-def _ffmpeg_input_from_numpy(w, h, fps):
-  stream = ffmpeg.input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(w, h), r=fps)
+def _ffmpeg_input_from_numpy(w, h, fps, pix_fmt):
+  stream = ffmpeg.input('pipe:', format='rawvideo', pix_fmt=pix_fmt, s='{}x{}'.format(w, h), r=fps)
   return stream
 
 def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=None, trim=None, preserve_aspect_ratio=False, scale_algorithm='bicubic'):
@@ -187,7 +187,7 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
   if not os.path.exists(path):
     raise FileNotFoundError("File {} does not exist".format(path))
   # Get metadata of original video
-  fps, n, w, h, _, _ = probe_video(path=path)
+  fps, n, w, h, _, _, rotation = probe_video(path=path)
   # Input
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
@@ -222,7 +222,7 @@ def write_video_from_path(path, output_dir, output_file, target_fps=None, crop=N
     scale_algorithm: The algorithm used for scaling. Default: bicubic
   """
   # Get metadata of original video
-  fps, n, w, h, _, _ = probe_video(path=path)
+  fps, n, w, h, _, _, r = probe_video(path=path)
   # Input
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
@@ -233,23 +233,24 @@ def write_video_from_path(path, output_dir, output_file, target_fps=None, crop=N
   _ffmpeg_output_to_file(
     stream, output_dir=output_dir, output_file=output_file, pix_fmt=pix_fmt, crf=crf, overwrite=overwrite)
 
-def write_video_from_numpy(data, fps, output_dir, output_file, pix_fmt='yuv420p', crf=12, overwrite=False):
+def write_video_from_numpy(data, fps, pix_fmt, output_dir, output_file, out_pix_fmt='yuv420p', crf=12, overwrite=False):
   """Write data from a numpy array to a video file.
   Args:
     data: The numpy array with video frames. Shape [N, H, W, 3]
     fps: The frame rate
+    pix_fmt: The pixel format of `data`
     output_dir: The directory where the video will be written
     ourput_file: The filename as which the video will be written
-    pix_fmt: The pixel format
+    pix_fmt: The pixel format for the output video
     crf: Constant rate factor for H.264 encoding (higher = more compression)
     overwrite: Overwrite if file exists?
   """
   _, h, w, _ = data.shape
-  stream = _ffmpeg_input_from_numpy(w=w, h=h, fps=fps)
+  stream = _ffmpeg_input_from_numpy(w=w, h=h, fps=fps, pix_fmt=pix_fmt)
   buffer = data.flatten().tobytes()
   _ffmpeg_output_to_file(
     stream, output_dir=output_dir, output_file=output_file, from_stdin=buffer,
-    crf=crf, pix_fmt=pix_fmt, overwrite=overwrite)
+    crf=crf, pix_fmt=out_pix_fmt, overwrite=overwrite)
 
 def write_jpegs_from_path(path, output_dir, output_file_start, target_fps=None, crop=None, scale=None, trim=None, crf=None, preserve_aspect_ratio=False, order='scale_crf'):
   """Read a video from path and write back as jpegs, optionally transformed by
@@ -271,7 +272,7 @@ def write_jpegs_from_path(path, output_dir, output_file_start, target_fps=None, 
     order: scale_crf or crf_scale - specifies order of application
   """
   # Get metadata of original video
-  fps, n, w, h, _, _ = probe_video(path=path)
+  fps, n, w, h, _, _, r = probe_video(path=path)
   # Input
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
@@ -298,7 +299,7 @@ def write_lossless_trim_and_crop_video(path, output_path, start, end, x, y, widt
   """Lossless trim and crop for MJPEG video.
     Quite slow because could not get jpegtran bindings running on macOS.
   """
-  fps, _, _, _, _, _ = probe_video(path)
+  fps, _, _, _, _, _, _ = probe_video(path)
   # https://stackoverflow.com/questions/33378548/ffmpeg-crop-a-video-without-losing-the-quality
   logging.debug("Lossless crop {} between start={} and end={}".format(
     path, start, end))

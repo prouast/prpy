@@ -15,6 +15,18 @@ import os
 from propy.constants import FFPROBE_OK, FFPROBE_INFO, FFPROBE_CORR
 
 def probe_video(path):
+  """Probe a video file for metadata.
+  Args:
+    path: The path of the video.
+  Returns:
+    fps: The frame rate of the video as float
+    total_frames: The total number of frames as integer
+    width: The width dimension of the video as integer
+    height: The height dimension of the video as integer
+    codec: The codec of the video as string
+    bitrate: The bitrate of the video as float
+    rotation: The rotation of the video as integer
+  """
   # Check if file exists
   if not os.path.exists(path):
     raise FileNotFoundError("File {} does not exist".format(path))
@@ -48,8 +60,15 @@ def probe_video(path):
     try:
       bitrate = float(video_stream["bit_rate"])/1000.0
     except Exception as e:
-      bitrate = 0.0  
-    return fps, total_frames, width, height, codec, bitrate
+      bitrate = 0.0
+    rotation = 0
+    if 'tags' in video_stream and 'rotate' in video_stream['tags']:
+      # Regular
+      rotation = int(video_stream['tags']['rotate'])
+    elif 'side_data_list' in video_stream and 'rotation' in video_stream['side_data_list'][0]:
+      # iPhone
+      rotation = int(video_stream['side_data_list'][0]['rotation'])
+    return fps, total_frames, width, height, codec, bitrate, rotation
 
 def _probe_video_frames(path):
   # ffprobe -select_streams v -show_frames video.mp4
