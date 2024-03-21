@@ -42,6 +42,6 @@ def sample_video_data():
   stream = create_test_video_stream(10)
   # Get np array for stream
   data = _ffmpeg_output_to_numpy(
-    stream, target_fps=SAMPLE_FPS, target_n=SAMPLE_FRAMES,
+    stream, r=0, target_fps=SAMPLE_FPS, target_n=SAMPLE_FRAMES,
     target_w=SAMPLE_WIDTH, target_h=SAMPLE_HEIGHT, pix_fmt='rgb24')
   return data

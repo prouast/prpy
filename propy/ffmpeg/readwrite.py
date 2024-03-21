@@ -39,6 +39,10 @@ def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=No
     cropping if specified) and temporal trimming.
   Args:
     stream: The ffmpeg stream
+    fps: The original frame rate
+    n: The original number of frames
+    w: The original width
+    h: The original height
     target_fps: Try to downsample frames to achieve this framerate
     crop: Tuple with coords and sizes for spatial cropping (x, y, width, height)
       Ignore if None.
@@ -89,7 +93,7 @@ def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=No
   # Return
   return stream, target_n, target_w, target_h, ds_factor
 
-def _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, scale=None, crf=None, pix_fmt='bgr24', preserve_aspect_ratio=False, scale_algorithm='bicubic', dim_deltas=(0, 0, 0)):
+def _ffmpeg_output_to_numpy(stream, r, target_fps, target_n, target_w, target_h, scale=None, crf=None, pix_fmt='bgr24', preserve_aspect_ratio=False, scale_algorithm='bicubic', dim_deltas=(0, 0, 0)):
   """Run the stream and capture the raw video output in a numpy array"""
   if crf is None:
     # Run stream straight to raw video
@@ -107,6 +111,16 @@ def _ffmpeg_output_to_numpy(stream, target_fps, target_n, target_w, target_h, sc
       preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
     stream = stream.output("pipe:", vsync=0, format="rawvideo", pix_fmt=pix_fmt)
     out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=True)
+  # Swap h and w if necessary -> not needed if scaled!
+  if r != 0:
+    if r == -90:
+      logging.warn("Rotation {} present in video fixed; results in W and H swapped.".format(r))
+      tmp = target_w
+      target_w = target_h
+      target_h = tmp
+    else:
+      # TODO: Figure out for rotations 90 and 180
+      logging.warn("Rotation {} present in video; Fixing is not yet supported.".format(r))
   # Parse result
   frames = np.frombuffer(out, np.uint8)
   adj_n, adh_h, adh_w = find_factors_near(
@@ -173,33 +187,39 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
       Ignore if None.
     crf: Constant rate factor for H.264 encoding (higher = more compression)
       If specified, do intermediate encoding, otherwise ignore.
-    pix_fmt: Pixel format
+    pix_fmt: Pixel format to read into
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
     scale_algorithm: The algorithm used for scaling.
       Supported: bicubic, bilinear, area, lanczos. Default: bicubic
     order: scale_crf or crf_scale - specifies order of application
     dim_deltas: Allowed deviation from target (n_franes, height, width)
   Returns:
-    frames: The frames [N, H, W, 3]
+    frames: The frames (N, H, W, 3)
     ds_factor: The applied downsampling factor
   """
   # Check if file exists
   if not os.path.exists(path):
     raise FileNotFoundError("File {} does not exist".format(path))
   # Get metadata of original video
-  fps, n, w, h, _, _, rotation = probe_video(path=path)
+  fps, n, w, h, _, _, r = probe_video(path=path)
   # Input
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
   scale_0 = scale if order == 'scale_crf' or crf == None else (0, 0)
+  # TODO: Need to change crop coords for rotations 90 and 180?
   stream, target_n, target_w, target_h, ds_factor = _ffmpeg_filtering(
-    stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0, trim=trim,
-    preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
+    stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0,
+    trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
+  # Save whether rotation still present
+  if scale not in [None, (0, 0)] or crop is not None:
+    # TODO: Is this correct for rotations 90 and 180?
+    r = 0
   # Output
   scale_1 = (0, 0) if order == 'scale_crf' or crf == None else scale
   frames = _ffmpeg_output_to_numpy(
-    stream=stream, target_fps=target_fps, target_n=target_n, target_w=target_w,
-    target_h=target_h, scale=scale_1, crf=crf, pix_fmt=pix_fmt, dim_deltas=dim_deltas)
+    stream=stream, r=r, target_fps=target_fps, target_n=target_n, target_w=target_w,
+    target_h=target_h, scale=scale_1, crf=crf, pix_fmt=pix_fmt, scale_algorithm=scale_algorithm,
+    dim_deltas=dim_deltas)
   # Return
   return frames, ds_factor
 
@@ -272,7 +292,7 @@ def write_jpegs_from_path(path, output_dir, output_file_start, target_fps=None, 
     order: scale_crf or crf_scale - specifies order of application
   """
   # Get metadata of original video
-  fps, n, w, h, _, _, r = probe_video(path=path)
+  fps, n, w, h, _, _, _ = probe_video(path=path)
   # Input
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
@@ -280,6 +300,7 @@ def write_jpegs_from_path(path, output_dir, output_file_start, target_fps=None, 
   stream, target_n, target_w, target_h, _ = _ffmpeg_filtering(
     stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0,
     trim=trim, preserve_aspect_ratio=preserve_aspect_ratio)
+  # TODO fix rotation
   # Output
   scale_1 = (0, 0) if order == 'scale_crf' or crf == None else scale
   _ffmpeg_output_to_jpegs(
