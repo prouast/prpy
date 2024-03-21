@@ -113,13 +113,12 @@ def _ffmpeg_output_to_numpy(stream, r, target_fps, target_n, target_w, target_h,
     out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=True)
   # Swap h and w if necessary -> not needed if scaled!
   if r != 0:
-    if r == -90:
+    if abs(r) == 90:
       logging.warn("Rotation {} present in video fixed; results in W and H swapped.".format(r))
       tmp = target_w
       target_w = target_h
       target_h = tmp
     else:
-      # TODO: Figure out for rotations 90 and 180
       logging.warn("Rotation {} present in video; Fixing is not yet supported.".format(r))
   # Parse result
   frames = np.frombuffer(out, np.uint8)
