@@ -11,9 +11,12 @@ import tensorflow as tf
 if version.parse(tf.__version__) <= version.parse("2.6.5"):
   from tensorflow.keras.optimizers import Adam # Legacy / V2 optimizer
   from tensorflow.keras.mixed_precision import LossScaleOptimizer
-elif version.parse(tf.__version__) >= version.parse("2.9"):
+elif version.parse(tf.__version__) >= version.parse("2.9") and version.parse(tf.__version__) <= version.parse("2.11"):
   from keras.optimizers.optimizer_experimental.adam import Adam # Experimental / V3 optimizer
   from keras.optimizers.optimizer_experimental.adamw import AdamW # Experimental / V3 optimizer
+  from keras.mixed_precision.loss_scale_optimizer import LossScaleOptimizerV3 as LossScaleOptimizer
+elif version.parse(tf.__version__) > version.parse("2.11"):
+  from tensorflow.keras.optimizers import Adam, AdamW # V3 optimizer
   from keras.mixed_precision.loss_scale_optimizer import LossScaleOptimizerV3 as LossScaleOptimizer
 else:
   raise ImportError("This version of TensorFlow is not compatible.")

@@ -205,13 +205,11 @@ def read_video_from_path(path, target_fps=None, crop=None, scale=None, trim=None
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
   scale_0 = scale if order == 'scale_crf' or crf == None else (0, 0)
-  # TODO: Need to change crop coords for rotations 90 and 180?
   stream, target_n, target_w, target_h, ds_factor = _ffmpeg_filtering(
     stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0,
     trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
   # Save whether rotation still present
   if scale not in [None, (0, 0)] or crop is not None:
-    # TODO: Is this correct for rotations 90 and 180?
     r = 0
   # Output
   scale_1 = (0, 0) if order == 'scale_crf' or crf == None else scale
@@ -299,7 +297,6 @@ def write_jpegs_from_path(path, output_dir, output_file_start, target_fps=None, 
   stream, target_n, target_w, target_h, _ = _ffmpeg_filtering(
     stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0,
     trim=trim, preserve_aspect_ratio=preserve_aspect_ratio)
-  # TODO fix rotation
   # Output
   scale_1 = (0, 0) if order == 'scale_crf' or crf == None else scale
   _ffmpeg_output_to_jpegs(
