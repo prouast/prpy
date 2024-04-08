@@ -26,12 +26,10 @@ def crop_slice_resize(inputs, target_size, roi=None, target_idxs=None, preserve_
   target_height, target_width = unpack_target_size(target_size)
   # Add temporal dim if necessary
   if len(inputs.shape) == 3: inputs = inputs[np.newaxis,:,:,:]
-  # Apply roi
-  if roi is not None:
-    inputs = inputs[:,roi[1]:roi[3],roi[0]:roi[2]]
-  # Apply target_idxs
-  if target_idxs is not None:
-    inputs = inputs[target_idxs]
+  # Apply target_idxs and roi
+  inputs = inputs[(target_idxs if target_idxs is not None else slice(None)), 
+                  (slice(roi[1], roi[3]) if isinstance(roi, tuple) else slice(None)),
+                  (slice(roi[0], roi[2]) if isinstance(roi, tuple) else slice(None))]
   in_shape = inputs.shape
   # Compute out size
   def _out_size(in_shape, target_height, target_width, preserve_aspect_ratio):

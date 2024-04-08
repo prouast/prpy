@@ -59,9 +59,9 @@ def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=No
     target_h: The target shape
     ds_factor: The applied downsampling factor
   """
-  assert target_fps is None or target_fps <= fps, "target_fps cannot be greater than fps"
-  # Process downsampling settings
-  ds_factor = 1 if target_fps is None else int(fps // target_fps)
+  ds_factor = 1
+  if target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
+  elif target_fps is not None: ds_factor = int(fps // target_fps)
   # Target number of frames
   target_n = trim[1] - trim[0] if trim is not None else n
   target_n = int(target_n / ds_factor)
@@ -81,7 +81,7 @@ def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=No
     stream = stream.trim(start_frame=0, end_frame=trim[1]-trim[0])
     stream = stream.setpts('PTS-STARTPTS')
   # Downsampling
-  if target_fps is not None:
+  if ds_factor > 1:
     stream = ffmpeg.filter(stream, 'select', 'not(mod(n,{}))'.format(ds_factor))
   # Cropping
   if crop is not None:
