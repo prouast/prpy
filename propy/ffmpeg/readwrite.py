@@ -60,7 +60,7 @@ def _ffmpeg_filtering(stream, fps, n, w, h, target_fps=None, crop=None, scale=No
     ds_factor: The applied downsampling factor
   """
   ds_factor = 1
-  if target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
+  if target_fps is not None and target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
   elif target_fps is not None: ds_factor = int(fps // target_fps)
   # Target number of frames
   target_n = trim[1] - trim[0] if trim is not None else n
