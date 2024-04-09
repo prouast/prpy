@@ -1,24 +1,46 @@
-###############################################################################
-# Copyright (C) Philipp Rouast - All Rights Reserved                          #
-# Unauthorized copying of this file, via any medium is strictly prohibited    #
-# Proprietary and confidential                                                #
-# Written by Philipp Rouast <philipp@rouast.com>, January 2023                #
-###############################################################################
+# Copyright (c) 2024 Philipp Rouast
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import numpy as np
 from propy.numpy.image import crop_slice_resize
+from typing import Tuple
 
-def _get_roi_from_det(det, rel_change, clip_dims=None):
+def _get_roi_from_det(
+    det: tuple,
+    rel_change: tuple,
+    clip_dims: tuple = None
+  ) -> Tuple[int, int, int, int]:
   """Convert face detection to roi by relative add/reduce.
+
   Args:
-    det: The face detection [0, H/W]. Tuple (x0, y0, x1, y1)
-    rel_change: The relative change to make. Tuple (left, top, right, bottom)
-    clip_dims: None or tuple (frame_w, frame_h) to clip the result to.
+    det: The face detection [0, H/W] in format (x0, y0, x1, y1).
+    rel_change: The relative change to make in format (left, top, right, bottom).
+    clip_dims: tuple (frame_w, frame_h) to clip the result to (optional).
   Returns:
-    out: The roi [0, H/W]. Tuple (x0, y0, x1, y1)
+    out: The roi [0, H/W] in format (x0, y0, x1, y1)
   """
+  assert isinstance(det, tuple) and len(det) == 4 and all(isinstance(i, int) for i in det)
   assert det[2] > det[0]
   assert det[3] > det[1]
+  assert isinstance(rel_change, tuple) and len(rel_change) == 4 and all(isinstance(i, float) for i in rel_change)
+  assert clip_dims is None or (isinstance(clip_dims, tuple) and len(clip_dims) == 2 and all(isinstance(i, int) for i in clip_dims))
   def _clip_dims(val, min_dim, max_dim):
     return min(max(val, min_dim), max_dim)
   det_w = det[2]-det[0]
@@ -28,7 +50,7 @@ def _get_roi_from_det(det, rel_change, clip_dims=None):
   abs_ch_t = int(rel_ch_t * det_h)
   abs_ch_r = int(rel_ch_r * det_w)
   abs_ch_b = int(rel_ch_b * det_h)
-  if clip_dims:
+  if clip_dims is not None:
     return (_clip_dims(det[0] - abs_ch_l, 0, clip_dims[0]),
             _clip_dims(det[1] - abs_ch_t, 0, clip_dims[1]),
             _clip_dims(det[2] + abs_ch_r, 0, clip_dims[0]),
@@ -36,34 +58,46 @@ def _get_roi_from_det(det, rel_change, clip_dims=None):
   else:
     return (det[0]-abs_ch_l, det[1]-abs_ch_t, det[2]+abs_ch_r, det[3]+abs_ch_b)
 
-def get_face_roi_from_det(det):
+def get_face_roi_from_det(det: tuple) -> tuple:
   """Convert face detection into face roi.
-     Reduces width to 60% and height to 80%. 
+  Reduces width to 60% and height to 80%. 
+  
   Args:
-    det: The face detection [0, H/W]. Tuple (x0, y0, x1, y1)
+    det: The face detection [0, H/W] in form (x0, y0, x1, y1)
   Returns:
-    out: The roi [0, H/W]. Tuple (x0, y0, x1, y1)
+    out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
   return _get_roi_from_det(det=det, rel_change=(-0.2, -0.1, -0.2, -0.1))
 
-def get_forehead_roi_from_det(det):
+def get_forehead_roi_from_det(det: tuple) -> tuple:
   """Convert face detection into forehead roi.
-     Reduces det to forehead as 35% to 65% of width, and 15% to 25% of height. 
+  Reduces det to forehead as 35% to 65% of width, and 15% to 25% of height. 
+  
   Args:
-    det: The face detection [0, H/W]. Tuple (x0, y0, x1, y1)
+    det: The face detection [0, H/W] in form (x0, y0, x1, y1)
   Returns:
-    out: The roi [0, H/W]. Tuple (x0, y0, x1, y1)
+    out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
   return _get_roi_from_det(det=det, rel_change=(-0.35, -0.15, -0.35, -0.75))
 
-def get_upper_body_roi_from_det(det, clip_dims, cropped=False, v=1):
+def get_upper_body_roi_from_det(
+    det: tuple,
+    clip_dims: tuple,
+    cropped: bool = False,
+    v: int = 1
+  ) -> tuple:
   """Convert face detection into upper body roi and clip to frame constraints.
+
   Args:
-    det: The face detection [0, H/W]. Tuple (x0, y0, x1, y1)
-    clip_dims: None or tuple (frame_w, frame_h) to clip the result to.
+    det: The face detection [0, H/W] in form (x0, y0, x1, y1)
+    clip_dims: constraints (frame_w, frame_h) to clip the result to
+    cropped: Create cropped variant?
+    v: Version of ROI definition (0, 1, 2, or 3)
   Returns:
-    out: The roi [0, H/W]. Tuple (x0, y0, x1, y1)
+    out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
+  assert isinstance(cropped, bool)
+  assert isinstance(v, int)
   if v == 0:
     # V0: (.25, .3, .25, .5) -> (.175, .27, .175, .45)
     if not cropped:
@@ -96,27 +130,40 @@ def get_upper_body_roi_from_det(det, clip_dims, cropped=False, v=1):
     else:
       return _get_roi_from_det(
         det=det, rel_change=(.15, .25, .15, .35), clip_dims=clip_dims)
+  else:
+    raise ValueError("v {} is not defined".format(v))
 
-def get_meta_roi_from_det(det, clip_dims):
+def get_meta_roi_from_det(
+    det: tuple,
+    clip_dims: tuple
+  ) -> tuple:
   """Convert face detection into meta roi and clip to frame constraints.
+
   Args:
-    det: The face detection [0, H/W]. Tuple (x0, y0, x1, y1)
-    clip_dims: None or tuple (frame_w, frame_h) to clip the result to.
+    det: The face detection [0, H/W] in form (x0, y0, x1, y1)
+    clip_dims: constraints (frame_w, frame_h) to clip the result to
   Returns:
-    out: The roi [0, H/W]. Tuple (x0, y0, x1, y1)
+    out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
   return _get_roi_from_det(
     det=det, rel_change=(.2, .2, .2, .2), clip_dims=clip_dims)
 
-def get_roi_from_det(det, roi_method, clip_dims=None):
+def get_roi_from_det(
+    det: tuple,
+    roi_method: str,
+    clip_dims: tuple = None
+  ) -> tuple:
   """Convert face detection into specified roi.
+
   Args:
-    det: The face detection [0, H/W]. Tuple (x0, y0, x1, y1)
-    roi_method: Which roi method to use. Use 'forehead', 'face', 'upper_body', 'upper_body_cropped', None (directly use det)
-    clip_dims: None or tuple (frame_w, frame_h) to clip the result to.
+    det: The face detection [0, H/W] in form (x0, y0, x1, y1)
+    roi_method: Which roi method to use. Either 'forehead', 'face',
+      'upper_body', 'upper_body_cropped', 'meta', None (directly use det)
+    clip_dims: Constraints (frame_w, frame_h) to clip the result to (optional).
   Returns:
-    out: The roi [0, H/W]. Tuple (x0, y0, x1, y1)
+    out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
+  assert isinstance(roi_method, str)
   if roi_method == 'face':
     return get_face_roi_from_det(det)
   elif roi_method == 'forehead':
@@ -135,19 +182,30 @@ def get_roi_from_det(det, roi_method, clip_dims=None):
   else:
     raise ValueError("roi method {} is not supported".format(roi_method))
 
-def crop_resize_from_det(video, det, size, roi_method, library, scale_algorithm):
-  """Crop and resize a video. Crop for face roi based on a single detection.
+def crop_resize_from_det(
+    video: np.ndarray,
+    det: tuple,
+    size: tuple,
+    roi_method: str,
+    library: str,
+    scale_algorithm: str
+  ) -> np.ndarray:
+  """Crop and resize a video according to a single face detection.
   Resize to specified size with specified method.
+
   Args:
-    video: The video. Shape [n_frames, h, w, c]
-    det: The face detection. Shape [4] in form [x_0, y_0, x_1, y_1]
-    size: The target size for resize - tuple (h, w)
-    roi_method: Which roi method to use. Use 'forehead', 'face', 'upper_body', 'meta', None (directly use det)
-    library: The resize library (tf, PIL, or cv2)
-    scale_algorithm: The algorithm used for scaling
+    video: The video. Shape (n_frames, h, w, c)
+    det: The face detection in form (x_0, y_0, x_1, y_1)
+    size: The target size for resize - (h, w)
+    roi_method: Which roi method to use. Either 'forehead', 'face',
+      'upper_body', 'upper_body_cropped', 'meta', None (directly use det)
+    library: The library used for resize (PIL, cv2, or tf - returns tf.Tensor)
+    scale_algorithm: The algorithm used for scaling. Supports: bicubic,
+      bilinear, area (not for PIL!), lanczos
   Returns:
     result: Cropped and resized video. Shape [n_frames, size[0], size[1], c]
   """
+  assert isinstance(video, np.ndarray) and len(video.shape) == 4
   _, height, width, _ = video.shape
   roi = get_roi_from_det(det, roi_method=roi_method, clip_dims=(width, height))
   roi = np.asarray(roi, dtype=np.int64)

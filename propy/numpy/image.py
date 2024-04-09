@@ -1,31 +1,64 @@
-###############################################################################
-# Copyright (C) Philipp Rouast - All Rights Reserved                          #
-# Unauthorized copying of this file, via any medium is strictly prohibited    #
-# Proprietary and confidential                                                #
-# Written by Philipp Rouast <philipp@rouast.com>, December 2022               #
-###############################################################################
+# Copyright (c) 2024 Philipp Rouast
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import numpy as np
+from typing import Union
 
-def crop_slice_resize(inputs, target_size, roi=None, target_idxs=None, preserve_aspect_ratio=False, keepdims=True, library='cv2', scale_algorithm='bicubic'):
-  """Crop, slice, and resize images with all same settings.
+def crop_slice_resize(
+    inputs: np.ndarray,
+    target_size: Union[int, tuple, list], 
+    roi: tuple = None,
+    target_idxs: list = None,
+    preserve_aspect_ratio: bool = False,
+    keepdims: bool = True,
+    library: str = 'PIL',
+    scale_algorithm: str = 'bicubic'
+  ) -> np.ndarray:
+  """Crop, slice, and resize image(s) with all same settings.
+
   Args:
-    inputs: The inputs as uint8 shape [H, W, 3] or [n_frames, H, W, 3]
-    target_size: The target size; scalar or shape (H, W) if preserve_aspect_ratio=False
-    roi: The region of interest, shape [x0, y0, x1, y1]. Use None to keep all.
-    target_idxs: The frame indices to be used (list). Use None to keep all.
+    inputs: The inputs as uint8 shape (h, w, 3) or (n_frames, h, w, 3)
+    target_size: The target size; scalar or (H, W) if preserve_aspect_ratio=False
+    roi: The region of interest in format (x0, y0, x1, y1). Use None to keep all.
+    target_idxs: The frame indices to be used. Use None to keep all.
     preserve_aspect_ratio: Preserve the aspect ratio?
-    library: The library to use -> `cv2` or `PIL` (return np ndarray) or `tf` (returns tf Tensor)
+    keepdims: If True, always keep n_frames dim. Otherwise, may drop n_frames dim.
+    library: The library to use. `cv2` or `PIL` (return np ndarray), or `tf` (returns tf Tensor)
     scale_algorithm: The algorithm used for scaling.
       Supports: bicubic, bilinear, area (not for PIL!), lanczos. Default: bicubic
-    keepdims: If True, always keep n_frames dim. Otherwise, may drop n_frames dim.
   Returns:
-    result: The resized frames as float32 shape [H, W, 3] or [n_frames, H, W, 3]
+    result: The processed frame(s) as float32 shape (h, w, 3) or (n_frames, h, w, 3)
   """
+  assert isinstance(inputs, np.ndarray) and (len(inputs.shape) == 3 or len(inputs.shape) == 4)
+  assert isinstance(target_size, int) or (isinstance(target_size, (tuple, list)) and len(target_size) == 2 and all(isinstance(i, int) for i in target_size))
+  assert roi is None or (isinstance(roi, tuple) and len(roi) == 4 and all(isinstance(i, int) for i in roi) and roi[2] > roi[0] and roi[3] > roi[1])
+  assert target_idxs is None or (isinstance(target_idxs, list) and all(isinstance(i, int) for i in target_idxs))
+  assert isinstance(preserve_aspect_ratio, bool)
+  assert isinstance(keepdims, bool)
+  assert isinstance(library, str)
+  assert isinstance(scale_algorithm, str)
   unpack_target_size = lambda x: (x[0], x[1]) if isinstance(x, (list, tuple)) else (x, x)
   target_height, target_width = unpack_target_size(target_size)
+  inputs_shape = inputs.shape
   # Add temporal dim if necessary
-  if len(inputs.shape) == 3: inputs = inputs[np.newaxis,:,:,:]
+  if len(inputs_shape) == 3: inputs = inputs[np.newaxis,:,:,:]
   # Apply target_idxs and roi
   inputs = inputs[(target_idxs if target_idxs is not None else slice(None)), 
                   (slice(roi[1], roi[3]) if isinstance(roi, tuple) else slice(None)),
@@ -51,7 +84,11 @@ def crop_slice_resize(inputs, target_size, roi=None, target_idxs=None, preserve_
   # Distinguish between different cases
   if out_size == (in_shape[1], in_shape[2]):
     # No resizing necessary
-    out = inputs.astype(np.float32)
+    if library == 'tf':
+      import tensorflow as tf
+      out = tf.convert_to_tensor(inputs, dtype=tf.float32)
+    else:
+      out = inputs.astype(np.float32) 
   else:
     # Resize to out_size
     if library == 'tf':
@@ -92,8 +129,8 @@ def crop_slice_resize(inputs, target_size, roi=None, target_idxs=None, preserve_
         cv2.resize(src=f, dsize=out_size, interpolation=library_algorithm) for f in inputs])
     else:
       raise ValueError("Library {} not supported".format(library))
-  if keepdims and len(out.shape) == 3:
-    # Add temporal dim if necessary - might have been lost when slicing
+  if keepdims and len(out.shape) == 3 and len(inputs_shape) == 4:
+    # Add temporal dim back - might have been lost when slicing
     newaxis = tf.newaxis if library == 'tf' else np.newaxis
     out = out[newaxis,:,:,:]
   elif not keepdims and len(out.shape) == 4:

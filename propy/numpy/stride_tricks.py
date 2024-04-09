@@ -6,9 +6,18 @@
 ###############################################################################
 
 import numpy as np
+from typing import Union
 
-def window_view(x, min_window_size, max_window_size, overlap, pad_mode='constant', const_val=np.nan):
-  """Create a window view along its first dim into an n-d array x.
+def window_view(
+    x: np.ndarray,
+    min_window_size: int,
+    max_window_size: int,
+    overlap: int,
+    pad_mode: str = 'constant',
+    const_val: Union[float, int] = np.nan
+  ) -> np.ndarray:
+  """Create a window view into an n-d array `x` along its first dim.
+
   Args:
     x: The n-d array into which we want to create a windowed view
     min_window_size: The minimum window size
@@ -17,11 +26,15 @@ def window_view(x, min_window_size, max_window_size, overlap, pad_mode='constant
     pad_mode: The pad mode
     const_val: The constant value to be padded with if pad_mode == 'constant'
   Returns:
-    y: The n+1-d windowed view into x
+    y: The n+1-d windowed view into x of shape (n_windows, window_size, ...)
     pad_start: How much padding was applied at the start (scalar)
     pad_end: How much padding was applied at the end (scalar)
   """
-  assert overlap < max_window_size, "overlap must be smaller than max_window_size"
+  assert isinstance(min_window_size, int) and min_window_size >= 0
+  assert isinstance(max_window_size, int) and max_window_size >= min_window_size
+  assert isinstance(overlap, int) and overlap < max_window_size, "overlap must be smaller than max_window_size"
+  assert isinstance(pad_mode, str)
+  assert isinstance(const_val, (float, int))
   x = np.asarray(x)
   original_len = x.shape[0]
   step_size = max_window_size - overlap
@@ -49,21 +62,30 @@ def window_view(x, min_window_size, max_window_size, overlap, pad_mode='constant
   # Return
   return y, pad_start, pad_end
 
-def reduce_window_view(x, overlap, pad_end=0, hanning=False):
+def reduce_window_view(
+    x: np.ndarray,
+    overlap: int,
+    pad_end: int = 0,
+    hanning: bool = False
+  ) -> np.ndarray:
   """Reduce an n-d window view by arranging the first dimension as sliding
-    windows and then reducing it using the mean.
+  windows and then reducing it using the mean.
+
   Args:
-    x: The n-d window view [n_windows, window_size, ...]
-    window_size: The window size with which the window view was created
+    x: The n-d window view of shape (n_windows, window_size, ...)
     overlap: The overlap with which the window view was created
     pad_end: How much padding was applied to the end when the window view was created
     hanning: Whether to reduce the window view with hanning windows
   Returns:
     mean: The n-1-d reduced window view [original_len, ...]
   """
+  assert isinstance(x, np.ndarray)
+  assert isinstance(hanning, bool)
   # Infer number of windows and original length (including extra padding)
   num_windows = x.shape[0]
   window_size = x.shape[1]
+  assert isinstance(overlap, int) and overlap >= 0 and overlap < window_size
+  assert isinstance(pad_end, int) and pad_end >= 0 and pad_end < window_size
   original_len_with_pad_end = num_windows * window_size - (num_windows-1) * overlap
   # Apply hanning window to taper x
   if hanning:
@@ -92,9 +114,17 @@ def reduce_window_view(x, overlap, pad_end=0, hanning=False):
   if pad_end > 0: mean = mean[:-pad_end]
   return mean
 
-def resolve_1d_window_view(x, window_size, overlap, pad_end, fill_method):
-  """Resolve an 1-d window view by extending it to the expected shape. This
-    is useful if processing on each window created a scalar value.
+def resolve_1d_window_view(
+    x: np.ndarray,
+    window_size: int,
+    overlap: int,
+    pad_end: int,
+    fill_method: str
+  ) -> np.ndarray:
+  """Resolve an 1-d window view by extending it to the expected shape.
+  
+  - This is useful if processing on each window created a scalar value.
+
   Args:
     x: The 1-d window view to be resolved
     window_size: The window size used to create the view
@@ -104,6 +134,11 @@ def resolve_1d_window_view(x, window_size, overlap, pad_end, fill_method):
   Returns:
     vals: The 1-d resolved data
   """
+  assert isinstance(x, np.ndarray) and len(x.shape) == 1
+  assert isinstance(window_size, int) and window_size > 0
+  assert isinstance(overlap, int) and overlap >= 0 and overlap < window_size
+  assert isinstance(pad_end, int) and pad_end >= 0 and pad_end < window_size
+  assert isinstance(fill_method, str)
   if overlap == 0:
     # If overlap is zero, we simply need to repeat each value to match window_size
     vals = np.repeat(x, window_size)
@@ -119,6 +154,8 @@ def resolve_1d_window_view(x, window_size, overlap, pad_end, fill_method):
       fill = np.mean(x)
     elif fill_method == 'start':
       fill = x[0]
+    else:
+      raise ValueError("fill_method {} not supported".format(fill_method))
     vals = np.concatenate([np.repeat(fill, window_size-1), x])
   elif overlap < window_size - 1:
     # For any other overlaps, we will have to build an intermediate 2-d

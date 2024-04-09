@@ -1,24 +1,44 @@
-###############################################################################
-# Copyright (C) Philipp Rouast - All Rights Reserved                          #
-# Unauthorized copying of this file, via any medium is strictly prohibited    #
-# Proprietary and confidential                                                #
-# Written by Philipp Rouast <philipp@rouast.com>, September 2021              #
-###############################################################################
+# Copyright (c) 2024 Philipp Rouast
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import numpy as np
 from scipy import signal
 
-def mag2db(mag):
+def mag2db(mag: np.ndarray) -> np.ndarray:
   """Magnitude to decibels element-wise.
+
   Args:
-    mag: Magnitude. np.ndarray with arbitrary shape.
+    mag: Magnitude. Arbitrary shape.
   Returns:
     out: Decibels. Same shape as input.
   """
+  assert isinstance(mag, np.ndarray)
   return 20. * np.log10(mag)
 
-def mae(y_true, y_pred, axis=-1):
+def mae(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    axis: int = -1
+  ) -> np.ndarray:
   """Mean absolute error
+
   Args:
     y_true: True values. Shape (..., dim_n, dim_axis)
     y_pred: Predicted values. Shape (..., dim_n, dim_axis)
@@ -26,6 +46,7 @@ def mae(y_true, y_pred, axis=-1):
   Returns:
     mae: The mean absolute error. Shape (..., dim_n)
   """
+  assert axis is None or isinstance(axis, int)
   y_true = np.asarray(y_true)
   y_pred = np.asarray(y_pred)
   assert y_true.shape == y_pred.shape
@@ -34,8 +55,13 @@ def mae(y_true, y_pred, axis=-1):
   else:
     return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
 
-def mse(y_true, y_pred, axis=-1):
+def mse(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    axis: int = -1
+  ) -> np.ndarray:
   """Mean squared error
+
   Args:
     y_true: True values. Shape (..., dim_n, dim_axis)
     y_pred: Predicted values. Shape (..., dim_n, dim_axis)
@@ -43,6 +69,7 @@ def mse(y_true, y_pred, axis=-1):
   Returns:
     mse: The mean squared error. Shape (..., dim_n)
   """
+  assert axis is None or isinstance(axis, int)
   y_true = np.asarray(y_true)
   y_pred = np.asarray(y_pred)
   assert y_true.shape == y_pred.shape
@@ -51,8 +78,13 @@ def mse(y_true, y_pred, axis=-1):
   else:
     return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
 
-def rmse(y_true, y_pred, axis=-1):
+def rmse(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    axis: int = -1
+  ) -> np.ndarray:
   """Root mean squared error
+
   Args:
     y_true: True values. Shape (..., dim_n, dim_axis)
     y_pred: Predicted values. Shape (..., dim_n, dim_axis)
@@ -60,6 +92,7 @@ def rmse(y_true, y_pred, axis=-1):
   Returns:
     rmse: The root mean squared error. Shape (..., dim_n)
   """
+  assert axis is None or isinstance(axis, int)
   y_true = np.asarray(y_true)
   y_pred = np.asarray(y_pred)
   assert y_true.shape == y_pred.shape
@@ -68,15 +101,21 @@ def rmse(y_true, y_pred, axis=-1):
   else:
     return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
 
-def cor(y_true, y_pred, axis=-1):
+def cor(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    axis: int = -1
+  ) -> np.ndarray:
   """Pearson's correlation coefficient
+
   Args:
     y_true: True values. Shape (..., dim_n, dim_axis)
     y_pred: Predicted values. Shape (..., dim_n, dim_axis)
-    axis: Axis along which the means are computed
+    axis: Axis along which correlations are computed
   Returns:
-    rmse: The correlation coefficients. Shape (..., dim_n)
+    cor: The correlation coefficients. Shape (..., dim_n)
   """
+  assert axis is None or isinstance(axis, int)
   y_true = np.asarray(y_true)
   y_pred = np.asarray(y_pred)
   assert y_true.shape == y_pred.shape
@@ -92,16 +131,32 @@ def cor(y_true, y_pred, axis=-1):
   else:
     return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
 
-def snr(f_true, y_pred, f_s, f_res, tol=0.1, f_min=0.5, f_max=4):
+def snr(
+    f_true: np.ndarray,
+    y_pred: np.ndarray,
+    f_s: float,
+    f_res: float,
+    tol: float = .1,
+    f_min: float = .5,
+    f_max: float = 4.):
   """Signal-to-noise ratio
   Args:
     f_true: The true frequencies. Shape (b,) or ()
     y_pred: Predicted vals. Shape (b, t) or (t,)
     f_s: Sampling frequency
     f_res: Frequency resolution
+    tol: Frequency domain tolerance
+    f_min: Minimum frequency included in metric calculation
+    f_max: Maximum frequency included in metric calculation
   Returns:
     snr: The signal to noise ratio. Shape (b,) or ()
   """
+  assert isinstance(f_s, float)
+  assert isinstance(f_res, float)
+  assert isinstance(tol, float)
+  assert isinstance(f_min, float)
+  assert isinstance(f_max, float)
+  f_true = np.asarray(f_true)
   y_pred = np.asarray(y_pred)
   assert len(y_pred.shape) == 1 or len(y_pred.shape) == 2
   assert f_true.shape == y_pred.shape[:-1]
