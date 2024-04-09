@@ -29,7 +29,7 @@ from propy.ffmpeg.utils import find_factors_near
 
 def _ffmpeg_input_from_path(
     path: str,
-    fps: float,
+    fps: Union[float, int],
     trim: tuple
   ) -> ffmpeg.nodes.FilterableStream:
   """Use file as input part of ffmpeg command.
@@ -41,6 +41,9 @@ def _ffmpeg_input_from_path(
   Returns:
     stream: ffmpeg input stream from file
   """
+  assert isinstance(path, str)
+  assert isinstance(fps, (float, int))
+  assert trim is None or (isinstance(trim, tuple) and all(isinstance(i, int) for i in trim))
   trim_start = 0 if trim is None else trim[0]
   # Create the stream
   stream = ffmpeg.input(filename=path, ss=trim_start/fps)
@@ -72,6 +75,10 @@ def _ffmpeg_input_from_numpy(
   Returns:
     stream: ffmpeg input stream from pipe (numpy)
   """
+  assert isinstance(w, int)
+  assert isinstance(h, int)
+  assert isinstance(fps, float)
+  assert isinstance(pix_fmt, str)
   stream = ffmpeg.input('pipe:', format='rawvideo', pix_fmt=pix_fmt, s='{}x{}'.format(w, h), r=fps)
   return stream
 
@@ -81,7 +88,7 @@ def _ffmpeg_filtering(
     n: int,
     w: int,
     h: int,
-    target_fps: float = None,
+    target_fps: Union[float, int] = None,
     crop: tuple = None,
     scale: Tuple[int, tuple] = None,
     trim: tuple = None,
@@ -112,6 +119,17 @@ def _ffmpeg_filtering(
     target_h: The target shape
     ds_factor: The applied downsampling factor
   """
+  assert isinstance(stream, ffmpeg.nodes.FilterableStream)
+  assert isinstance(fps, (float, int))
+  assert isinstance(n, int)
+  assert isinstance(w, int)
+  assert isinstance(h, int)
+  assert target_fps is None or isinstance(target_fps, (float, int))
+  assert crop is None or (isinstance(crop, tuple) and len(crop) == 4 and all(isinstance(i, int) for i in crop))
+  assert scale is None or isinstance(scale, int) or (isinstance(scale, tuple) and len(scale) == 2 and all(isinstance(i, int) for i in scale))
+  assert trim is None or (isinstance(trim, tuple) and len(trim) == 2 and all(isinstance(i, int) for i in trim))
+  assert isinstance(preserve_aspect_ratio, bool)
+  assert isinstance(scale_algorithm, str)
   ds_factor = 1
   if target_fps is not None and target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
   elif target_fps is not None: ds_factor = int(fps // target_fps)
@@ -154,7 +172,7 @@ def _ffmpeg_output_to_numpy(
     n: int,
     w: int,
     h: int,
-    scale: tuple = None,
+    scale: Union[tuple, int] = None,
     crf: int = None,
     pix_fmt: str = 'bgr24',
     preserve_aspect_ratio: bool = False,
@@ -181,6 +199,15 @@ def _ffmpeg_output_to_numpy(
   Returns:
     frames: The video frames in shape (n, h, w, c)
   """
+  assert isinstance(stream, ffmpeg.nodes.FilterableStream)
+  assert isinstance(r, int)
+  assert isinstance(fps, (float, int))
+  assert isinstance(n, int)
+  assert isinstance(w, int)
+  assert isinstance(h, int)
+  assert crf is None or isinstance(crf, int)
+  assert isinstance(pix_fmt, str)
+  assert isinstance(dim_deltas, tuple) and len(dim_deltas) == 3 and all(isinstance(i, int) for i in dim_deltas)
   if crf is None:
     # Run stream straight to raw video
     stream = stream.output("pipe:", vsync=0, format="rawvideo", pix_fmt=pix_fmt)
@@ -233,6 +260,13 @@ def _ffmpeg_output_to_file(
     crf: Constant rate factor for H.264 encoding (higher = more compression)
     overwrite: Overwrite if file exists?
   """
+  assert isinstance(stream, ffmpeg.nodes.FilterableStream)
+  assert isinstance(output_dir, str)
+  assert isinstance(output_file, str)
+  assert from_stdin is None or isinstance(from_stdin, bytes)
+  assert isinstance(pix_fmt, str)
+  assert crf is None or isinstance(crf, int)
+  assert isinstance(overwrite, bool)
   output_path = os.path.join(output_dir, output_file)
   stream = ffmpeg.output(stream, output_path, pix_fmt=pix_fmt, crf=crf)
   if overwrite:
@@ -281,6 +315,7 @@ def read_video_from_path(
     frames: The video frames (n, h, w, 3)
     ds_factor: The applied downsampling factor
   """
+  assert isinstance(path, str)
   # Check if file exists
   if not os.path.exists(path):
     raise FileNotFoundError("File {} does not exist".format(path))
@@ -368,6 +403,7 @@ def write_video_from_numpy(
     crf: Constant rate factor for H.264 encoding (higher = more compression)
     overwrite: Overwrite if file exists?
   """
+  assert isinstance(data, np.ndarray)
   _, h, w, _ = data.shape
   stream = _ffmpeg_input_from_numpy(w=w, h=h, fps=fps, pix_fmt=pix_fmt)
   buffer = data.flatten().tobytes()

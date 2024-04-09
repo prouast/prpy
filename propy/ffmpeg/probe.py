@@ -41,6 +41,7 @@ def probe_video(
     rotation: The rotation of the video
   """
   # Check if file exists
+  assert isinstance(path, str)
   if not os.path.exists(path):
     raise FileNotFoundError("File {} does not exist".format(path))
   # ffprobe -show_streams -count_frames -pretty video.mp4

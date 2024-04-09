@@ -48,6 +48,13 @@ def find_factors_near(
     f2: The actual second factor
     f3: The actual third factor
   """
+  assert isinstance(i, int)
+  assert isinstance(f1, int)
+  assert isinstance(f2, int)
+  assert isinstance(f3, int)
+  assert isinstance(max_delta_1, int)
+  assert isinstance(max_delta_2, int)
+  assert isinstance(max_delta_3, int)
   # Iterative deepening
   for delta in range(max(max_delta_1, max_delta_2, max_delta_3)+1):
     delta_1 = min(delta, max_delta_1)
