@@ -62,7 +62,7 @@ def _ffmpeg_input_from_pipe() -> ffmpeg.nodes.FilterableStream:
 def _ffmpeg_input_from_numpy(
     w: int,
     h: int,
-    fps: float,
+    fps: Union[float, int],
     pix_fmt: str
   ) -> ffmpeg.nodes.FilterableStream:
   """Use file as input part of ffmpeg command.
@@ -77,21 +77,21 @@ def _ffmpeg_input_from_numpy(
   """
   assert isinstance(w, int)
   assert isinstance(h, int)
-  assert isinstance(fps, float)
+  assert isinstance(fps, (float, int))
   assert isinstance(pix_fmt, str)
   stream = ffmpeg.input('pipe:', format='rawvideo', pix_fmt=pix_fmt, s='{}x{}'.format(w, h), r=fps)
   return stream
 
 def _ffmpeg_filtering(
     stream: ffmpeg.nodes.FilterableStream,
-    fps: float,
+    fps: Union[float, int],
     n: int,
     w: int,
     h: int,
-    target_fps: Union[float, int] = None,
-    crop: tuple = None,
-    scale: Tuple[int, tuple] = None,
-    trim: tuple = None,
+    target_fps: Union[float, int, None] = None,
+    crop: Union[tuple, None] = None,
+    scale: Union[Tuple[int, tuple], None] = None,
+    trim: Union[tuple, None] = None,
     preserve_aspect_ratio: bool = False,
     scale_algorithm: str = 'bicubic'
   ) -> Tuple[ffmpeg.nodes.FilterableStream, int, int, int, int]:
@@ -168,12 +168,12 @@ def _ffmpeg_filtering(
 def _ffmpeg_output_to_numpy(
     stream: ffmpeg.nodes.FilterableStream,
     r: int,
-    fps: float,
+    fps: Union[float, int, None],
     n: int,
     w: int,
     h: int,
-    scale: Union[tuple, int] = None,
-    crf: int = None,
+    scale: Union[tuple, int, None] = None,
+    crf: Union[int, None] = None,
     pix_fmt: str = 'bgr24',
     preserve_aspect_ratio: bool = False,
     scale_algorithm: str = 'bicubic',
@@ -201,7 +201,7 @@ def _ffmpeg_output_to_numpy(
   """
   assert isinstance(stream, ffmpeg.nodes.FilterableStream)
   assert isinstance(r, int)
-  assert isinstance(fps, (float, int))
+  assert fps is None or isinstance(fps, (float, int))
   assert isinstance(n, int)
   assert isinstance(w, int)
   assert isinstance(h, int)
@@ -234,7 +234,7 @@ def _ffmpeg_output_to_numpy(
   # Parse result
   frames = np.frombuffer(out, np.uint8)
   adj_n, adh_h, adh_w = find_factors_near(
-    frames.shape[0]/3, n, h, w, dim_deltas[0], dim_deltas[1], dim_deltas[2])
+    frames.shape[0]//3, n, h, w, dim_deltas[0], dim_deltas[1], dim_deltas[2])
   assert adj_n * adh_h * adh_w * 3 == frames.shape[0]
   frames = frames.reshape([adj_n, adh_h, adh_w, 3])
   # Return
@@ -244,7 +244,7 @@ def _ffmpeg_output_to_file(
     stream: ffmpeg.nodes.FilterableStream,
     output_dir: str,
     output_file: str,
-    from_stdin: bytes = None,
+    from_stdin: Union[bytes, None] = None,
     pix_fmt: str = 'yuv420p',
     crf: int = 12,
     overwrite: bool = False
@@ -281,11 +281,11 @@ def _ffmpeg_output_to_file(
 
 def read_video_from_path(
     path: str,
-    target_fps: float = None,
-    crop: tuple = None,
-    scale: Union[int, tuple] = None,
-    trim: tuple = None,
-    crf: int = None,
+    target_fps: Union[float, None] = None,
+    crop: Union[tuple, None] = None,
+    scale: Union[int, tuple, None] = None,
+    trim: Union[tuple, None] = None,
+    crf: Union[int, None] = None,
     pix_fmt: str = 'bgr24',
     preserve_aspect_ratio: bool = False,
     scale_algorithm: str = 'bicubic',
@@ -343,10 +343,10 @@ def write_video_from_path(
     path: str,
     output_dir: str,
     output_file: str,
-    target_fps: float = None,
-    crop: tuple = None,
-    scale: Union[int, tuple] = None,
-    trim: tuple = None,
+    target_fps: Union[float, None] = None,
+    crop: Union[tuple, None] = None,
+    scale: Union[int, tuple, None] = None,
+    trim: Union[tuple, None] = None,
     pix_fmt: str = 'yuv420p',
     crf: int = 12,
     preserve_aspect_ratio: bool = False,
@@ -383,7 +383,7 @@ def write_video_from_path(
 
 def write_video_from_numpy(
     data: np.ndarray,
-    fps: float,
+    fps: Union[float, int],
     pix_fmt: str,
     output_dir: str,
     output_file: str,

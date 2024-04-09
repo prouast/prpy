@@ -20,12 +20,12 @@
 
 import numpy as np
 from propy.numpy.image import crop_slice_resize
-from typing import Tuple
+from typing import Tuple, Union
 
 def _get_roi_from_det(
     det: tuple,
     rel_change: tuple,
-    clip_dims: tuple = None
+    clip_dims: Union[tuple, None] = None
   ) -> Tuple[int, int, int, int]:
   """Convert face detection to roi by relative add/reduce.
 
@@ -150,8 +150,8 @@ def get_meta_roi_from_det(
 
 def get_roi_from_det(
     det: tuple,
-    roi_method: str,
-    clip_dims: tuple = None
+    roi_method: Union[str, None],
+    clip_dims: Union[tuple, None] = None
   ) -> tuple:
   """Convert face detection into specified roi.
 
@@ -163,7 +163,7 @@ def get_roi_from_det(
   Returns:
     out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
-  assert isinstance(roi_method, str)
+  assert roi_method is None or isinstance(roi_method, str)
   if roi_method == 'face':
     return get_face_roi_from_det(det)
   elif roi_method == 'forehead':
@@ -208,7 +208,6 @@ def crop_resize_from_det(
   assert isinstance(video, np.ndarray) and len(video.shape) == 4
   _, height, width, _ = video.shape
   roi = get_roi_from_det(det, roi_method=roi_method, clip_dims=(width, height))
-  roi = np.asarray(roi, dtype=np.int64)
   return crop_slice_resize(
     inputs=video, target_size=size, roi=roi, library=library,
     preserve_aspect_ratio=False, scale_algorithm=scale_algorithm)

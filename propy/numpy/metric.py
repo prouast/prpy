@@ -20,8 +20,9 @@
 
 import numpy as np
 from scipy import signal
+from typing import Union
 
-def mag2db(mag: np.ndarray) -> np.ndarray:
+def mag2db(mag: Union[np.ndarray, np.float64]) -> np.ndarray:
   """Magnitude to decibels element-wise.
 
   Args:
@@ -29,13 +30,13 @@ def mag2db(mag: np.ndarray) -> np.ndarray:
   Returns:
     out: Decibels. Same shape as input.
   """
-  assert isinstance(mag, np.ndarray)
+  assert isinstance(mag, (np.ndarray, np.float64))
   return 20. * np.log10(mag)
 
 def mae(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    axis: int = -1
+    axis: Union[int, None] = -1
   ) -> np.ndarray:
   """Mean absolute error
 
@@ -58,7 +59,7 @@ def mae(
 def mse(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    axis: int = -1
+    axis: Union[int, None] = -1
   ) -> np.ndarray:
   """Mean squared error
 
@@ -81,7 +82,7 @@ def mse(
 def rmse(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    axis: int = -1
+    axis: Union[int, None] = -1
   ) -> np.ndarray:
   """Root mean squared error
 
@@ -104,7 +105,7 @@ def rmse(
 def cor(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    axis: int = -1
+    axis: Union[int, None] = -1
   ) -> np.ndarray:
   """Pearson's correlation coefficient
 

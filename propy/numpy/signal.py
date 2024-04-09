@@ -58,7 +58,7 @@ def div0(
 
 def normalize(
     x: np.ndarray,
-    axis: Union[int, tuple] = -1
+    axis: Union[int, tuple, None] = -1
   ) -> np.ndarray:
   """Perform normalization
 
@@ -75,7 +75,7 @@ def normalize(
 
 def standardize(
     x: np.ndarray,
-    axis: int = -1
+    axis: Union[int, None] = -1
   ) -> np.ndarray:
   """Perform standardization
   
@@ -97,7 +97,7 @@ def standardize(
 def moving_average(
     x: np.ndarray,
     size: int,
-    axis: int = -1,
+    axis: Union[int, None] = -1,
     pad_method: str = 'reflect',
     scale: bool = False,
     scale_factor: float = 1000000000.
@@ -267,7 +267,7 @@ def butter_bandpass(
     lowcut: Union[int, float],
     highcut: Union[int, float],
     fs: Union[int, float],
-    axis: Union[int, tuple] = -1,
+    axis: Union[int, tuple, None] = -1,
     order: int = 5
   ):
   """Apply a butterworth bandpass filter.
@@ -339,7 +339,7 @@ def estimate_freq(
 def estimate_freq_fft(
     x: np.ndarray,
     f_s: Union[float, int],
-    f_range: tuple = None,
+    f_range: Union[tuple, None] = None,
     axis: int = -1
   ) -> np.ndarray:
   """Use a fourier transform to determine maximum frequencies.
@@ -380,7 +380,7 @@ def estimate_freq_fft(
 def estimate_freq_peak(
     x: np.ndarray,
     f_s: Union[float, int],
-    f_range: tuple = None,
+    f_range: Union[tuple, None] = None,
     max_periodicity_deviation: float = 0.5,
     axis: int = -1
   ) -> np.ndarray:
@@ -423,8 +423,8 @@ def estimate_freq_peak(
 def estimate_freq_periodogram(
     x: np.ndarray,
     f_s: Union[float, int],
-    f_range: tuple = None,
-    f_res: float = None,
+    f_range: Union[tuple, None] = None,
+    f_res: Union[float, None] = None,
     axis: int = -1
   ) -> np.ndarray:
   """Use a periodigram to estimate maximum frequencies at f_res.
@@ -481,6 +481,7 @@ def interpolate_vals(
   Returns:
     x: The interpolated values, shape (n_vals,)
   """
+  assert callable(val_fn)
   x = np.asarray(x)
   assert len(x.shape) == 1, "Only 1-D arrays supported"
   if val_fn(x).all():
@@ -505,7 +506,7 @@ def interpolate_cubic_spline(
   Returns:
     ys: The interpolated y values
   """
-  assert axis is None or isinstance(axis, int)
+  assert isinstance(axis, int)
   x = np.asarray(x)
   y = np.asarray(y)
   xs = np.asarray(xs)
@@ -519,7 +520,7 @@ def interpolate_cubic_spline(
 def interpolate_linear_sequence_outliers(
     t: np.ndarray,
     max_diff_rel: float = 1.0,
-    max_diff_abs: float = None
+    max_diff_abs: Union[float, None] = None
   ) -> np.ndarray:
   """Interpolate outliers in an otherwise linear sequence.
   

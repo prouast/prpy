@@ -2,11 +2,11 @@
 
 # propy
 
-A collection of Python utilities with a focus on signal, image, and video processing with `numpy`, `ffmpeg`, `tensorflow`, and `torch`.
+A collection of Python utilities for signal, image, and video processing with `numpy`, `ffmpeg`, `tensorflow`, and `torch`.
 
 ## Dependencies
 
-General requirements are `python>=3.7` and `ffmpeg`.
+General requirements are `python>=3.8` and `ffmpeg`.
 
 To install further required Python packages:
 

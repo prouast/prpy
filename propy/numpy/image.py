@@ -24,8 +24,8 @@ from typing import Union
 def crop_slice_resize(
     inputs: np.ndarray,
     target_size: Union[int, tuple, list], 
-    roi: tuple = None,
-    target_idxs: list = None,
+    roi: Union[tuple, None] = None,
+    target_idxs: Union[list, None] = None,
     preserve_aspect_ratio: bool = False,
     keepdims: bool = True,
     library: str = 'PIL',

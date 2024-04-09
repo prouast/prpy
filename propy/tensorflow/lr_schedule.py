@@ -1,16 +1,41 @@
-###############################################################################
-# Copyright (C) Philipp Rouast - All Rights Reserved                          #
-# Unauthorized copying of this file, via any medium is strictly prohibited    #
-# Proprietary and confidential                                                #
-# Written by Philipp Rouast <philipp@rouast.com>, December 2022               #
-###############################################################################
+# Copyright (c) 2024 Philipp Rouast
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import tensorflow as tf
+from typing import Union
 
 class PiecewiseConstantDecayWithWarmup(tf.keras.optimizers.schedules.LearningRateSchedule):
   """Piecewise constant decay with warmup."""
-  def __init__(self, boundaries, values, warmup_init_lr, warmup_steps, name=None):
+  def __init__(
+      self,
+      boundaries: list,
+      values: list,
+      warmup_init_lr: Union[float, int],
+      warmup_steps: int,
+      name: Union[str, None] = None
+    ):
     super(PiecewiseConstantDecayWithWarmup, self).__init__()
+    assert isinstance(boundaries, list)
+    assert isinstance(values, list)
+    assert isinstance(warmup_init_lr, (float, int))
+    assert isinstance(warmup_steps, int)
     if len(boundaries) != len(values) - 1:
         raise ValueError("The length of boundaries should be 1 less than the length of values")
     self.boundaries = boundaries
@@ -18,7 +43,11 @@ class PiecewiseConstantDecayWithWarmup(tf.keras.optimizers.schedules.LearningRat
     self.name = name
     self.warmup_steps = warmup_steps
     self.warmup_init_lr = warmup_init_lr
-  def __call__(self, step):
+  def __call__(
+      self,
+      step: int
+    ) -> float:
+    assert isinstance(step, int)
     with tf.name_scope(self.name or "PiecewiseConstantWarmUp"):
       step = tf.cast(tf.convert_to_tensor(step), tf.float32)
       pred_fn_pairs = []
