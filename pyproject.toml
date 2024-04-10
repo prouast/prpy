@@ -1,6 +1,32 @@
 [build-system]
-requires = [
-  "setuptools>=42",
-  "wheel"
-]
+requires = ["setuptools>=61", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "propy"
+authors = [
+    {name = "Philipp Rouast", email = "philipp@rouast.com"},
+]
+description = "Collection of Python utils for signal, image, and video processing"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["python", "numpy", "ffmpeg", "tensorflow", "torch"]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+ffmpeg = ["ffmpeg-python", "numpy"]
+numpy = ["numpy", "scipy", "Pillow", "opencv-python", "scikit-learn"]
+numpy_min = ["numpy", "scipy", "Pillow"]
+tensorflow = ["tensorflow==2.12.1", "numpy"]
+torch = ["torch==2.1.0"]
+test = ["pytest", "flake8"]
+
+# ... other project metadata fields as listed in:
+#     https://packaging.python.org/en/latest/guides/writing-pyproject-toml/
