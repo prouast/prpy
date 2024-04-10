@@ -43,7 +43,7 @@ def test_probe_video(sample_video_file):
   out = probe_video(path=sample_video_file)
   assert out[0:7] == (SAMPLE_FPS, SAMPLE_FRAMES, SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_CODEC, SAMPLE_BITRATE, SAMPLE_ROTATION)
 
-# TODO: Try scalar instead tuple for scale
+# TODO: Test scalar instead tuple for scale
 @pytest.mark.parametrize("target_fps", [25., 8.])
 @pytest.mark.parametrize("crop", [None, (256, 94, 160, 120)])
 @pytest.mark.parametrize("scale", [None, (40, 40)])
