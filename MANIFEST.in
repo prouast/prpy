@@ -4,3 +4,4 @@ recursive-include propy/tensorflow *
 recursive-include propy/torch *
 recursive-include propy/ffmpeg *
 recursive-include tests *
+prune **/__pycache__ 
