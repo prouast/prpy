@@ -12,7 +12,8 @@ General prerequisites are `python>=3.8` and `ffmpeg` installed and accessible vi
 To install `propy` and its dependencies:
 
 ```
-pip install ".[ffmpeg,numpy,tensorflow,torch,test]"
+git clone https://github.com/prouast/propy.git
+pip install "./propy[ffmpeg,numpy,tensorflow,torch,test]"
 ```
 
 The above runs a full install of all dependencies.
