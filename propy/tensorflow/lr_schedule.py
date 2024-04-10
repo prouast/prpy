@@ -47,7 +47,7 @@ class PiecewiseConstantDecayWithWarmup(tf.keras.optimizers.schedules.LearningRat
       self,
       step: int
     ) -> float:
-    assert isinstance(step, int)
+    assert isinstance(step, (int, tf.Variable))
     with tf.name_scope(self.name or "PiecewiseConstantWarmUp"):
       step = tf.cast(tf.convert_to_tensor(step), tf.float32)
       pred_fn_pairs = []
