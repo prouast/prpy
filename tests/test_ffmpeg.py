@@ -43,10 +43,9 @@ def test_probe_video(sample_video_file):
   out = probe_video(path=sample_video_file)
   assert out[0:7] == (SAMPLE_FPS, SAMPLE_FRAMES, SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_CODEC, SAMPLE_BITRATE, SAMPLE_ROTATION)
 
-# TODO: Test scalar instead tuple for scale
 @pytest.mark.parametrize("target_fps", [25., 8.])
 @pytest.mark.parametrize("crop", [None, (256, 94, 160, 120)])
-@pytest.mark.parametrize("scale", [None, (40, 40)])
+@pytest.mark.parametrize("scale", [None, 30, (40, 40)])
 @pytest.mark.parametrize("preserve_aspect_ratio", [False, True])
 @pytest.mark.parametrize("trim", [None, (124, 249)])
 @pytest.mark.parametrize("scale_algorithm", ["bicubic", "bilinear", "area", "lanczos"])
@@ -60,6 +59,7 @@ def test_read_video_from_path(sample_video_file, target_fps, crop, scale, trim, 
   cor_frames = math.ceil(cor_frames / cor_ds_factor)
   cor_height = SAMPLE_HEIGHT if crop is None else crop[3]
   cor_width = SAMPLE_WIDTH if crop is None else crop[2]
+  if isinstance(scale, int): scale = (scale, scale) 
   if scale is not None and preserve_aspect_ratio:
     scale_ratio = max(scale) / max(cor_height, cor_width)
     cor_height = int(scale_ratio * cor_height)
