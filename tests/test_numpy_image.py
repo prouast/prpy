@@ -26,8 +26,8 @@ import tensorflow as tf
 
 @pytest.mark.parametrize("target_size", [6, 3, (6, 12)])
 @pytest.mark.parametrize("n_frames", [None, 3])
-@pytest.mark.parametrize("roi", [(2, 2, 7, 7), None])
-@pytest.mark.parametrize("target_idxs", [None, [0, 2]])
+@pytest.mark.parametrize("roi", [(2, 2, 7, 7), [2, 2, 7, 7], None])
+@pytest.mark.parametrize("target_idxs", [None, [0, 2], (0, 2), np.asarray([0, 2])])
 @pytest.mark.parametrize("preserve_aspect_ratio", [True, False])
 @pytest.mark.parametrize("library", ["cv2", "tf", "PIL"])
 @pytest.mark.parametrize("scale_algorithm", ["bicubic", "area", "lanczos", "bilinear"])

@@ -24,8 +24,8 @@ from typing import Union
 def crop_slice_resize(
     inputs: np.ndarray,
     target_size: Union[int, tuple, list], 
-    roi: Union[tuple, None] = None,
-    target_idxs: Union[list, None] = None,
+    roi: Union[tuple, list, None] = None,
+    target_idxs: Union[tuple, list, np.ndarray, None] = None,
     preserve_aspect_ratio: bool = False,
     keepdims: bool = True,
     library: str = 'PIL',
@@ -48,8 +48,8 @@ def crop_slice_resize(
   """
   assert isinstance(inputs, np.ndarray) and (len(inputs.shape) == 3 or len(inputs.shape) == 4)
   assert isinstance(target_size, int) or (isinstance(target_size, (tuple, list)) and len(target_size) == 2 and all(isinstance(i, int) for i in target_size))
-  assert roi is None or (isinstance(roi, tuple) and len(roi) == 4 and all(isinstance(i, int) for i in roi) and roi[2] > roi[0] and roi[3] > roi[1])
-  assert target_idxs is None or (isinstance(target_idxs, list) and all(isinstance(i, int) for i in target_idxs))
+  assert roi is None or (isinstance(roi, (tuple, list)) and len(roi) == 4 and all(isinstance(i, int) for i in roi) and roi[2] > roi[0] and roi[3] > roi[1])
+  assert target_idxs is None or isinstance(target_idxs, np.ndarray) or (isinstance(target_idxs, (tuple, list)) and all(isinstance(i, int) for i in target_idxs))
   assert isinstance(preserve_aspect_ratio, bool)
   assert isinstance(keepdims, bool)
   assert isinstance(library, str)
@@ -61,8 +61,8 @@ def crop_slice_resize(
   if len(inputs_shape) == 3: inputs = inputs[np.newaxis,:,:,:]
   # Apply target_idxs and roi
   inputs = inputs[(target_idxs if target_idxs is not None else slice(None)), 
-                  (slice(roi[1], roi[3]) if isinstance(roi, tuple) else slice(None)),
-                  (slice(roi[0], roi[2]) if isinstance(roi, tuple) else slice(None))]
+                  (slice(roi[1], roi[3]) if isinstance(roi, (tuple, list)) else slice(None)),
+                  (slice(roi[0], roi[2]) if isinstance(roi, (tuple, list)) else slice(None))]
   in_shape = inputs.shape
   # Compute out size
   def _out_size(in_shape, target_height, target_width, preserve_aspect_ratio):
