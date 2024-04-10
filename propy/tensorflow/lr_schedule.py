@@ -28,14 +28,14 @@ class PiecewiseConstantDecayWithWarmup(tf.keras.optimizers.schedules.LearningRat
       boundaries: list,
       values: list,
       warmup_init_lr: Union[float, int],
-      warmup_steps: int,
+      warmup_steps: Union[int, tf.Variable],
       name: Union[str, None] = None
     ):
     super(PiecewiseConstantDecayWithWarmup, self).__init__()
     assert isinstance(boundaries, list)
     assert isinstance(values, list)
     assert isinstance(warmup_init_lr, (float, int))
-    assert isinstance(warmup_steps, int)
+    assert isinstance(warmup_steps, (int, tf.Variable))
     if len(boundaries) != len(values) - 1:
         raise ValueError("The length of boundaries should be 1 less than the length of values")
     self.boundaries = boundaries
