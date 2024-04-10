@@ -1,7 +1,7 @@
 include README.md
-recursive-include propy/numpy *
-recursive-include propy/tensorflow *
-recursive-include propy/torch *
-recursive-include propy/ffmpeg *
+recursive-include prpy/numpy *
+recursive-include prpy/tensorflow *
+recursive-include prpy/torch *
+recursive-include prpy/ffmpeg *
 recursive-include tests *
 prune **/__pycache__ 

@@ -24,11 +24,11 @@ import os
 import pytest
 
 import sys
-sys.path.append('../propy')
+sys.path.append('../prpy')
 
-from propy.ffmpeg.probe import probe_video
-from propy.ffmpeg.readwrite import read_video_from_path
-from propy.ffmpeg.readwrite import write_video_from_path, write_video_from_numpy
+from prpy.ffmpeg.probe import probe_video
+from prpy.ffmpeg.readwrite import read_video_from_path
+from prpy.ffmpeg.readwrite import write_video_from_path, write_video_from_numpy
 
 SAMPLE_FPS = 25.
 SAMPLE_FRAMES = 250

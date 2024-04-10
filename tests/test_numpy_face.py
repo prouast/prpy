@@ -22,10 +22,10 @@ import numpy as np
 import pytest
 
 import sys
-sys.path.append('../propy')
+sys.path.append('../prpy')
 
-from propy.numpy.face import get_face_roi_from_det, get_forehead_roi_from_det, get_meta_roi_from_det
-from propy.numpy.face import get_upper_body_roi_from_det, get_roi_from_det, crop_resize_from_det
+from prpy.numpy.face import get_face_roi_from_det, get_forehead_roi_from_det, get_meta_roi_from_det
+from prpy.numpy.face import get_upper_body_roi_from_det, get_roi_from_det, crop_resize_from_det
 
 def test_get_face_roi_from_det():
   det = (100, 100, 180, 220)
@@ -78,7 +78,7 @@ def test_get_roi_from_det():
 @pytest.mark.parametrize("roi_method", ['face', 'forehead', 'upper_body', 'upper_body_cropped', 'meta', None])
 @pytest.mark.parametrize("library", ['PIL', 'cv2', 'tf'])
 def test_crop_resize_from_det(roi_method, library):
-  # Uses propy, only check shapes
+  # Uses prpy, only check shapes
   inputs = np.zeros((3, 300, 220, 3))
   inputs = inputs.astype(np.uint8)
   det = (100, 100, 180, 220)

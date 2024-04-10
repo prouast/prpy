@@ -19,9 +19,9 @@
 # SOFTWARE.
 
 import sys
-sys.path.append('../propy')
+sys.path.append('../prpy')
 
-from propy.torch.model_saver import Candidate, ModelSaver
+from prpy.torch.model_saver import Candidate, ModelSaver
 
 import logging
 import os

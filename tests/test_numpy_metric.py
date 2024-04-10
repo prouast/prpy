@@ -19,12 +19,12 @@
 # SOFTWARE.
 
 import sys
-sys.path.append('../propy')
+sys.path.append('../prpy')
 
 import numpy as np
 import pytest
 
-from propy.numpy.metric import mag2db, mae, mse, rmse, cor, snr
+from prpy.numpy.metric import mag2db, mae, mse, rmse, cor, snr
 
 @pytest.mark.parametrize("shape", [(3,), (2, 3), (2, 3, 5)])
 def test_mag2db(shape):

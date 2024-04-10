@@ -1,6 +1,6 @@
-[![Tests](https://github.com/prouast/propy/actions/workflows/main.yml/badge.svg)](https://github.com/prouast/propy/actions/workflows/main.yml)
+[![Tests](https://github.com/prouast/prpy/actions/workflows/main.yml/badge.svg)](https://github.com/prouast/prpy/actions/workflows/main.yml)
 
-# propy
+# prpy
 
 A collection of Python utilities for signal, image, and video processing.
 It contains subpackages for working with `numpy`, `ffmpeg`, `tensorflow`, and `torch`.
@@ -9,11 +9,11 @@ It contains subpackages for working with `numpy`, `ffmpeg`, `tensorflow`, and `t
 
 General prerequisites are `python>=3.8` and `ffmpeg` installed and accessible via the `$PATH` environment variable.
 
-To install `propy` and its dependencies:
+To install `prpy` and its dependencies:
 
 ```
-git clone https://github.com/prouast/propy.git
-pip install "./propy[ffmpeg,numpy,tensorflow,torch,test]"
+git clone https://github.com/prouast/prpy.git
+pip install "./prpy[ffmpeg,numpy,tensorflow,torch,test]"
 ```
 
 The above runs a full install of all dependencies.

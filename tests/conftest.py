@@ -24,9 +24,9 @@ import random as rand
 import pytest
 
 import sys
-sys.path.append('../propy')
-from propy.ffmpeg.utils import create_test_video_stream
-from propy.ffmpeg.readwrite import _ffmpeg_output_to_file, _ffmpeg_output_to_numpy
+sys.path.append('../prpy')
+from prpy.ffmpeg.utils import create_test_video_stream
+from prpy.ffmpeg.readwrite import _ffmpeg_output_to_file, _ffmpeg_output_to_numpy
 
 SAMPLE_FPS = 25.
 SAMPLE_FRAMES = 250

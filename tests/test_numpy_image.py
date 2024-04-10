@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from propy.numpy.image import crop_slice_resize
+from prpy.numpy.image import crop_slice_resize
 
 import numpy as np
 import pytest

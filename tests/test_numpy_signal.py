@@ -19,12 +19,12 @@
 # SOFTWARE.
 
 import sys
-sys.path.append('../propy')
+sys.path.append('../prpy')
 
-from propy.numpy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend
-from propy.numpy.signal import estimate_freq_fft, estimate_freq_peak, estimate_freq_periodogram
-from propy.numpy.signal import interpolate_vals, interpolate_cubic_spline, interpolate_linear_sequence_outliers, interpolate_data_outliers
-from propy.numpy.signal import _component_periodicity, select_most_periodic
+from prpy.numpy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend
+from prpy.numpy.signal import estimate_freq_fft, estimate_freq_peak, estimate_freq_periodogram
+from prpy.numpy.signal import interpolate_vals, interpolate_cubic_spline, interpolate_linear_sequence_outliers, interpolate_data_outliers
+from prpy.numpy.signal import _component_periodicity, select_most_periodic
 
 import numpy as np
 import pytest

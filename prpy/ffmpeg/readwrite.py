@@ -24,8 +24,8 @@ import numpy as np
 import os
 from typing import Tuple, Union
 
-from propy.ffmpeg.probe import probe_video
-from propy.ffmpeg.utils import find_factors_near
+from prpy.ffmpeg.probe import probe_video
+from prpy.ffmpeg.utils import find_factors_near
 
 def _ffmpeg_input_from_path(
     path: str,

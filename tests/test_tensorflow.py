@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 import sys
-sys.path.append('../propy')
+sys.path.append('../prpy')
 
 import logging
 import numpy as np
@@ -39,7 +39,7 @@ def tf_function_wrapper(func):
 
 ## Signal
 
-from propy.tensorflow.signal import normalize, scale, standardize, diff
+from prpy.tensorflow.signal import normalize, scale, standardize, diff
 
 @pytest.mark.parametrize("tf_function", [False, True])
 def test_normalize(tf_function):
@@ -107,8 +107,8 @@ def test_diff(tf_function):
 
 ## Image
 
-from propy.tensorflow.image import normalize_images, standardize_images, normalized_image_diff
-from propy.tensorflow.image import resize_with_random_method, random_distortion
+from prpy.tensorflow.image import normalize_images, standardize_images, normalized_image_diff
+from prpy.tensorflow.image import resize_with_random_method, random_distortion
 
 @pytest.mark.parametrize("tf_function", [False, True])
 def test_normalize_images(tf_function):
@@ -199,7 +199,7 @@ def test_random_distortion(tf_function):
 
 ## Model saver
 
-from propy.tensorflow.model_saver import Candidate, ModelSaver
+from prpy.tensorflow.model_saver import Candidate, ModelSaver
 
 def test_candidate():
   cand = Candidate(score=0.5, dir='testdir', filename='test')
@@ -269,7 +269,7 @@ def test_model_saver(save_format, save_optimizer):
 
 ## Loss
 
-from propy.tensorflow.loss import balanced_sample_weights, smooth_l1_loss, mae_loss
+from prpy.tensorflow.loss import balanced_sample_weights, smooth_l1_loss, mae_loss
 
 @pytest.mark.parametrize("tf_function", [False, True])
 def test_smooth_l1_loss(tf_function):
@@ -377,7 +377,7 @@ def test_balanced_sample_weights(tf_function):
 
 ## Optimizer
 
-from propy.tensorflow.optimizer import EpochAdam, EpochAdamW, EpochLossScaleOptimizer
+from prpy.tensorflow.optimizer import EpochAdam, EpochAdamW, EpochLossScaleOptimizer
 
 def test_epoch_adam():
   lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
@@ -439,7 +439,7 @@ def test_epoch_loss_scale_optimizer():
 
 ## LR schedule
 
-from propy.tensorflow.lr_schedule import PiecewiseConstantDecayWithWarmup
+from prpy.tensorflow.lr_schedule import PiecewiseConstantDecayWithWarmup
 
 def test_piecewise_constant_decay_with_warmup():
   lr_schedule = PiecewiseConstantDecayWithWarmup(
@@ -453,8 +453,8 @@ def test_piecewise_constant_decay_with_warmup():
 
 ## nan
 
-from propy.tensorflow.nan import reduce_nanmean, reduce_nansum
-from propy.tensorflow.nan import ReduceNanSum, ReduceNanMean, NanLinearCombination
+from prpy.tensorflow.nan import reduce_nanmean, reduce_nansum
+from prpy.tensorflow.nan import ReduceNanSum, ReduceNanMean, NanLinearCombination
 
 def assert_near_nan(x, y, tol=1e-7):
   nan_mask_x = tf.math.is_nan(x)

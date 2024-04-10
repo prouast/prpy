@@ -19,9 +19,9 @@
 # SOFTWARE.
 
 import sys
-sys.path.append('../propy')
+sys.path.append('../prpy')
 
-from propy.numpy.stride_tricks import window_view, reduce_window_view, resolve_1d_window_view
+from prpy.numpy.stride_tricks import window_view, reduce_window_view, resolve_1d_window_view
 
 import numpy as np
 import pytest

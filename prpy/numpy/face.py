@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 import numpy as np
-from propy.numpy.image import crop_slice_resize
+from prpy.numpy.image import crop_slice_resize
 from typing import Tuple, Union
 
 def _get_roi_from_det(

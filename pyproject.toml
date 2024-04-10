@@ -3,7 +3,7 @@ requires = ["setuptools>=61", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "propy"
+name = "prpy"
 authors = [
     {name = "Philipp Rouast", email = "philipp@rouast.com"},
 ]
@@ -31,7 +31,7 @@ torch = ["torch==2.1.0"]
 test = ["pytest", "flake8"]
 
 [project.urls]
-Repository = "https://github.com/prouast/propy.git"
-Issues = "https://github.com/prouast/propy/issues"
+Repository = "https://github.com/prouast/prpy.git"
+Issues = "https://github.com/prouast/prpy/issues"
 
 [tool.setuptools_scm]
