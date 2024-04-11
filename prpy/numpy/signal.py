@@ -231,7 +231,7 @@ def detrend(
   # Return
   return proc_z
 
-# TODO write tests
+# TODO(prouast): Write tests
 def windowed_standardize(
     x: np.ndarray,
     window_size: int,
@@ -261,7 +261,7 @@ def windowed_standardize(
   x /= std
   return x
 
-# TODO write tests
+# TODO(prouast): Write tests
 def butter_bandpass(
     x: np.ndarray,
     lowcut: Union[int, float],
