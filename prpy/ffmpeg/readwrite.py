@@ -105,7 +105,7 @@ def _ffmpeg_filtering(
     n: The existing number of frames
     w: The existing width
     h: The existing height
-    target_fps: Try to downsample frames to achieve this framerate (optional)
+    target_fps: Downsample frames to approximate this framerate (optional)
     crop: Coords and sizes for spatial cropping (x, y, width, height) (optional)
     scale: Size(s) for spatial scaling. Scalar or (width, height) (optional)
     trim: Frame numbers for temporal trimming (start, end) (optional)
@@ -125,14 +125,14 @@ def _ffmpeg_filtering(
   assert isinstance(w, int)
   assert isinstance(h, int)
   assert target_fps is None or isinstance(target_fps, (float, int))
-  assert crop is None or (isinstance(crop, tuple) and len(crop) == 4 and all(isinstance(i, int) for i in crop))
+  assert crop is None or (isinstance(crop, tuple) and len(crop) == 4 and all(isinstance(i, int, np.int64) for i in crop))
   assert scale is None or isinstance(scale, int) or (isinstance(scale, tuple) and len(scale) == 2 and all(isinstance(i, int) for i in scale))
   assert trim is None or (isinstance(trim, tuple) and len(trim) == 2 and all(isinstance(i, int) for i in trim))
   assert isinstance(preserve_aspect_ratio, bool)
   assert isinstance(scale_algorithm, str)
   ds_factor = 1
   if target_fps is not None and target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
-  elif target_fps is not None: ds_factor = int(fps // target_fps)
+  elif target_fps is not None: ds_factor = round(fps / target_fps)
   # Target number of frames
   target_n = trim[1] - trim[0] if trim is not None else n
   target_n = int(target_n / ds_factor)
