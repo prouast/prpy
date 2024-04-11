@@ -9,14 +9,20 @@ It contains subpackages for working with `numpy`, `ffmpeg`, `tensorflow`, and `t
 
 General prerequisites are `python>=3.8` and `ffmpeg` installed and accessible via the `$PATH` environment variable.
 
-To install `prpy` and its dependencies:
+The easiest way to install the latest version of `prpy`:
+
+```
+pip install "prpy[ffmpeg,numpy,tensorflow,torch,test]"
+```
+
+Alternatively, it can be done by cloning the source:
 
 ```
 git clone https://github.com/prouast/prpy.git
 pip install "./prpy[ffmpeg,numpy,tensorflow,torch,test]"
 ```
 
-The above runs a full install of all dependencies.
+The above run full installs of all dependencies.
 It is possible to customize the install of the dependencies by only listing the desired subpackages out of `ffmpeg`, `numpy`, `tensorflow`, `torch`, and `test` in the square brackets above.
 
 ## Linting and tests

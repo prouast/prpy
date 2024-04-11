@@ -125,7 +125,7 @@ def _ffmpeg_filtering(
   assert isinstance(w, int)
   assert isinstance(h, int)
   assert target_fps is None or isinstance(target_fps, (float, int))
-  assert crop is None or (isinstance(crop, tuple) and len(crop) == 4 and all(isinstance(i, int, np.int64) for i in crop))
+  assert crop is None or (isinstance(crop, tuple) and len(crop) == 4 and all(isinstance(i, (int, np.int64)) for i in crop))
   assert scale is None or isinstance(scale, int) or (isinstance(scale, tuple) and len(scale) == 2 and all(isinstance(i, int) for i in scale))
   assert trim is None or (isinstance(trim, tuple) and len(trim) == 2 and all(isinstance(i, int) for i in trim))
   assert isinstance(preserve_aspect_ratio, bool)
