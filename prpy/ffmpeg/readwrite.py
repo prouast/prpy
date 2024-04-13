@@ -170,8 +170,8 @@ def _ffmpeg_output_to_numpy(
     r: int,
     fps: Union[float, int, None],
     n: int,
-    w: int,
-    h: int,
+    w: Union[int, np.int64],
+    h: Union[int, np.int64],
     scale: Union[tuple, int, None] = None,
     crf: Union[int, None] = None,
     pix_fmt: str = 'bgr24',
@@ -203,8 +203,8 @@ def _ffmpeg_output_to_numpy(
   assert isinstance(r, int)
   assert fps is None or isinstance(fps, (float, int))
   assert isinstance(n, int)
-  assert isinstance(w, int)
-  assert isinstance(h, int)
+  assert isinstance(w, (int, np.int64))
+  assert isinstance(h, (int, np.int64))
   assert crf is None or isinstance(crf, int)
   assert isinstance(pix_fmt, str)
   assert isinstance(dim_deltas, tuple) and len(dim_deltas) == 3 and all(isinstance(i, int) for i in dim_deltas)
