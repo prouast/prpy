@@ -19,7 +19,10 @@
 # SOFTWARE.
 
 import numpy as np
+import logging
 from typing import Union
+
+from .image_ops import resample_bilinear_op, resample_box_op
 
 def crop_slice_resize(
     inputs: np.ndarray,
@@ -34,7 +37,7 @@ def crop_slice_resize(
   """Crop, slice, and resize image(s) with all same settings.
 
   Args:
-    inputs: The inputs as uint8 shape (h, w, 3) or (n_frames, h, w, 3)
+    inputs: The inputs of shape (h, w, 3) or (n_frames, h, w, 3)
     target_size: The target size; scalar or (H, W) if preserve_aspect_ratio=False
     roi: The region of interest in format (x0, y0, x1, y1). Use None to keep all.
     target_idxs: The frame indices to be used. Use None to keep all.
@@ -44,7 +47,7 @@ def crop_slice_resize(
     scale_algorithm: The algorithm used for scaling.
       Supports: bicubic, bilinear, area (not for PIL!), lanczos. Default: bicubic
   Returns:
-    result: The processed frame(s) as float32 shape (h, w, 3) or (n_frames, h, w, 3)
+    result: The processed frame(s) of shape (h_new, w_new, 3) or (n_frames_new, h_new, w_new, 3)
   """
   assert isinstance(inputs, np.ndarray) and (len(inputs.shape) == 3 or len(inputs.shape) == 4)
   assert isinstance(target_size, int) or (isinstance(target_size, (tuple, list)) and len(target_size) == 2 and all(isinstance(i, int) for i in target_size))
@@ -86,9 +89,9 @@ def crop_slice_resize(
     # No resizing necessary
     if library == 'tf':
       import tensorflow as tf
-      out = tf.convert_to_tensor(inputs, dtype=tf.float32)
+      out = tf.convert_to_tensor(inputs)
     else:
-      out = inputs.astype(np.float32) 
+      out = inputs
   else:
     # Resize to out_size
     if library == 'tf':
@@ -106,7 +109,7 @@ def crop_slice_resize(
     elif library == 'PIL':
       from PIL import Image
       # https://pillow.readthedocs.io/en/stable/releasenotes/2.7.0.html#image-resizing-filters
-      mapping = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR, "lanczos": Image.LANCZOS}
+      mapping = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR, "lanczos": Image.LANCZOS, "box": Image.BOX}
       try:
         library_algorithm = mapping[scale_algorithm]
       except KeyError:
@@ -127,6 +130,17 @@ def crop_slice_resize(
       out_size = (out_size[1], out_size[0])
       out = np.asarray([
         cv2.resize(src=f, dsize=out_size, interpolation=library_algorithm) for f in inputs])
+    elif library == 'prpy':
+      if scale_algorithm == 'bilinear':
+        if inputs.shape[1] / target_height > 2 and inputs.shape[2] / target_width > 2:
+          logging.debug("Switching from bilinear to box by default because we are downsampling significantly.")
+          out = resample_box(im=inputs, size=(target_height, target_width))
+        else:
+          out = resample_bilinear(im=inputs, size=(target_height, target_width))
+      elif scale_algorithm == 'box':
+        out = resample_box(im=inputs, size=(target_height, target_width))
+      else:
+        raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
     else:
       raise ValueError("Library {} not supported".format(library))
   if keepdims and len(out.shape) == 3 and len(inputs_shape) == 4:
@@ -139,3 +153,33 @@ def crop_slice_resize(
     if out.shape[0] == 1:
       out = squeeze(out, axis=0)
   return out
+
+def resample_bilinear(
+    im: np.ndarray,
+    size: Union[int, tuple]
+  ):
+  """Compute bilinear resampling with batch dimension
+  
+  Args:
+    im: The image(s) to be resized. Shape (n, h, w, c) or (h, w, c)
+    size: The new size either as scalar or (new_h, new_w)
+  Returns:
+    out: The resized image(s). Shape (n, new_h, new_w, c) or (new_h, new_w, c)
+  """
+  if isinstance(size, int): size = (size, size)
+  return resample_bilinear_op(im, size)
+
+def resample_box(
+    im: np.ndarray,
+    size: Union[int, tuple]
+  ):
+  """Compute box resampling with batch dimension
+  
+  Args:
+    im: The image(s) to be resized. Shape (n, h, w, c) or (h, w, c)
+    size: The new size either as scalar or (new_h, new_w)
+  Returns:
+    out: The resized image(s). Shape (n, new_h, new_w, c) or (new_h, new_w, c)
+  """
+  if isinstance(size, int): size = (size, size)
+  return resample_box_op(im, size)
