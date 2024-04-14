@@ -68,8 +68,6 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
       // The four neighboring pixels
       int x0 = (int)src_x;
       int y0 = (int)src_y;
-      int x1 = x0 + 1;
-      int y1 = y0 + 1;
       // Calculate the weights for each pixel
       float dx = src_x - x0;
       float dy = src_y - y0;
@@ -231,9 +229,88 @@ resample_box_op(PyObject* self, PyObject* args) {
   return (PyObject*)output_array_np;
 }
 
+static PyObject*
+reduce_roi_op(PyObject* self, PyObject* args) {
+  PyArrayObject* input_array_video;
+  PyArrayObject* input_array_roi;
+
+  // Parse the arguments
+  if (!PyArg_ParseTuple(args, "O!O!", &PyArray_Type, &input_array_video, &PyArray_Type, &input_array_roi)) {
+    return NULL;
+  }
+
+  // Check input video array type and dimensions
+  if (PyArray_NDIM(input_array_video) != 4 || PyArray_TYPE(input_array_video) != NPY_UINT8 || PyArray_DIM(input_array_video, 3) != 3) {
+    PyErr_SetString(PyExc_ValueError, "Input video array must be 4-dimensional with shape (n, h, w, 3) and of type uint8.");
+    return NULL;
+  }
+
+  // Check input roi array type and dimensions
+  if (PyArray_NDIM(input_array_roi) != 2 || PyArray_TYPE(input_array_roi) != NPY_INT64 || PyArray_DIM(input_array_roi, 1) != 4 || PyArray_DIM(input_array_roi, 0) != PyArray_DIM(input_array_video, 0)) {
+    PyErr_SetString(PyExc_ValueError, "Input roi array must be 2-dimensional with shape (n, 4) and of type int64. First dim must match first dim of video array.");
+    return NULL;
+  }
+
+  // Get pointers to the data
+  unsigned char* video_data = (unsigned char*)PyArray_DATA(input_array_video);
+  npy_int64* roi_data = (npy_int64*)PyArray_DATA(input_array_roi);
+
+  // Get the strides
+  npy_intp* video_strides = PyArray_STRIDES(input_array_video);
+  npy_intp* roi_strides = PyArray_STRIDES(input_array_roi);
+
+  // Get the dimensions of the input video array
+  npy_intp* video_dims = PyArray_DIMS(input_array_video);
+  int n_frames = video_dims[0];
+
+  // Create an output array
+  npy_intp output_dims[2] = {n_frames, 3};
+  PyArrayObject* output_array_np = (PyArrayObject*)PyArray_EMPTY(2, output_dims, NPY_FLOAT32, 0);
+  if (output_array_np == NULL) {
+    return NULL;
+  }
+  // Get a pointer to the output data
+  float* output_data = (float*)PyArray_DATA(output_array_np);
+  
+  // Reduce each frame
+  for (int i = 0; i < n_frames; ++i) {
+    // Extract the current frame
+    unsigned char* current_frame_video = video_data + i * video_strides[0];
+    npy_int64* current_frame_roi = roi_data + i * 4; // TODO: Why doesn't roi_strides[0] work?
+    // Compute the mean of pixels within the ROI
+    int sum_r = 0, sum_g = 0, sum_b = 0;
+    int x0 = current_frame_roi[0];
+    int y0 = current_frame_roi[1];
+    int x1 = current_frame_roi[2];
+    int y1 = current_frame_roi[3];
+    for (int src_y = y0; src_y < y1; ++src_y) {
+      for (int src_x = x0; src_x < x1; ++src_x) {
+        unsigned char* pixel = current_frame_video + src_y * video_strides[1] + src_x * video_strides[2];
+        sum_r += pixel[0];
+        sum_g += pixel[1];
+        sum_b += pixel[2];
+      }
+    }
+    // Calculate the average value of the pixels
+    int num_pixels = (y1 - y0) * (x1 - x0);
+    float avg_r = sum_r / (float)num_pixels;
+    float avg_g = sum_g / (float)num_pixels;
+    float avg_b = sum_b / (float)num_pixels;
+    // Save the average value to the output image
+    int idx = i * 3;
+    output_data[idx + 0] = avg_r;
+    output_data[idx + 1] = avg_g;
+    output_data[idx + 2] = avg_b;
+  }
+
+  Py_INCREF(output_array_np);
+  return (PyObject*)output_array_np;
+}
+
 static PyMethodDef image_ops_methods[] = {
     {"resample_bilinear_op", resample_bilinear_op, METH_VARARGS, PyDoc_STR("Resize video frames using bilinear resampling.")},
     {"resample_box_op", resample_box_op, METH_VARARGS, PyDoc_STR("Resize video frames using box resampling.")},
+    {"reduce_roi_op", reduce_roi_op, METH_VARARGS, PyDoc_STR("Reduce spatial dimensions of video by mean using ROI.")},
     {NULL, NULL, 0, NULL} /* Sentinel */
 };
 

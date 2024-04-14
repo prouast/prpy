@@ -22,7 +22,7 @@ import numpy as np
 import logging
 from typing import Union
 
-from .image_ops import resample_bilinear_op, resample_box_op
+from .image_ops import resample_bilinear_op, resample_box_op, reduce_roi_op
 
 def crop_slice_resize(
     inputs: np.ndarray,
@@ -183,3 +183,17 @@ def resample_box(
   """
   if isinstance(size, int): size = (size, size)
   return resample_box_op(im, size)
+
+def reduce_roi(
+    video: np.ndarray,
+    roi: np.ndarray
+  ) -> np.ndarray:
+  """Reduce the spatial dimensions of a video by mean using ROI.
+
+  Args:
+    video: The video to be reduced. Shape (n, h, w, 3)
+    roi: The roi in form (x0, y0, x1, y1). Shape (n, 4) 
+  Returns:
+    out: The reduced vals. Shape (n, 3)
+  """
+  return reduce_roi_op(video, roi)

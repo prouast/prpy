@@ -29,8 +29,8 @@ import tensorflow as tf
 @pytest.mark.parametrize("roi", [(2, 2, 7, 7), [2, 2, 7, 7], None])
 @pytest.mark.parametrize("target_idxs", [None, [0, 2], (0, 2), np.asarray([0, 2])])
 @pytest.mark.parametrize("preserve_aspect_ratio", [True, False])
-@pytest.mark.parametrize("library", ["cv2", "tf", "PIL"])
-@pytest.mark.parametrize("scale_algorithm", ["bicubic", "area", "lanczos", "bilinear"])
+@pytest.mark.parametrize("library", ["cv2", "tf", "PIL"]) # TODO: Test prpy
+@pytest.mark.parametrize("scale_algorithm", ["bicubic", "area", "lanczos", "bilinear"]) # TODO: Test box
 @pytest.mark.parametrize("keepdims", [True, False])
 def test_crop_slice_resize(target_size, n_frames, roi, target_idxs, preserve_aspect_ratio, library, scale_algorithm, keepdims):
   if (n_frames is None and target_idxs is not None) or \
