@@ -41,7 +41,7 @@ def crop_slice_resize(
     target_size: The target size; scalar or (H, W) if preserve_aspect_ratio=False
     roi: The region of interest in format (x0, y0, x1, y1). Use None to keep all.
     target_idxs: The frame indices to be used. Use None to keep all.
-    preserve_aspect_ratio: Preserve the aspect ratio?
+    preserve_aspect_ratio: Preserve the aspect ratio? (must be False for library=prpy)
     keepdims: If True, always keep n_frames dim. Otherwise, may drop n_frames dim.
     library: The library to use. `cv2` or `PIL` (return np ndarray), or `tf` (returns tf Tensor)
     scale_algorithm: The algorithm used for scaling.
@@ -109,7 +109,7 @@ def crop_slice_resize(
     elif library == 'PIL':
       from PIL import Image
       # https://pillow.readthedocs.io/en/stable/releasenotes/2.7.0.html#image-resizing-filters
-      mapping = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR, "lanczos": Image.LANCZOS, "box": Image.BOX}
+      mapping = {"bicubic": Image.BICUBIC, "bilinear": Image.BILINEAR, "lanczos": Image.LANCZOS}
       try:
         library_algorithm = mapping[scale_algorithm]
       except KeyError:
@@ -131,14 +131,14 @@ def crop_slice_resize(
       out = np.asarray([
         cv2.resize(src=f, dsize=out_size, interpolation=library_algorithm) for f in inputs])
     elif library == 'prpy':
+      if preserve_aspect_ratio:
+        raise ValueError("preserve_aspect_ratio=True is not supported for library=prpy")
       if scale_algorithm == 'bilinear':
         if inputs.shape[1] / target_height > 2 and inputs.shape[2] / target_width > 2:
           logging.debug("Switching from bilinear to box by default because we are downsampling significantly.")
           out = resample_box(im=inputs, size=(target_height, target_width))
         else:
           out = resample_bilinear(im=inputs, size=(target_height, target_width))
-      elif scale_algorithm == 'box':
-        out = resample_box(im=inputs, size=(target_height, target_width))
       else:
         raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
     else:
@@ -174,6 +174,9 @@ def resample_box(
     size: Union[int, tuple]
   ):
   """Compute box resampling with batch dimension
+
+  - Note: This implementation only works for downsampling at least 2x in each dimension
+    I.e., h/new_h >= 2 and w/new_w >= 2
   
   Args:
     im: The image(s) to be resized. Shape (n, h, w, c) or (h, w, c)

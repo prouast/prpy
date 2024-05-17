@@ -19,6 +19,8 @@
 # SOFTWARE.
 
 from prpy.numpy.image import crop_slice_resize
+from prpy.numpy.image import resample_bilinear, resample_box
+from prpy.numpy.image import reduce_roi
 
 import numpy as np
 import pytest
@@ -29,12 +31,14 @@ import tensorflow as tf
 @pytest.mark.parametrize("roi", [(2, 2, 7, 7), [2, 2, 7, 7], None])
 @pytest.mark.parametrize("target_idxs", [None, [0, 2], (0, 2), np.asarray([0, 2])])
 @pytest.mark.parametrize("preserve_aspect_ratio", [True, False])
-@pytest.mark.parametrize("library", ["cv2", "tf", "PIL"]) # TODO: Test prpy
-@pytest.mark.parametrize("scale_algorithm", ["bicubic", "area", "lanczos", "bilinear"]) # TODO: Test box
+@pytest.mark.parametrize("library", ["cv2", "tf", "PIL", "prpy"])
+@pytest.mark.parametrize("scale_algorithm", ["bicubic", "area", "lanczos", "bilinear"])
 @pytest.mark.parametrize("keepdims", [True, False])
 def test_crop_slice_resize(target_size, n_frames, roi, target_idxs, preserve_aspect_ratio, library, scale_algorithm, keepdims):
   if (n_frames is None and target_idxs is not None) or \
-     (library == "PIL" and scale_algorithm == "area"):
+     (library == "PIL" and scale_algorithm == "area") or \
+     (library == "prpy" and scale_algorithm in ["bicubic", "area", "lanczos"]) or \
+     (library == "prpy" and preserve_aspect_ratio):
     pytest.skip("Skip because parameter combination does not work")
   if n_frames is None:
     images_in = np.random.uniform(size=(8, 12, 3), low=0, high=255)
@@ -74,3 +78,41 @@ def test_crop_slice_resize_retinaface():
     inputs=images_in, target_size=224, roi=(0, 0, 480, 640), target_idxs=None,
     library='tf', preserve_aspect_ratio=True, keepdims=True, scale_algorithm='bicubic')
   assert images_out.shape == (1, 224, 224, 3)
+
+@pytest.mark.parametrize("n_frames", [1, 3])
+@pytest.mark.parametrize("size", [4, 12, (12, 16)])
+def test_resample_bilinear(n_frames, size):
+  # Note: Only tests for correct shape, not for correct pixel vals
+  im = np.random.uniform(size=(n_frames, 8, 12, 3), low=0, high=255).astype(np.uint8)
+  out = resample_bilinear(im=im, size=size)
+  if isinstance(size, int): size = (size, size)
+  assert out.shape == (n_frames, size[0], size[1], 3)
+
+@pytest.mark.parametrize("n_frames", [1, 3])
+@pytest.mark.parametrize("size", [4, (2, 3)])
+def test_resample_box(n_frames, size):
+  # Note: Only tests for correct shape, not for correct pixel vals
+  im = np.random.uniform(size=(n_frames, 8, 12, 3), low=0, high=255).astype(np.uint8)
+  out = resample_box(im=im, size=size)
+  if isinstance(size, int): size = (size, size)
+  assert out.shape == (n_frames, size[0], size[1], 3)
+
+def test_resample_box_only_downsampling():
+  im = np.random.uniform(size=(3, 8, 12, 3), low=0, high=255).astype(np.uint8)
+  with pytest.raises(Exception):
+    _ = resample_box(im=im, size=5)
+
+@pytest.mark.parametrize("scenario", [(1, [[2, 3, 4, 7]]),
+                                      (3, [[3, 4, 7, 12], [3, 5, 7, 12], [3, 5, 6, 10]])])
+def test_reduce_roi(scenario):
+  n_frames = scenario[0]
+  roi = np.asarray(scenario[1])
+  video = np.random.uniform(size=(n_frames, 12, 8, 3), low=0, high=255).astype(np.uint8)
+  out = reduce_roi(video=video, roi=roi)
+  exp = np.asarray([np.mean(video[i, roi[i,1]:roi[i,3], roi[i,0]:roi[i,2]], axis=(0,1)) for i in range(n_frames)])
+  assert out.shape == (n_frames, 3)
+  np.testing.assert_allclose(
+    out,
+    exp,
+    atol=1e-4, rtol=1e-4)
+  
