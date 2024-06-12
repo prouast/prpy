@@ -135,11 +135,12 @@ def cor(
 def snr(
     f_true: np.ndarray,
     y_pred: np.ndarray,
-    f_s: float,
+    f_s: Union[float, int],
     f_res: float,
-    tol: float = .1,
-    f_min: float = .5,
-    f_max: float = 4.):
+    tol: Union[float, int] = .1,
+    f_min: Union[float, int] = .5,
+    f_max: Union[float, int] = 4.
+  ):
   """Signal-to-noise ratio
   Args:
     f_true: The true frequencies. Shape (b,) or ()
@@ -152,11 +153,15 @@ def snr(
   Returns:
     snr: The signal to noise ratio. Shape (b,) or ()
   """
-  assert isinstance(f_s, float)
+  assert isinstance(f_s, (float, int))
   assert isinstance(f_res, float)
-  assert isinstance(tol, float)
-  assert isinstance(f_min, float)
-  assert isinstance(f_max, float)
+  assert isinstance(tol, (float, int))
+  assert isinstance(f_min, (float, int))
+  assert isinstance(f_max, (float, int))
+  f_s = float(f_s)
+  tol = float(tol)
+  f_min = float(f_min)
+  f_max = float(f_max)
   f_true = np.asarray(f_true)
   y_pred = np.asarray(y_pred)
   assert len(y_pred.shape) == 1 or len(y_pred.shape) == 2

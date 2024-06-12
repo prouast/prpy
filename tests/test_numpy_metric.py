@@ -56,8 +56,12 @@ def test_cor(shape):
     np.testing.assert_allclose(out, np.corrcoef(y_true, y_pred)[0,1])
 
 @pytest.mark.parametrize("shape", [(6,), (10, 6)])
-def test_snr(shape):
+@pytest.mark.parametrize("f_s", [5., 5])
+@pytest.mark.parametrize("tol", [.2, 1])
+@pytest.mark.parametrize("f_min", [.5, 1])
+@pytest.mark.parametrize("f_max", [4, 4.])
+def test_snr(shape, f_s, tol, f_min, f_max):
   f_true = np.random.uniform(size=shape[:-1])
   y_pred = np.random.uniform(size=shape)
-  out = snr(f_true, y_pred, f_s=5., f_res=.1)
+  out = snr(f_true, y_pred, f_s=f_s, f_res=.1, tol=tol, f_min=f_min, f_max=f_max)
   assert out.shape == shape[:-1]

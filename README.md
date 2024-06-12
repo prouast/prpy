@@ -1,6 +1,8 @@
-[![Tests](https://github.com/prouast/prpy/actions/workflows/main.yml/badge.svg)](https://github.com/prouast/prpy/actions/workflows/main.yml)
 
 # prpy
+
+[![Tests](https://github.com/prouast/prpy/actions/workflows/main.yml/badge.svg)](https://github.com/prouast/prpy/actions/workflows/main.yml)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/prpy?period=total&units=international_system&left_color=grey&right_color=blue&left_text=pip%20downloads)](https://pypi.org/project/prpy/)
 
 A collection of Python utilities for signal, image, and video processing.
 It contains subpackages for working with `numpy`, `ffmpeg`, `tensorflow`, and `torch`.

@@ -43,7 +43,8 @@ def crop_slice_resize(
     target_idxs: The frame indices to be used. Use None to keep all.
     preserve_aspect_ratio: Preserve the aspect ratio? (must be False for library=prpy)
     keepdims: If True, always keep n_frames dim. Otherwise, may drop n_frames dim.
-    library: The library to use. `cv2` or `PIL` (return np ndarray), or `tf` (returns tf Tensor)
+    library: The library to use: `cv2`, `PIL`, `prpy` (return np.ndarray), or `tf` (returns tf.Tensor)
+      prpy is experimental and only supports bilinear scale_algorithm.
     scale_algorithm: The algorithm used for scaling.
       Supports: bicubic, bilinear, area (not for PIL!), lanczos. Default: bicubic
   Returns:
