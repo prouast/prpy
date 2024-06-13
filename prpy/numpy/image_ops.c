@@ -59,7 +59,7 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
 
   // Precompute the positions and weights
   int pos[new_width][new_height][2];
-  int weights[new_width][new_height][2][2];
+  float weights[new_width][new_height][2][2];
   for (int y = 0; y < new_height; ++y) {
     for (int x = 0; x < new_width; ++x) {
       // Determine the position of the current pixel in the input image
@@ -77,10 +77,10 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
       pos[x][y][0] = x0;
       pos[x][y][1] = y0;
       // Store the weights
-      weights[x][y][0][0] = dx1 * dy1 * 256.0f;
-      weights[x][y][0][1] = dx  * dy1 * 256.0f;
-      weights[x][y][1][0] = dx1 * dy  * 256.0f;
-      weights[x][y][1][1] = dx  * dy  * 256.0f;
+      weights[x][y][0][0] = (int)(dx1 * dy1 * 256.0f);
+      weights[x][y][0][1] = (int)(dx  * dy1 * 256.0f);
+      weights[x][y][1][0] = (int)(dx1 * dy  * 256.0f);
+      weights[x][y][1][1] = (int)(dx  * dy  * 256.0f);
     }
   }
 
@@ -88,6 +88,8 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
   npy_intp output_dims[4] = {n_frames, new_height, new_width, 3};
   PyArrayObject* output_array_np = (PyArrayObject*)PyArray_EMPTY(4, output_dims, NPY_UINT8, 0);
   if (output_array_np == NULL) {
+    PyErr_SetString(PyExc_MemoryError, "Unable to allocate output array");
+    Py_DECREF(output_array_np);
     return NULL;
   }
 
@@ -105,6 +107,17 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
         unsigned char* p2 = p1 + input_strides[2];
         unsigned char* p3 = p1 + input_strides[1];
         unsigned char* p4 = p3 + input_strides[2];
+
+        // Make sure that p2 and p4 are within bounds
+        if (pos[x][y][0] + 1 >= width) {
+          p2 = p1;
+          p4 = p3;
+        }
+        // Make sure that p3 and p4 are within bounds
+        if (pos[x][y][1] + 1 >= height) {
+          p3 = p1;
+          p4 = p2;
+        }
         
         // Calculate the weighted sum of pixels (for each color channel)
         int outr = p1[0] * weights[x][y][0][0] + p2[0] * weights[x][y][0][1] + 
@@ -122,8 +135,7 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
     }
   }
 
-  Py_INCREF(output_array_np);
-  return (PyObject*)output_array_np;
+  return PyArray_Return(output_array_np);
 }
 
 static PyObject*
@@ -170,6 +182,7 @@ resample_box_op(PyObject* self, PyObject* args) {
   npy_intp output_dims[4] = {n_frames, new_height, new_width, 3};
   PyArrayObject* output_array_np = (PyArrayObject*)PyArray_EMPTY(4, output_dims, NPY_UINT8, 0);
   if (output_array_np == NULL) {
+    Py_DECREF(output_array_np);
     return NULL;
   }
 
@@ -225,8 +238,7 @@ resample_box_op(PyObject* self, PyObject* args) {
     }
   }
 
-  Py_INCREF(output_array_np);
-  return (PyObject*)output_array_np;
+  return PyArray_Return(output_array_np);
 }
 
 static PyObject*
@@ -257,7 +269,7 @@ reduce_roi_op(PyObject* self, PyObject* args) {
 
   // Get the strides
   npy_intp* video_strides = PyArray_STRIDES(input_array_video);
-  npy_intp* roi_strides = PyArray_STRIDES(input_array_roi);
+  // npy_intp* roi_strides = PyArray_STRIDES(input_array_roi);
 
   // Get the dimensions of the input video array
   npy_intp* video_dims = PyArray_DIMS(input_array_video);
@@ -267,6 +279,7 @@ reduce_roi_op(PyObject* self, PyObject* args) {
   npy_intp output_dims[2] = {n_frames, 3};
   PyArrayObject* output_array_np = (PyArrayObject*)PyArray_EMPTY(2, output_dims, NPY_FLOAT32, 0);
   if (output_array_np == NULL) {
+    Py_DECREF(output_array_np);
     return NULL;
   }
   // Get a pointer to the output data
@@ -303,8 +316,7 @@ reduce_roi_op(PyObject* self, PyObject* args) {
     output_data[idx + 2] = avg_b;
   }
 
-  Py_INCREF(output_array_np);
-  return (PyObject*)output_array_np;
+  return PyArray_Return(output_array_np);
 }
 
 static PyMethodDef image_ops_methods[] = {

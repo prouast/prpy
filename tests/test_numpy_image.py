@@ -22,9 +22,11 @@ from prpy.numpy.image import crop_slice_resize
 from prpy.numpy.image import resample_bilinear, resample_box
 from prpy.numpy.image import reduce_roi
 
+import os
 import numpy as np
 import pytest
 import tensorflow as tf
+import psutil
 
 @pytest.mark.parametrize("target_size", [6, 3, (6, 12)])
 @pytest.mark.parametrize("n_frames", [None, 3])
@@ -88,6 +90,16 @@ def test_resample_bilinear(n_frames, size):
   if isinstance(size, int): size = (size, size)
   assert out.shape == (n_frames, size[0], size[1], 3)
 
+def test_resample_bilinear_segfault_memleak():
+  test_video_ndarray = np.random.randint(0, 256, size=(138, 720, 1080, 3), dtype=np.uint8)
+  _ = resample_bilinear(test_video_ndarray, 200)
+  mem_0 = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
+  for _ in range(10):
+    test_video_ndarray = np.random.randint(0, 256, size=(138, 720, 1080, 3), dtype=np.uint8)
+    _ = resample_bilinear(test_video_ndarray, 200)
+    mem_1 = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
+    assert mem_1 - mem_0 < 1
+
 @pytest.mark.parametrize("n_frames", [1, 3])
 @pytest.mark.parametrize("size", [4, (2, 3)])
 def test_resample_box(n_frames, size):
@@ -96,6 +108,16 @@ def test_resample_box(n_frames, size):
   out = resample_box(im=im, size=size)
   if isinstance(size, int): size = (size, size)
   assert out.shape == (n_frames, size[0], size[1], 3)
+
+def test_resample_box_segfault_memleak():
+  test_video_ndarray = np.random.randint(0, 256, size=(138, 720, 1080, 3), dtype=np.uint8)
+  _ = resample_box(test_video_ndarray, 200)
+  mem_0 = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
+  for _ in range(10):
+    test_video_ndarray = np.random.randint(0, 256, size=(138, 720, 1080, 3), dtype=np.uint8)
+    _ = resample_box(test_video_ndarray, 200)
+    mem_1 = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
+    assert mem_1 - mem_0 < 1
 
 def test_resample_box_only_downsampling():
   im = np.random.uniform(size=(3, 8, 12, 3), low=0, high=255).astype(np.uint8)

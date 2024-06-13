@@ -43,3 +43,9 @@ To build:
 ```
 python -m build
 ```
+
+## Re-build and re-install locally
+
+```
+pip uninstall -y prpy && pip install -e .
+```
