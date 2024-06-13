@@ -28,7 +28,7 @@ numpy = ["numpy", "scipy", "Pillow", "opencv-python", "scikit-learn"]
 numpy_min = ["numpy", "scipy", "Pillow"]
 tensorflow = ["tensorflow==2.12.1", "numpy"]
 torch = ["torch==2.1.0"]
-test = ["pytest", "flake8"]
+test = ["pytest", "flake8", "psutil"]
 
 [project.urls]
 Repository = "https://github.com/prouast/prpy.git"
