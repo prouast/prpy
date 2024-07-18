@@ -126,9 +126,10 @@ def test_resample_box_only_downsampling():
 
 @pytest.mark.parametrize("scenario", [(1, [[2, 3, 4, 7]]),
                                       (3, [[3, 4, 7, 12], [3, 5, 7, 12], [3, 5, 6, 10]])])
-def test_reduce_roi(scenario):
+@pytest.mark.parametrize("dtype", [np.int32, np.int64])
+def test_reduce_roi(scenario, dtype):
   n_frames = scenario[0]
-  roi = np.asarray(scenario[1]).astype(np.int64)
+  roi = np.asarray(scenario[1]).astype(dtype)
   video = np.random.uniform(size=(n_frames, 12, 8, 3), low=0, high=255).astype(np.uint8)
   out = reduce_roi(video=video, roi=roi)
   exp = np.asarray([np.mean(video[i, roi[i,1]:roi[i,3], roi[i,0]:roi[i,2]], axis=(0,1)) for i in range(n_frames)])

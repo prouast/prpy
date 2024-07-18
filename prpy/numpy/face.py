@@ -36,7 +36,7 @@ def _get_roi_from_det(
   Returns:
     out: The roi [0, H/W] in format (x0, y0, x1, y1)
   """
-  assert isinstance(det, (tuple, np.ndarray)) and len(det) == 4 and all(isinstance(i, (int, np.int64)) for i in det)
+  assert isinstance(det, (tuple, np.ndarray)) and len(det) == 4 and all(isinstance(i, (int, np.int64, np.int32)) for i in det)
   assert det[2] > det[0]
   assert det[3] > det[1]
   assert isinstance(rel_change, tuple) and len(rel_change) == 4 and all(isinstance(i, float) for i in rel_change)

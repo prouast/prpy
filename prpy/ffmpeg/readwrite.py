@@ -125,7 +125,7 @@ def _ffmpeg_filtering(
   assert isinstance(w, int)
   assert isinstance(h, int)
   assert target_fps is None or isinstance(target_fps, (float, int))
-  assert crop is None or (isinstance(crop, tuple) and len(crop) == 4 and all(isinstance(i, (int, np.int64)) for i in crop))
+  assert crop is None or (isinstance(crop, tuple) and len(crop) == 4 and all(isinstance(i, (int, np.int64, np.int32)) for i in crop))
   assert scale is None or isinstance(scale, int) or (isinstance(scale, tuple) and len(scale) == 2 and all(isinstance(i, int) for i in scale))
   assert trim is None or (isinstance(trim, tuple) and len(trim) == 2 and all(isinstance(i, int) for i in trim))
   assert isinstance(preserve_aspect_ratio, bool)
@@ -170,8 +170,8 @@ def _ffmpeg_output_to_numpy(
     r: int,
     fps: Union[float, int, None],
     n: int,
-    w: Union[int, np.int64],
-    h: Union[int, np.int64],
+    w: Union[int, np.int64, np.int32],
+    h: Union[int, np.int64, np.int32],
     scale: Union[tuple, int, None] = None,
     crf: Union[int, None] = None,
     pix_fmt: str = 'bgr24',
@@ -203,8 +203,8 @@ def _ffmpeg_output_to_numpy(
   assert isinstance(r, int)
   assert fps is None or isinstance(fps, (float, int))
   assert isinstance(n, int)
-  assert isinstance(w, (int, np.int64))
-  assert isinstance(h, (int, np.int64))
+  assert isinstance(w, (int, np.int64, np.int32))
+  assert isinstance(h, (int, np.int64, np.int32))
   assert crf is None or isinstance(crf, int)
   assert isinstance(pix_fmt, str)
   assert isinstance(dim_deltas, tuple) and len(dim_deltas) == 3 and all(isinstance(i, int) for i in dim_deltas)
