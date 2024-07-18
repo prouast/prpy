@@ -34,7 +34,7 @@ test = ["pytest", "flake8", "psutil"]
 Repository = "https://github.com/prouast/prpy.git"
 Issues = "https://github.com/prouast/prpy/issues"
 
-[tools.setuptools]
+[tool.setuptools]
 packages = ["prpy"]
 
 [tool.setuptools_scm]
