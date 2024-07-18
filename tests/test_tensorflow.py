@@ -203,7 +203,7 @@ from prpy.tensorflow.model_saver import Candidate, ModelSaver
 
 def test_candidate():
   cand = Candidate(score=0.5, dir='testdir', filename='test')
-  assert cand.filepath == 'testdir/test'
+  assert cand.filepath == os.path.join('testdir', 'test')
   assert cand.score == 0.5
 
 @pytest.mark.parametrize("save_format", ["tf", "h5"])
