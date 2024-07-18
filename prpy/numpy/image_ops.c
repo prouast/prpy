@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include <stdlib.h>
@@ -51,9 +53,9 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
 
   // Get the dimensions of the input array
   npy_intp* dims = PyArray_DIMS(input_array);
-  int n_frames = dims[0];
-  int height = dims[1];
-  int width = dims[2];
+  int n_frames = (int)dims[0];
+  int height = (int)dims[1];
+  int width = (int)dims[2];
 
   // Get the strides
   npy_intp* input_strides = PyArray_STRIDES(input_array);
@@ -190,9 +192,9 @@ resample_box_op(PyObject* self, PyObject* args) {
 
   // Get the dimensions of the input array
   npy_intp* dims = PyArray_DIMS(input_array);
-  int n_frames = dims[0];
-  int height = dims[1];
-  int width = dims[2];
+  int n_frames = (int)dims[0];
+  int height = (int)dims[1];
+  int width = (int)dims[2];
 
   // Make sure that we are downsampling
   if (height / new_height < 2 || width / new_width < 2) {
@@ -319,7 +321,7 @@ reduce_roi_op(PyObject* self, PyObject* args) {
 
   // Get the dimensions of the input video array
   npy_intp* video_dims = PyArray_DIMS(input_array_video);
-  int n_frames = video_dims[0];
+  int n_frames = (int)video_dims[0];
 
   // Create an output array
   npy_intp output_dims[2] = {n_frames, 3};
