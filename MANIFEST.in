@@ -4,4 +4,6 @@ recursive-include prpy/tensorflow *
 recursive-include prpy/torch *
 recursive-include prpy/ffmpeg *
 recursive-include tests *
+global-exclude .DS_Store
 prune **/__pycache__ 
+prune .github/workflows
