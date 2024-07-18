@@ -20,6 +20,7 @@
 
 #include <Python.h>
 #include <numpy/arrayobject.h>
+#include <stdlib.h>
 
 #define DIV_ROUND_CLOSEST(n, d) ((((n) < 0) == ((d) < 0)) ? (((n) + (d)/2)/(d)) : (((n) - (d)/2)/(d)))
 
@@ -57,9 +58,17 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
   // Get the strides
   npy_intp* input_strides = PyArray_STRIDES(input_array);
 
+  // Allocate memory for the positions and weights
+  int* pos_flat = malloc(new_width * new_height * 2 * sizeof(int));
+  float* weights_flat = malloc(new_width * new_height * 2 * 2 * sizeof(float));
+  if (!pos_flat || !weights_flat) {
+    PyErr_SetString(PyExc_MemoryError, "Unable to allocate memory for position and weights arrays");
+    free(pos_flat);
+    free(weights_flat);
+    return NULL;
+  }
+
   // Precompute the positions and weights
-  int pos[new_width][new_height][2];
-  float weights[new_width][new_height][2][2];
   for (int y = 0; y < new_height; ++y) {
     for (int x = 0; x < new_width; ++x) {
       // Determine the position of the current pixel in the input image
@@ -74,13 +83,14 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
       float dx1 = 1.0f - dx;
       float dy1 = 1.0f - dy;
       // Store the positions
-      pos[x][y][0] = x0;
-      pos[x][y][1] = y0;
+      int flat_idx = (x * new_height + y) * 2; 
+      pos_flat[flat_idx + 0] = x0;
+      pos_flat[flat_idx + 1] = y0;
       // Store the weights
-      weights[x][y][0][0] = (int)(dx1 * dy1 * 256.0f);
-      weights[x][y][0][1] = (int)(dx  * dy1 * 256.0f);
-      weights[x][y][1][0] = (int)(dx1 * dy  * 256.0f);
-      weights[x][y][1][1] = (int)(dx  * dy  * 256.0f);
+      weights_flat[(flat_idx + 0) * 2 + 0] = dx1 * dy1 * 256.0f;
+      weights_flat[(flat_idx + 0) * 2 + 1] = dx  * dy1 * 256.0f;
+      weights_flat[(flat_idx + 1) * 2 + 0] = dx1 * dy  * 256.0f;
+      weights_flat[(flat_idx + 1) * 2 + 1] = dx  * dy  * 256.0f;
     }
   }
 
@@ -103,29 +113,40 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
     // Resize the frame using bilinear resampling
     for (int y = 0; y < new_height; ++y) {
       for (int x = 0; x < new_width; ++x) {
-        unsigned char* p1 = current_frame + pos[x][y][1] * input_strides[1] + pos[x][y][0] * input_strides[2];
+        // Get position coordinates
+        int pos_idx = (x * new_height + y) * 2;
+        int x0 = pos_flat[pos_idx + 0];
+        int y0 = pos_flat[pos_idx + 1];
+        
+        // Get weights
+        int weights_idx = ((x * new_height + y) * 2) * 2;
+        float w00 = weights_flat[weights_idx + 0];
+        float w01 = weights_flat[weights_idx + 1];
+        float w10 = weights_flat[weights_idx + 2];
+        float w11 = weights_flat[weights_idx + 3];
+
+        // Access pixels
+        unsigned char* p1 = current_frame + y0 * input_strides[1] + x0 * input_strides[2];
         unsigned char* p2 = p1 + input_strides[2];
         unsigned char* p3 = p1 + input_strides[1];
         unsigned char* p4 = p3 + input_strides[2];
 
         // Make sure that p2 and p4 are within bounds
-        if (pos[x][y][0] + 1 >= width) {
+        if (x0 + 1 >= width) {
           p2 = p1;
           p4 = p3;
         }
         // Make sure that p3 and p4 are within bounds
-        if (pos[x][y][1] + 1 >= height) {
+        if (y0 + 1 >= height) {
           p3 = p1;
           p4 = p2;
         }
         
         // Calculate the weighted sum of pixels (for each color channel)
-        int outr = p1[0] * weights[x][y][0][0] + p2[0] * weights[x][y][0][1] + 
-                   p3[0] * weights[x][y][1][0] + p4[0] * weights[x][y][1][1];
-        int outg = p1[1] * weights[x][y][0][0] + p2[1] * weights[x][y][0][1] + 
-                   p3[1] * weights[x][y][1][0] + p4[1] * weights[x][y][1][1];
-        int outb = p1[2] * weights[x][y][0][0] + p2[2] * weights[x][y][0][1] + 
-                   p3[2] * weights[x][y][1][0] + p4[2] * weights[x][y][1][1];
+        int outr = p1[0] * w00 + p2[0] * w01 + p3[0] * w10 + p4[0] * w11;
+        int outg = p1[1] * w00 + p2[1] * w01 + p3[1] * w10 + p4[1] * w11;
+        int outb = p1[2] * w00 + p2[2] * w01 + p3[2] * w10 + p4[2] * w11;
+
         // Save
         int idx = i * new_height * new_width * 3 + y * new_width * 3 + x * 3;
         output_data[idx + 0] = (unsigned char)(outr >> 8);
@@ -134,6 +155,10 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
       }
     }
   }
+
+  // Free allocated memory
+  free(pos_flat);
+  free(weights_flat);
 
   return PyArray_Return(output_array_np);
 }
@@ -183,18 +208,32 @@ resample_box_op(PyObject* self, PyObject* args) {
   PyArrayObject* output_array_np = (PyArrayObject*)PyArray_EMPTY(4, output_dims, NPY_UINT8, 0);
   if (output_array_np == NULL) {
     Py_DECREF(output_array_np);
+    PyErr_SetString(PyExc_MemoryError, "Unable to allocate output array");
     return NULL;
   }
 
   // Get a pointer to the output data
   unsigned char* output_data = (unsigned char*)PyArray_DATA(output_array_np);
 
+  // Allocate memory for start and end indices for rows and columns and num_pixels
+  int* start_x = (int*)malloc(new_width * sizeof(int));
+  int* end_x = (int*)malloc(new_width * sizeof(int));
+  int* start_y = (int*)malloc(new_height * sizeof(int));
+  int* end_y = (int*)malloc(new_height * sizeof(int));
+  int* num_pixels_flat = malloc(new_width * new_height * sizeof(int));
+  if (!start_x || !end_x || !start_y || !end_y || !num_pixels_flat) {
+    // Clean up allocated memory before returning error
+    free(start_x);
+    free(end_x);
+    free(start_y);
+    free(end_y);
+    free(num_pixels_flat);
+    PyErr_SetString(PyExc_MemoryError, "Unable to allocate memory for indices");
+    Py_DECREF(output_array_np);
+    return NULL;
+  }
+
   // Precompute start and end indices for rows and columns and num_pixels
-  int start_x[new_width];
-  int end_x[new_width];
-  int start_y[new_height];
-  int end_y[new_height];
-  int num_pixels_[new_width][new_height];
   for (int x = 0; x < new_width; ++x) {
     start_x[x] = DIV_ROUND_CLOSEST(x * width, new_width);
     end_x[x] = DIV_ROUND_CLOSEST((x + 1) * width, new_width);
@@ -203,7 +242,7 @@ resample_box_op(PyObject* self, PyObject* args) {
     start_y[y] = DIV_ROUND_CLOSEST(y * height, new_height);
     end_y[y] = DIV_ROUND_CLOSEST((y + 1) * height, new_height);
     for (int x = 0; x < new_width; ++x) {
-      num_pixels_[x][y] = (end_y[y] - start_y[y]) * (end_x[x] - start_x[x]);
+      num_pixels_flat[y * new_width + x] = (end_y[y] - start_y[y]) * (end_x[x] - start_x[x]);
     }
   }
 
@@ -216,6 +255,7 @@ resample_box_op(PyObject* self, PyObject* args) {
       for (int x = 0; x < new_width; ++x) {
         // Compute the mean of pixels in the input image block
         int sum_r = 0, sum_g = 0, sum_b = 0;
+        int num_pixels = num_pixels_flat[y * new_width + x];
         for (int src_y = start_y[y]; src_y < end_y[y]; ++src_y) {
           for (int src_x = start_x[x]; src_x < end_x[x]; ++src_x) {
             unsigned char* pixel = current_frame + src_y * input_strides[1] + src_x * input_strides[2];
@@ -225,7 +265,6 @@ resample_box_op(PyObject* self, PyObject* args) {
           }
         }
         // Calculate the average value of the pixels
-        int num_pixels = num_pixels_[x][y];
         unsigned char avg_r = (unsigned char)(sum_r / num_pixels);
         unsigned char avg_g = (unsigned char)(sum_g / num_pixels);
         unsigned char avg_b = (unsigned char)(sum_b / num_pixels);
@@ -237,6 +276,13 @@ resample_box_op(PyObject* self, PyObject* args) {
       }
     }
   }
+
+  // Free allocated memory
+  free(start_x);
+  free(end_x);
+  free(start_y);
+  free(end_y);
+  free(num_pixels_flat);
 
   return PyArray_Return(output_array_np);
 }
