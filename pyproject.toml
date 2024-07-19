@@ -38,3 +38,8 @@ Issues = "https://github.com/prouast/prpy/issues"
 packages = ["prpy"]
 
 [tool.setuptools_scm]
+
+[tool.pytest.ini_options]
+markers = [
+    "skip_parametrize_tf_cv2: skip tests that parametrize 'tf' or 'cv2'",
+]
