@@ -65,8 +65,6 @@ def pytest_collection_modifyitems(config, items):
     if hasattr(item, 'callspec'):
       params = item.callspec.params
       for param in params.values():
-        if isinstance(param, (list, tuple)):
-          if any(p in ['tf', 'cv2'] for p in param):
-            item.add_marker(pytest.mark.skip_parametrize_tf_cv2)
-        elif param in ['tf', 'cv2']:
+        if isinstance(param, str) and param in ['tf', 'cv2']:
           item.add_marker(pytest.mark.skip_parametrize_tf_cv2)
+          
