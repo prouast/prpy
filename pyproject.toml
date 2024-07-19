@@ -26,8 +26,8 @@ dynamic = ["version"]
 ffmpeg = ["ffmpeg-python", "numpy"]
 numpy = ["numpy", "scipy", "Pillow", "opencv-python", "scikit-learn"]
 numpy_min = ["numpy", "scipy", "Pillow"]
-tensorflow = ["tensorflow==2.12.1", "numpy"]
-torch = ["torch==2.1.0"]
+tensorflow = ["tensorflow<2.13", "numpy"]
+torch = ["torch>=2.1.0"]
 test = ["pytest", "flake8", "psutil"]
 
 [project.urls]
@@ -38,3 +38,8 @@ Issues = "https://github.com/prouast/prpy/issues"
 packages = ["prpy"]
 
 [tool.setuptools_scm]
+
+[tool.pytest.ini_options]
+markers = [
+    "skip_parametrize_tf_cv2: skip tests that parametrize 'tf' or 'cv2'",
+]

@@ -25,7 +25,6 @@ from prpy.numpy.image import reduce_roi
 import os
 import numpy as np
 import pytest
-import tensorflow as tf
 import psutil
 
 @pytest.mark.parametrize("target_size", [6, 3, (6, 12)])
@@ -69,6 +68,7 @@ def test_crop_slice_resize(target_size, n_frames, roi, target_idxs, preserve_asp
   expected_shape = (expected_frames,) + expected_shape if expected_frames is not None else expected_shape
   assert images_out.shape == expected_shape
   if library == 'tf':
+    import tensorflow as tf
     assert tf.is_tensor(images_out)
   else:
     assert isinstance(images_out, np.ndarray)
@@ -78,7 +78,7 @@ def test_crop_slice_resize_retinaface():
   images_in = images_in.astype(np.uint8)
   images_out = crop_slice_resize(
     inputs=images_in, target_size=224, roi=(0, 0, 480, 640), target_idxs=None,
-    library='tf', preserve_aspect_ratio=True, keepdims=True, scale_algorithm='bicubic')
+    library='PIL', preserve_aspect_ratio=True, keepdims=True, scale_algorithm='bicubic')
   assert images_out.shape == (1, 224, 224, 3)
 
 @pytest.mark.parametrize("n_frames", [1, 3])

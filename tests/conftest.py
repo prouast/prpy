@@ -58,3 +58,13 @@ def sample_video_data():
     stream, r=0, fps=SAMPLE_FPS, n=SAMPLE_FRAMES, w=SAMPLE_WIDTH, h=SAMPLE_HEIGHT,
     pix_fmt='rgb24')
   return data
+
+def pytest_collection_modifyitems(config, items):
+  """Add marker for tests which parametrize cv2 or tf"""
+  for item in items:
+    if hasattr(item, 'callspec'):
+      params = item.callspec.params
+      for param in params.values():
+        if isinstance(param, str) and param in ['tf', 'cv2']:
+          item.add_marker(pytest.mark.skip_parametrize_tf_cv2)
+          

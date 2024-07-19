@@ -29,13 +29,21 @@ jobs:
       - name: Install prpy and dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ".[ffmpeg,numpy,tensorflow,torch,test]"
+          if [ "${{ matrix.python-version }}" == "3.12" ]; then
+            python -m pip install ".[ffmpeg,numpy_min,test]"
+          else
+            python -m pip install ".[ffmpeg,numpy,tensorflow,torch,test]"
+          fi
       - name: Lint with flake8
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
       - name: Test with pytest
         run: |
-          pytest
+          if [ "${{ matrix.python-version }}" == "3.12" ]; then
+            pytest --ignore=tests/test_tensorflow.py --ignore=tests/test_torch.py -m "not (skip_parametrize_tf_cv2 or sklearn)"
+          else
+            pytest
+          fi
   windows:
     runs-on: windows-latest
     steps:
