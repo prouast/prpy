@@ -188,7 +188,8 @@ def test_interpolate_vals():
   np.testing.assert_allclose(
     interpolate_vals(np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan])),
     np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan]))
-  
+
+@pytest.mark.sklearn
 def test_interpolate_linear_sequence_outliers():
   # Check an easy case
   np.testing.assert_allclose(
