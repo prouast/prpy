@@ -26,7 +26,7 @@ import os
 
 def probe_video(
     path: str
-  ) -> Tuple[float, int, int, int, str, float, int]:
+  ) -> Tuple[float, int, int, int, str, float, int, bool]:
   """Probe a video file for metadata.
 
   Args:
@@ -39,6 +39,7 @@ def probe_video(
     codec: The codec of the video
     bitrate: The bitrate of the video
     rotation: The rotation of the video
+    issues: Indicates if there are issues with the video
   """
   # Check if file exists
   assert isinstance(path, str)
@@ -49,8 +50,11 @@ def probe_video(
     probe = ffmpeg.probe(filename=path)
   except Exception as e:
     # The exception returned by `ffprobe` is in bytes
-    logging.warn("Exception probing video: {}".format(e))
+    logging.warning("Exception probing video: {}".format(e))
   else:
+    # Check if the file contains video streams
+    if 'streams' not in probe or not any(s['codec_type'] == 'video' for s in probe['streams']):
+      raise ValueError("No video streams found")
     video_stream = next(
       (
         stream
@@ -59,22 +63,35 @@ def probe_video(
       ),
       None,
     )
+    issues = False
     try:
       fps = float(Fraction(video_stream["avg_frame_rate"]))
     except Exception as e:
-      fps = 0
+      logging.warning("Frame rate information missing")
+      issues = True
+      fps = None
+    try:
+      duration = float(video_stream['duration'])
+    except Exception as e:
+      duration = None
     try:
       total_frames = int(video_stream["nb_frames"])
     except Exception as e:
-      duration = float(video_stream['duration'])
-      total_frames = int(duration*fps)
+      issues = True
+      if fps is not None and duration is not None:
+        logging.warning("Number of frames missing. Inferring using duration and fps.")
+        total_frames = int(duration*fps)
+      else:
+        logging.warning("Cannot infer number of total frames")
+        total_frames = None
     width = video_stream["width"]
     height = video_stream["height"]
     codec = video_stream["codec_name"]
     try:
       bitrate = float(video_stream["bit_rate"])/1000.0
     except Exception as e:
-      bitrate = 0.0
+      logging.warning("Bitrate information missing")
+      bitrate = None
     rotation = 0
     if 'tags' in video_stream and 'rotate' in video_stream['tags']:
       # Regular
@@ -82,5 +99,11 @@ def probe_video(
     elif 'side_data_list' in video_stream and 'rotation' in video_stream['side_data_list'][0]:
       # iPhone
       rotation = int(video_stream['side_data_list'][0]['rotation'])
-    return fps, total_frames, width, height, codec, bitrate, rotation
-  
+    if not issues:
+      # Check for other issues
+      if total_frames is not None and duration is not None and fps is not None:
+        expected_frames = int(duration * fps)
+        if abs(total_frames - expected_frames) > 1:
+          logging.warning("Mismatch between number of frames and duration / fps information")
+          issues = True
+    return fps, total_frames, width, height, codec, bitrate, rotation, issues
