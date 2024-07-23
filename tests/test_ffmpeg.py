@@ -38,10 +38,11 @@ SAMPLE_CHANNELS = 3
 SAMPLE_CODEC = 'h264'
 SAMPLE_BITRATE = 62.144
 SAMPLE_ROTATION = 0
+SAMPLE_ISSUES = False
 
 def test_probe_video(sample_video_file):
   out = probe_video(path=sample_video_file)
-  assert out[0:7] == (SAMPLE_FPS, SAMPLE_FRAMES, SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_CODEC, SAMPLE_BITRATE, SAMPLE_ROTATION)
+  assert out[0:8] == (SAMPLE_FPS, SAMPLE_FRAMES, SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_CODEC, SAMPLE_BITRATE, SAMPLE_ROTATION, SAMPLE_ISSUES)
 
 @pytest.mark.parametrize("target_fps", [25., 8.])
 @pytest.mark.parametrize("crop", [None, (256, 94, 160, 120)])

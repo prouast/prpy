@@ -20,6 +20,7 @@
 
 import ffmpeg
 import logging
+import math
 import numpy as np
 import os
 from typing import Tuple, Union
@@ -131,11 +132,11 @@ def _ffmpeg_filtering(
   assert isinstance(preserve_aspect_ratio, bool)
   assert isinstance(scale_algorithm, str)
   ds_factor = 1
-  if target_fps is not None and target_fps > fps: logging.warn("target_fps should not be greater than fps. Ignoring.")
+  if target_fps is not None and target_fps > fps: logging.warning("target_fps should not be greater than fps. Ignoring.")
   elif target_fps is not None: ds_factor = round(fps / target_fps)
   # Target number of frames
   target_n = trim[1] - trim[0] if trim is not None else n
-  target_n = int(target_n / ds_factor)
+  target_n = math.ceil(target_n / ds_factor)
   # Target size after taking into account cropping
   target_w = crop[2] if crop is not None else w
   target_h = crop[3] if crop is not None else h
@@ -155,6 +156,7 @@ def _ffmpeg_filtering(
   # Downsampling
   if ds_factor > 1:
     stream = ffmpeg.filter(stream, 'select', 'not(mod(n,{}))'.format(ds_factor))
+    stream = stream.setpts('N/FRAME_RATE/TB')
   # Cropping
   if crop is not None:
     stream = stream.crop(crop[0], crop[1], crop[2], crop[3])
@@ -227,14 +229,17 @@ def _ffmpeg_output_to_numpy(
   # Swap h and w if necessary -> not needed if scaled!
   if r != 0:
     if abs(r) == 90:
-      logging.warn("Rotation {} present in video fixed; results in W and H swapped.".format(r))
+      logging.warning("Rotation {} present in video fixed; results in W and H swapped.".format(r))
       w, h = h, w
     else:
-      logging.warn("Rotation {} present in video; Fixing is not yet supported.".format(r))
+      logging.warning("Rotation {} present in video; Fixing is not yet supported.".format(r))
   # Parse result
   frames = np.frombuffer(out, np.uint8)
-  adj_n, adh_h, adh_w = find_factors_near(
-    frames.shape[0]//3, n, h, w, dim_deltas[0], dim_deltas[1], dim_deltas[2])
+  try:
+    adj_n, adh_h, adh_w = find_factors_near(
+      frames.shape[0]//3, n, h, w, dim_deltas[0], dim_deltas[1], dim_deltas[2])
+  except:
+    raise ValueError("ffmpeg was not able to read the video into the expected shape using the requested settings. There may be an issue with the video file.")
   assert adj_n * adh_h * adh_w * 3 == frames.shape[0]
   frames = frames.reshape([adj_n, adh_h, adh_w, 3])
   # Return
@@ -320,7 +325,7 @@ def read_video_from_path(
   if not os.path.exists(path):
     raise FileNotFoundError("File {} does not exist".format(path))
   # Get metadata of original video
-  fps, n, w, h, _, _, r = probe_video(path=path)
+  fps, n, w, h, _, _, r, _ = probe_video(path=path)
   # Input
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
@@ -370,7 +375,7 @@ def write_video_from_path(
     scale_algorithm: The algorithm used for scaling. Default: bicubic
   """
   # Get metadata of original video
-  fps, n, w, h, _, _, r = probe_video(path=path)
+  fps, n, w, h, _, _, r, _ = probe_video(path=path)
   # Input
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
