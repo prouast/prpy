@@ -69,7 +69,7 @@ def normalize(
     x: The normalized data
   """
   assert axis is None or isinstance(axis, int) or (isinstance(axis, tuple) and all(isinstance(i, int) for i in axis))
-  x = np.asarray(x)
+  x = np.array(x)
   x -= np.mean(x, axis=axis, keepdims=x.ndim>0)
   return x
 
@@ -88,7 +88,7 @@ def standardize(
     x: The standardized data
   """
   assert axis is None or isinstance(axis, int) or (isinstance(axis, tuple) and all(isinstance(i, int) for i in axis))
-  x = np.asarray(x)
+  x = np.array(x)
   x -= np.mean(x, axis=axis, keepdims=x.ndim>0)
   std = np.std(x, axis=axis, keepdims=x.ndim>0)
   x = div0(x, std, fill=0)
@@ -118,7 +118,7 @@ def moving_average(
   assert isinstance(size, int) and size > 0
   assert isinstance(scale, bool)
   assert isinstance(scale_factor, float)
-  x = np.asarray(x)
+  x = np.array(x)
   if np.isnan(x).any():
     return x
   if scale:
@@ -248,7 +248,7 @@ def windowed_standardize(
   Returns:
     y: The standardized data
   """
-  x = np.asarray(x)
+  x = np.array(x)
   if windowed_mean:
     mean = moving_average(x, size=window_size, scale=True)
   else:
@@ -482,7 +482,7 @@ def interpolate_vals(
     x: The interpolated values, shape (n_vals,)
   """
   assert callable(val_fn)
-  x = np.asarray(x)
+  x = np.array(x)
   assert len(x.shape) == 1, "Only 1-D arrays supported"
   if val_fn(x).all():
     logging.debug("All elements in x fulfilled val_fn. Not doing anything.")

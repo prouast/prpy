@@ -83,10 +83,12 @@ def test_write_video_from_path(sample_video_file):
 
 def test_write_video_from_numpy(sample_video_data):
   test_filename = "test_out.mp4"
+  sample_video_data_copy = sample_video_data.copy()
   write_video_from_numpy(
     sample_video_data, fps=SAMPLE_FPS, pix_fmt='rgb24', output_dir="",
     output_file=test_filename, out_pix_fmt='rgb24', crf=0, overwrite=True)
   frames_test, _ = read_video_from_path(path=test_filename, pix_fmt='rgb24')
   np.testing.assert_allclose(frames_test, sample_video_data, rtol=1e-4, atol=2)
   os.remove(test_filename)
+  np.testing.assert_equal(sample_video_data, sample_video_data_copy) # No side effects
   

@@ -29,6 +29,8 @@ import pytest
 import shutil
 import tensorflow as tf
 
+# TODO: Consider testing for no side effects
+
 # https://stackoverflow.com/questions/40710094/how-to-suppress-py-test-internal-deprecation-warnings
 
 def tf_function_wrapper(func):

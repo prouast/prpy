@@ -64,10 +64,10 @@ def crop_slice_resize(
   # Add temporal dim if necessary
   if len(inputs_shape) == 3: inputs = inputs[np.newaxis,:,:,:]
   # Apply target_idxs and roi
-  inputs = inputs[(target_idxs if target_idxs is not None else slice(None)), 
-                  (slice(roi[1], roi[3]) if isinstance(roi, (tuple, list)) else slice(None)),
-                  (slice(roi[0], roi[2]) if isinstance(roi, (tuple, list)) else slice(None))]
-  in_shape = inputs.shape
+  inputs_sliced = inputs[(target_idxs if target_idxs is not None else slice(None)), 
+                         (slice(roi[1], roi[3]) if isinstance(roi, (tuple, list)) else slice(None)),
+                         (slice(roi[0], roi[2]) if isinstance(roi, (tuple, list)) else slice(None))]
+  in_shape = inputs_sliced.shape
   # Compute out size
   def _out_size(in_shape, target_height, target_width, preserve_aspect_ratio):
     _, height, width, _ = in_shape
@@ -90,9 +90,9 @@ def crop_slice_resize(
     # No resizing necessary
     if library == 'tf':
       import tensorflow as tf
-      out = tf.convert_to_tensor(inputs)
+      out = tf.convert_to_tensor(inputs_sliced)
     else:
-      out = inputs
+      out = inputs_sliced
   else:
     # Resize to out_size
     if library == 'tf':
@@ -104,7 +104,7 @@ def crop_slice_resize(
       except KeyError:
         raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
       out = tf.image.resize(
-        images=inputs, size=(target_height, target_width),
+        images=inputs_sliced, size=(target_height, target_width),
         preserve_aspect_ratio=preserve_aspect_ratio,
         method=library_algorithm, antialias=False)
     elif library == 'PIL':
@@ -118,7 +118,7 @@ def crop_slice_resize(
       # PIL requires (width, height)
       out_size = (out_size[1], out_size[0])
       out = np.asarray([
-        np.asarray(Image.fromarray(f).resize(out_size, resample=library_algorithm)) for f in inputs])
+        np.asarray(Image.fromarray(f).resize(out_size, resample=library_algorithm)) for f in inputs_sliced])
     elif library == 'cv2':
       import cv2
       # https://docs.opencv.org/3.4/da/d54/group__imgproc__transform.html
@@ -130,16 +130,16 @@ def crop_slice_resize(
       # cv2 requires (width, height)
       out_size = (out_size[1], out_size[0])
       out = np.asarray([
-        cv2.resize(src=f, dsize=out_size, interpolation=library_algorithm) for f in inputs])
+        cv2.resize(src=f, dsize=out_size, interpolation=library_algorithm) for f in inputs_sliced])
     elif library == 'prpy':
       if preserve_aspect_ratio:
         raise ValueError("preserve_aspect_ratio=True is not supported for library=prpy")
       if scale_algorithm == 'bilinear':
-        if inputs.shape[1] / target_height > 2 and inputs.shape[2] / target_width > 2:
+        if inputs_sliced.shape[1] / target_height > 2 and inputs_sliced.shape[2] / target_width > 2:
           logging.debug("Switching from bilinear to box by default because we are downsampling significantly.")
-          out = resample_box(im=inputs, size=(target_height, target_width))
+          out = resample_box(im=inputs_sliced, size=(target_height, target_width))
         else:
-          out = resample_bilinear(im=inputs, size=(target_height, target_width))
+          out = resample_bilinear(im=inputs_sliced, size=(target_height, target_width))
       else:
         raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
     else:

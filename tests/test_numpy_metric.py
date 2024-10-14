@@ -28,32 +28,57 @@ from prpy.numpy.metric import mag2db, mae, mse, rmse, cor, snr
 
 @pytest.mark.parametrize("shape", [(3,), (2, 3), (2, 3, 5)])
 def test_mag2db(shape):
-  out = mag2db(np.zeros(shape=shape))
+  x = np.zeros(shape=shape)
+  x_copy = x.copy()
+  out = mag2db(x)
   assert out.shape == shape
+  np.testing.assert_equal(x, x_copy)
 
 @pytest.mark.parametrize("shape", [(3,), (2, 3), (2, 3, 5)])
 def test_mae(shape):
-  out = mae(np.zeros(shape=shape), np.zeros(shape=shape), axis=-1)
+  y_true = np.zeros(shape=shape)
+  y_pred = np.zeros(shape=shape)
+  y_true_copy = y_true.copy()
+  y_pred_copy = y_pred.copy()
+  out = mae(y_true=y_true, y_pred=y_pred, axis=-1)
   assert out.shape == shape[:-1]
+  np.testing.assert_equal(y_true, y_true_copy)
+  np.testing.assert_equal(y_pred, y_pred_copy)
 
 @pytest.mark.parametrize("shape", [(3,), (2, 3), (2, 3, 5)])
 def test_mse(shape):
-  out = mse(np.zeros(shape=shape), np.zeros(shape=shape), axis=-1)
+  y_true = np.zeros(shape=shape)
+  y_pred = np.zeros(shape=shape)
+  y_true_copy = y_true.copy()
+  y_pred_copy = y_pred.copy()
+  out = mse(y_true=y_true, y_pred=y_pred, axis=-1)
   assert out.shape == shape[:-1]
+  np.testing.assert_equal(y_true, y_true_copy)
+  np.testing.assert_equal(y_pred, y_pred_copy)
 
 @pytest.mark.parametrize("shape", [(3,), (2, 3), (2, 3, 5)])
 def test_rmse(shape):
-  out = rmse(np.zeros(shape=shape), np.zeros(shape=shape), axis=-1)
+  y_true = np.zeros(shape=shape)
+  y_pred = np.zeros(shape=shape)
+  y_true_copy = y_true.copy()
+  y_pred_copy = y_pred.copy()
+  out = rmse(y_true=y_true, y_pred=y_pred, axis=-1)
   assert out.shape == shape[:-1]
+  np.testing.assert_equal(y_true, y_true_copy)
+  np.testing.assert_equal(y_pred, y_pred_copy)
 
 @pytest.mark.parametrize("shape", [(3,), (2, 3), (2, 3, 5)])
 def test_cor(shape):
   y_true = np.random.uniform(size=shape)
   y_pred = np.random.uniform(size=shape)
-  out = cor(y_true, y_pred, axis=-1)
+  y_true_copy = y_true.copy()
+  y_pred_copy = y_pred.copy()
+  out = cor(y_true=y_true, y_pred=y_pred, axis=-1)
   assert out.shape == shape[:-1]
   if len(shape) == 1:
     np.testing.assert_allclose(out, np.corrcoef(y_true, y_pred)[0,1])
+  np.testing.assert_equal(y_true, y_true_copy)
+  np.testing.assert_equal(y_pred, y_pred_copy)
 
 @pytest.mark.parametrize("shape", [(6,), (10, 6)])
 @pytest.mark.parametrize("f_s", [5., 5])
@@ -63,5 +88,9 @@ def test_cor(shape):
 def test_snr(shape, f_s, tol, f_min, f_max):
   f_true = np.random.uniform(size=shape[:-1])
   y_pred = np.random.uniform(size=shape)
-  out = snr(f_true, y_pred, f_s=f_s, f_res=.1, tol=tol, f_min=f_min, f_max=f_max)
+  f_true_copy = f_true.copy()
+  y_pred_copy = y_pred.copy()
+  out = snr(f_true=f_true, y_pred=y_pred, f_s=f_s, f_res=.1, tol=tol, f_min=f_min, f_max=f_max)
   assert out.shape == shape[:-1]
+  np.testing.assert_equal(f_true, f_true_copy)
+  np.testing.assert_equal(y_pred, y_pred_copy)

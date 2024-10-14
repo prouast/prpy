@@ -46,6 +46,7 @@ def test_crop_slice_resize(target_size, n_frames, roi, target_idxs, preserve_asp
   else:
     images_in = np.random.uniform(size=(n_frames, 8, 12, 3), low=0, high=255)
   images_in = images_in.astype(np.uint8)
+  images_in_copy = images_in.copy()
   images_out = crop_slice_resize(
     inputs=images_in, target_size=target_size, roi=roi, target_idxs=target_idxs,
     library=library, preserve_aspect_ratio=preserve_aspect_ratio,
@@ -72,23 +73,29 @@ def test_crop_slice_resize(target_size, n_frames, roi, target_idxs, preserve_asp
     assert tf.is_tensor(images_out)
   else:
     assert isinstance(images_out, np.ndarray)
+  # No side effects
+  np.testing.assert_equal(images_in, images_in_copy)
 
 def test_crop_slice_resize_retinaface():
   images_in = np.random.uniform(size=(480, 640, 3), low=0, high=255)  
   images_in = images_in.astype(np.uint8)
+  images_in_copy = images_in.copy()
   images_out = crop_slice_resize(
     inputs=images_in, target_size=224, roi=(0, 0, 480, 640), target_idxs=None,
     library='PIL', preserve_aspect_ratio=True, keepdims=True, scale_algorithm='bicubic')
   assert images_out.shape == (1, 224, 224, 3)
+  np.testing.assert_equal(images_in, images_in_copy)
 
 @pytest.mark.parametrize("n_frames", [1, 3])
 @pytest.mark.parametrize("size", [4, 12, (12, 16)])
 def test_resample_bilinear(n_frames, size):
   # Note: Only tests for correct shape, not for correct pixel vals
   im = np.random.uniform(size=(n_frames, 8, 12, 3), low=0, high=255).astype(np.uint8)
+  im_copy = im.copy()
   out = resample_bilinear(im=im, size=size)
   if isinstance(size, int): size = (size, size)
   assert out.shape == (n_frames, size[0], size[1], 3)
+  np.testing.assert_equal(im, im_copy)
 
 def test_resample_bilinear_segfault_memleak():
   test_video_ndarray = np.random.randint(0, 256, size=(138, 720, 1080, 3), dtype=np.uint8)
@@ -105,9 +112,11 @@ def test_resample_bilinear_segfault_memleak():
 def test_resample_box(n_frames, size):
   # Note: Only tests for correct shape, not for correct pixel vals
   im = np.random.uniform(size=(n_frames, 8, 12, 3), low=0, high=255).astype(np.uint8)
+  im_copy = im.copy()
   out = resample_box(im=im, size=size)
   if isinstance(size, int): size = (size, size)
   assert out.shape == (n_frames, size[0], size[1], 3)
+  np.testing.assert_equal(im, im_copy)
 
 def test_resample_box_segfault_memleak():
   test_video_ndarray = np.random.randint(0, 256, size=(138, 720, 1080, 3), dtype=np.uint8)
@@ -121,8 +130,10 @@ def test_resample_box_segfault_memleak():
 
 def test_resample_box_only_downsampling():
   im = np.random.uniform(size=(3, 8, 12, 3), low=0, high=255).astype(np.uint8)
+  im_copy = im.copy()
   with pytest.raises(Exception):
     _ = resample_box(im=im, size=5)
+  np.testing.assert_equal(im, im_copy)
 
 @pytest.mark.parametrize("scenario", [(1, [[2, 3, 4, 7]]),
                                       (3, [[3, 4, 7, 12], [3, 5, 7, 12], [3, 5, 6, 10]])])
@@ -131,6 +142,7 @@ def test_reduce_roi(scenario, dtype):
   n_frames = scenario[0]
   roi = np.asarray(scenario[1]).astype(dtype)
   video = np.random.uniform(size=(n_frames, 12, 8, 3), low=0, high=255).astype(np.uint8)
+  video_copy = video.copy()
   out = reduce_roi(video=video, roi=roi)
   exp = np.asarray([np.mean(video[i, roi[i,1]:roi[i,3], roi[i,0]:roi[i,2]], axis=(0,1)) for i in range(n_frames)])
   assert out.shape == (n_frames, 3)
@@ -138,4 +150,5 @@ def test_reduce_roi(scenario, dtype):
     out,
     exp,
     atol=1e-4, rtol=1e-4)
+  np.testing.assert_equal(video, video_copy)
   

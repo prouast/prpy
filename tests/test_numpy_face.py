@@ -81,7 +81,9 @@ def test_crop_resize_from_det(roi_method, library):
   # Uses prpy, only check shapes
   inputs = np.zeros((3, 300, 220, 3))
   inputs = inputs.astype(np.uint8)
+  inputs_copy = inputs.copy()
   det = (100, 100, 180, 220)
   # face
   out = crop_resize_from_det(inputs, det=det, size=(36, 36), roi_method=roi_method, library=library, scale_algorithm='bicubic')
   assert out.shape == (3, 36, 36, 3)
+  np.testing.assert_equal(inputs, inputs_copy) # No side effects
