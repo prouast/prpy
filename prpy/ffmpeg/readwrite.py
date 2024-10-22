@@ -143,10 +143,10 @@ def _ffmpeg_filtering(
   if requires_even_dims and crop is not None and scale in [None, 0]:
     if crop[2] % 2 != 0:
       crop = (crop[0], crop[1], crop[2]-1, crop[3])
-      logging.warning("Reducing uneven crop width from {} to {} to make H264 encoding possible.".format(crop[2]+1, crop[2]))
+      logging.warning("Reducing uneven crop width from {} to {} to make operation possible.".format(crop[2]+1, crop[2]))
     if crop[3] % 2 != 0:
       crop = (crop[0], crop[1], crop[2], crop[3]-1)
-      logging.warning("Reducing uneven crop height from {} to {} to make H264 encoding possible.".format(crop[3]+1, crop[3]))
+      logging.warning("Reducing uneven crop height from {} to {} to make operation possible.".format(crop[3]+1, crop[3]))
   # Target size after taking into account cropping
   target_w = crop[2] if crop is not None else w
   target_h = crop[3] if crop is not None else h

@@ -79,7 +79,7 @@ def test_read_video_from_path_uneven_crop(sample_video_file, caplog):
   cor_frames = math.ceil(SAMPLE_FRAMES / cor_ds_factor)
   assert ds_factor == cor_ds_factor
   assert frames.shape == (cor_frames, 120, 160, SAMPLE_CHANNELS)
-  assert "Reducing uneven crop width from 161 to 160 to make H264 encoding possible." in caplog.text
+  assert "Reducing uneven crop width from 161 to 160 to make operation possible." in caplog.text
 
 def test_read_video_from_path_uneven_crop_crf_scale(sample_video_file, caplog):
   frames, ds_factor = read_video_from_path(
@@ -90,7 +90,7 @@ def test_read_video_from_path_uneven_crop_crf_scale(sample_video_file, caplog):
   cor_frames = math.ceil(SAMPLE_FRAMES / cor_ds_factor)
   assert ds_factor == cor_ds_factor
   assert frames.shape == (cor_frames, 40, 40, SAMPLE_CHANNELS)
-  assert "Reducing uneven crop width from 161 to 160 to make H264 encoding possible." in caplog.text
+  assert "Reducing uneven crop width from 161 to 160 to make operation possible." in caplog.text
 
 def test_read_video_from_path_uneven_crop_scale_crf(sample_video_file):
   frames, ds_factor = read_video_from_path(
@@ -123,7 +123,7 @@ def test_write_video_from_path_uneven_crop(sample_video_file, caplog):
   frames_test, _ = read_video_from_path(path=test_filename)
   np.testing.assert_allclose(frames_test, frames_orig[:,60:200,40:140], rtol=1e-4)
   os.remove(test_filename)
-  assert "Reducing uneven crop height from 141 to 140 to make H264 encoding possible." in caplog.text
+  assert "Reducing uneven crop height from 141 to 140 to make operation possible." in caplog.text
 
 def test_write_video_from_path_uneven_scale(sample_video_file, caplog):
   test_filename = "test_out.mp4"
