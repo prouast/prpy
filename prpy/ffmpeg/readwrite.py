@@ -251,7 +251,7 @@ def _ffmpeg_output_to_numpy(
   frames = np.frombuffer(out, np.uint8)
   try:
     adj_n, adh_h, adh_w = find_factors_near(
-      frames.shape[0]//3, n, h, w, dim_deltas[0], dim_deltas[1], dim_deltas[2])
+      frames.shape[0]//3, int(n), int(h), int(w), dim_deltas[0], dim_deltas[1], dim_deltas[2])
   except:
     raise ValueError("ffmpeg was not able to read the video into the expected shape using the requested settings. There may be an issue with the video file.")
   assert adj_n * adh_h * adh_w * 3 == frames.shape[0]
