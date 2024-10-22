@@ -108,7 +108,7 @@ def _ffmpeg_filtering(
     w: The existing width
     h: The existing height
     target_fps: Downsample frames to approximate this framerate (optional)
-    crop: Coords and sizes for spatial cropping (x, y, width, height) (optional)
+    crop: Coords for spatial cropping (x0, y0, x1, y1) (optional)
     scale: Size(s) for spatial scaling. Scalar or (width, height) (optional)
     trim: Frame numbers for temporal trimming (start, end) (optional)
     preserve_aspect_ratio: Preserve the aspect ratio if scaling
@@ -141,15 +141,15 @@ def _ffmpeg_filtering(
   target_n = math.ceil(target_n / ds_factor)
   # If required, pad the crop to make target dimensions even
   if requires_even_dims and crop is not None and scale in [None, 0]:
-    if crop[2] % 2 != 0:
+    if (crop[2] - crop[0]) % 2 != 0:
       crop = (crop[0], crop[1], crop[2]-1, crop[3])
-      logging.warning("Reducing uneven crop width from {} to {} to make operation possible.".format(crop[2]+1, crop[2]))
-    if crop[3] % 2 != 0:
+      logging.warning("Reducing uneven crop width from {} to {} to make operation possible.".format(crop[2]+1-crop[0], crop[2]-crop[0]))
+    if (crop[3] - crop[1]) % 2 != 0:
       crop = (crop[0], crop[1], crop[2], crop[3]-1)
-      logging.warning("Reducing uneven crop height from {} to {} to make operation possible.".format(crop[3]+1, crop[3]))
+      logging.warning("Reducing uneven crop height from {} to {} to make operation possible.".format(crop[3]+1-crop[1], crop[3]-crop[1]))
   # Target size after taking into account cropping
-  target_w = crop[2] if crop is not None else w
-  target_h = crop[3] if crop is not None else h
+  target_w = crop[2]-crop[0] if crop is not None else w
+  target_h = crop[3]-crop[1] if crop is not None else h
   # Target size after taking into account scaling
   if scale not in [None, 0]:
     if isinstance(scale, int): scale = (scale, scale)
@@ -171,7 +171,7 @@ def _ffmpeg_filtering(
     stream = stream.setpts('N/FRAME_RATE/TB')
   # Cropping
   if crop is not None:
-    stream = stream.crop(crop[0], crop[1], crop[2], crop[3])
+    stream = stream.crop(crop[0], crop[1], crop[2]-crop[0], crop[3]-crop[1])
   # Scaling
   # http://trac.ffmpeg.org/wiki/Scaling#Specifyingscalingalgorithm
   if scale not in [None, (0, 0)]:
@@ -327,7 +327,7 @@ def read_video_from_path(
   Args:
     path: The path from which video will be read.
     target_fps: Try to downsample frames to achieve this framerate.
-    crop: Coords and sizes for spatial cropping (x, y, width, height) (optional).
+    crop: Coords for spatial cropping (x0, y0, x1, y1) (optional).
     scale: Size(s) for spatial scaling. Scalar or (width, height) (optional).
     trim: Frame numbers for temporal trimming (start, end) (optional).
     crf: Constant rate factor for H.264 encoding (higher = more compression)
@@ -394,7 +394,7 @@ def write_video_from_path(
     output_dir: The directory where the video will be written.
     ourput_file: The filename as which the video will be written.
     target_fps: Try to downsample frames to achieve this framerate (optional).
-    crop: Coords and sizes for spatial cropping (x, y, width, height) (optional).
+    crop: Coords for spatial cropping (x0, y0, x1, y1) (optional).
     scale: Size(s) for spatial scaling. Scalar or (width, height) (optional).
     trim: Frame numbers for temporal trimming (start, end) (optional).
     codec: The codec to use ('h264' or 'mjpeg')

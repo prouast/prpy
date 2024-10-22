@@ -45,7 +45,7 @@ def test_probe_video(sample_video_file):
   assert out[0:8] == (SAMPLE_FPS, SAMPLE_FRAMES, SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_CODEC, SAMPLE_BITRATE, SAMPLE_ROTATION, SAMPLE_ISSUES)
 
 @pytest.mark.parametrize("target_fps", [25., 8.])
-@pytest.mark.parametrize("crop", [None, (256, 94, 160, 120)])
+@pytest.mark.parametrize("crop", [None, (256, 94, 416, 214)])
 @pytest.mark.parametrize("scale", [None, 30, (40, 40)])
 @pytest.mark.parametrize("preserve_aspect_ratio", [False, True])
 @pytest.mark.parametrize("trim", [None, (124, 249)])
@@ -58,8 +58,8 @@ def test_read_video_from_path(sample_video_file, target_fps, crop, scale, trim, 
   cor_ds_factor = SAMPLE_FPS // target_fps
   cor_frames = SAMPLE_FRAMES if trim is None else SAMPLE_FRAMES - (trim[1] - trim[0])
   cor_frames = math.ceil(cor_frames / cor_ds_factor)
-  cor_height = SAMPLE_HEIGHT if crop is None else crop[3]
-  cor_width = SAMPLE_WIDTH if crop is None else crop[2]
+  cor_height = SAMPLE_HEIGHT if crop is None else crop[3]-crop[1]
+  cor_width = SAMPLE_WIDTH if crop is None else crop[2]-crop[0]
   if isinstance(scale, int): scale = (scale, scale) 
   if scale is not None and preserve_aspect_ratio:
     scale_ratio = max(scale) / max(cor_height, cor_width)
@@ -73,7 +73,7 @@ def test_read_video_from_path(sample_video_file, target_fps, crop, scale, trim, 
 
 def test_read_video_from_path_uneven_crop(sample_video_file, caplog):
   frames, ds_factor = read_video_from_path(
-    path=sample_video_file, target_fps=25., crop=(256, 94, 161, 120), scale=None, crf=None,
+    path=sample_video_file, target_fps=25., crop=(256, 94, 417, 214), scale=None, crf=None,
     trim=None, preserve_aspect_ratio=False, dim_deltas=(0, 0, 0), scale_algorithm='bicubic')
   cor_ds_factor = SAMPLE_FPS // 25.
   cor_frames = math.ceil(SAMPLE_FRAMES / cor_ds_factor)
@@ -83,7 +83,7 @@ def test_read_video_from_path_uneven_crop(sample_video_file, caplog):
 
 def test_read_video_from_path_uneven_crop_crf_scale(sample_video_file, caplog):
   frames, ds_factor = read_video_from_path(
-    path=sample_video_file, target_fps=25., crop=(256, 94, 161, 120), scale=40,
+    path=sample_video_file, target_fps=25., crop=(256, 94, 417, 214), scale=40,
     crf=12, order='crf_scale', trim=None, preserve_aspect_ratio=False, dim_deltas=(0, 0, 0),
     scale_algorithm='bicubic')
   cor_ds_factor = SAMPLE_FPS // 25.
@@ -94,7 +94,7 @@ def test_read_video_from_path_uneven_crop_crf_scale(sample_video_file, caplog):
 
 def test_read_video_from_path_uneven_crop_scale_crf(sample_video_file):
   frames, ds_factor = read_video_from_path(
-    path=sample_video_file, target_fps=25., crop=(256, 94, 161, 120), scale=40,
+    path=sample_video_file, target_fps=25., crop=(256, 94, 417, 214), scale=40,
     crf=12, order='scale_crf', trim=None, preserve_aspect_ratio=False, dim_deltas=(0, 0, 0),
     scale_algorithm='bicubic')
   cor_ds_factor = SAMPLE_FPS // 25.
@@ -106,7 +106,7 @@ def test_write_video_from_path(sample_video_file):
   test_filename = "test_out.mp4"
   write_video_from_path(
     sample_video_file, output_dir="", output_file=test_filename, target_fps=None,
-    crop=(40, 60, 100, 140), scale=None, trim=None, crf=0, preserve_aspect_ratio=False,
+    crop=(40, 60, 140, 200), scale=None, trim=None, crf=0, preserve_aspect_ratio=False,
     overwrite=True, codec='h264')
   frames_orig, _ = read_video_from_path(path=sample_video_file)
   frames_test, _ = read_video_from_path(path=test_filename)
@@ -117,7 +117,7 @@ def test_write_video_from_path_uneven_crop(sample_video_file, caplog):
   test_filename = "test_out.mp4"
   write_video_from_path(
     sample_video_file, output_dir="", output_file=test_filename, target_fps=None,
-    crop=(40, 60, 100, 141), scale=None, trim=None, crf=0, preserve_aspect_ratio=False,
+    crop=(40, 60, 140, 201), scale=None, trim=None, crf=0, preserve_aspect_ratio=False,
     overwrite=True, codec='h264')
   frames_orig, _ = read_video_from_path(path=sample_video_file)
   frames_test, _ = read_video_from_path(path=test_filename)
