@@ -94,7 +94,8 @@ def _ffmpeg_filtering(
     scale: Union[Tuple[int, tuple], None] = None,
     trim: Union[tuple, None] = None,
     preserve_aspect_ratio: bool = False,
-    scale_algorithm: str = 'bicubic'
+    scale_algorithm: str = 'bicubic',
+    requires_even_dims: bool = False
   ) -> Tuple[ffmpeg.nodes.FilterableStream, int, int, int, int]:
   """Take an ffmpeg stream and optionally add filtering operations.
   Downsampling, spatial cropping, spatial scaling (applied to result of
@@ -113,6 +114,7 @@ def _ffmpeg_filtering(
     preserve_aspect_ratio: Preserve the aspect ratio if scaling
     scale_algorithm: The algorithm used for scaling.
       Supported: bicubic, bilinear, area, lanczos. Default: bicubic
+    requires_even_dims: target_w and target_h must be divisible by 2
   Returns:
     stream: The modified ffmpeg stream
     target_n: The target number of frames
@@ -137,6 +139,14 @@ def _ffmpeg_filtering(
   # Target number of frames
   target_n = trim[1] - trim[0] if trim is not None else n
   target_n = math.ceil(target_n / ds_factor)
+  # If required, pad the crop to make target dimensions even
+  if requires_even_dims and crop is not None and scale in [None, 0]:
+    if crop[2] % 2 != 0:
+      crop = (crop[0], crop[1], crop[2]-1, crop[3])
+      logging.warning("Reducing uneven crop width from {} to {} to make H264 encoding possible.".format(crop[2]+1, crop[2]))
+    if crop[3] % 2 != 0:
+      crop = (crop[0], crop[1], crop[2], crop[3]-1)
+      logging.warning("Reducing uneven crop height from {} to {} to make H264 encoding possible.".format(crop[3]+1, crop[3]))
   # Target size after taking into account cropping
   target_w = crop[2] if crop is not None else w
   target_h = crop[3] if crop is not None else h
@@ -149,6 +159,8 @@ def _ffmpeg_filtering(
       target_h = int(target_h * scale_ratio)
     else:
       target_w, target_h = scale
+    if requires_even_dims and (target_h % 2 != 0 or target_w % 2 != 0):
+      raise ValueError("Cannot use this scale ({}) because H264 encoding requires even height and width.".format(scale))
   # Trimming
   if trim is not None:
     stream = stream.trim(start_frame=0, end_frame=trim[1]-trim[0])
@@ -179,7 +191,8 @@ def _ffmpeg_output_to_numpy(
     pix_fmt: str = 'bgr24',
     preserve_aspect_ratio: bool = False,
     scale_algorithm: str = 'bicubic',
-    dim_deltas: tuple = (0, 0, 0)
+    dim_deltas: tuple = (0, 0, 0),
+    quiet: bool = True
   ) -> np.ndarray:
   """Run the stream and capture the raw video output in a numpy array.
   
@@ -198,6 +211,7 @@ def _ffmpeg_output_to_numpy(
     scale_algorithm: The algorithm used for scaling.
       Supported: bicubic, bilinear, area, lanczos. Default: bicubic
     dim_deltas: Allowed deviation from target (n_frames, height, width)
+    quiet: Whether to suppress ffmpeg log
   Returns:
     frames: The video frames in shape (n, h, w, c)
   """
@@ -214,18 +228,18 @@ def _ffmpeg_output_to_numpy(
     # Run stream straight to raw video
     stream = stream.output("pipe:", vsync=0, format="rawvideo", pix_fmt=pix_fmt)
     stream = stream.global_args("-loglevel", "panic", "-hide_banner", "-nostdin", "-nostats")
-    out, _ = stream.run(capture_stdout=True, capture_stderr=True)
+    out, _ = stream.run(capture_stdout=True, capture_stderr=quiet, quiet=quiet)
   else:
     # Run stream to encode H264 with crf
     stream = stream.output("pipe:", vsync=0, format='rawvideo', vcodec='libx264', crf=crf)
-    out, _ = stream.run(capture_stdout=True, capture_stderr=True)
+    out, _ = stream.run(capture_stdout=True, capture_stderr=quiet, quiet=quiet)
     # Run stream to decode H264 to raw video
     stream = _ffmpeg_input_from_pipe()
     stream, _, w, h, _ = _ffmpeg_filtering(
       stream, fps=fps, n=n, w=w, h=h, scale=scale,
       preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
     stream = stream.output("pipe:", vsync=0, format="rawvideo", pix_fmt=pix_fmt)
-    out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=True)
+    out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=quiet, quiet=quiet)
   # Swap h and w if necessary -> not needed if scaled!
   if r != 0:
     if abs(r) == 90:
@@ -251,8 +265,10 @@ def _ffmpeg_output_to_file(
     output_file: str,
     from_stdin: Union[bytes, None] = None,
     pix_fmt: str = 'yuv420p',
+    codec: str = 'h264',
     crf: int = 12,
-    overwrite: bool = False
+    overwrite: bool = False,
+    quiet: bool = True
   ):
   """Run the stream and encode to file as H264.
   
@@ -261,8 +277,9 @@ def _ffmpeg_output_to_file(
     output_dir: The directory where the video will be written
     ourput_file: The filename as which the video will be written
     from_stdin: Byte buffer to pipe data from (optional)
+    codec: The codec to use ('h264' or 'mjpeg')
     pix_fmt: Pixel format to write into
-    crf: Constant rate factor for H.264 encoding (higher = more compression)
+    crf: Constant rate factor for h264 encoding (higher = more compression)
     overwrite: Overwrite if file exists?
   """
   assert isinstance(stream, ffmpeg.nodes.FilterableStream)
@@ -270,18 +287,22 @@ def _ffmpeg_output_to_file(
   assert isinstance(output_file, str)
   assert from_stdin is None or isinstance(from_stdin, bytes)
   assert isinstance(pix_fmt, str)
-  assert crf is None or isinstance(crf, int)
+  assert codec in ['h264', 'mjpeg'], "Codec must be 'h264' or 'mjpeg'"
+  assert codec != 'h264' or isinstance(crf, int), "Must specify crf when writing video with H264"
   assert isinstance(overwrite, bool)
   output_path = os.path.join(output_dir, output_file)
-  stream = ffmpeg.output(stream, output_path, pix_fmt=pix_fmt, crf=crf)
+  if codec == 'h264':
+    stream = ffmpeg.output(stream, output_path, pix_fmt=pix_fmt, crf=crf, vcodec='libx264')
+  elif codec == 'mjpeg':
+    stream = ffmpeg.output(stream, output_path, pix_fmt='yuvj420p', **{"q:v":crf}, vcodec='mjpeg')
   if overwrite:
     stream = stream.global_args("-vsync", "2", "-y")
   else:
     stream = stream.global_args("-vsync", "2")
   if from_stdin is None:
-    stream.run(quiet=True)
+    stream.run(quiet=quiet, capture_stderr=quiet)
   else:
-    process = stream.run_async(pipe_stdin=True, quiet=True)
+    process = stream.run_async(pipe_stdin=True, quiet=quiet)
     process.communicate(input=from_stdin)
 
 def read_video_from_path(
@@ -295,7 +316,8 @@ def read_video_from_path(
     preserve_aspect_ratio: bool = False,
     scale_algorithm: str = 'bicubic',
     order: str = 'scale_crf',
-    dim_deltas: tuple = (0, 0, 0)
+    dim_deltas: tuple = (0, 0, 0),
+    quiet: bool = True
   ) -> Tuple[np.ndarray, int]:
   """Read a video from path into a numpy array.
   Optionally transformed by downsampling, spatial cropping, spatial scaling
@@ -316,6 +338,7 @@ def read_video_from_path(
       Supported: bicubic, bilinear, area, lanczos. Default: bicubic
     order: scale_crf or crf_scale - specifies order of application
     dim_deltas: Allowed deviation from target (n_frames, height, width)
+    quiet: Whether to suppress ffmpeg output
   Returns:
     frames: The video frames (n, h, w, 3)
     ds_factor: The applied downsampling factor
@@ -332,15 +355,17 @@ def read_video_from_path(
   scale_0 = scale if order == 'scale_crf' or crf == None else 0
   stream, target_n, target_w, target_h, ds_factor = _ffmpeg_filtering(
     stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0,
-    trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
+    trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm,
+    requires_even_dims=(crf is not None) or (crop is not None and scale in [None, 0]))
   # Save whether rotation still present
   if scale not in [None, 0] or crop is not None: r = 0
   # Output
+  fps = target_fps if target_fps is not None else fps
   scale_1 = 0 if order == 'scale_crf' or crf == None else scale
   frames = _ffmpeg_output_to_numpy(
-    stream=stream, r=r, fps=target_fps, n=target_n, w=target_w, h=target_h,
+    stream=stream, r=r, fps=fps, n=target_n, w=target_w, h=target_h,
     scale=scale_1, crf=crf, pix_fmt=pix_fmt, scale_algorithm=scale_algorithm,
-    dim_deltas=dim_deltas)
+    dim_deltas=dim_deltas, quiet=quiet)
   # Return
   return frames, ds_factor
 
@@ -353,10 +378,12 @@ def write_video_from_path(
     scale: Union[int, tuple, None] = None,
     trim: Union[tuple, None] = None,
     pix_fmt: str = 'yuv420p',
+    codec: str = 'h264',
     crf: int = 12,
     preserve_aspect_ratio: bool = False,
     scale_algorithm: str = 'bicubic',
-    overwrite: bool = False
+    overwrite: bool = False,
+    quiet: bool = True
   ):
   """Read a video from path and write back to a video file.
   Optionally transformed by downsampling, spatial cropping, spatial scaling
@@ -370,9 +397,11 @@ def write_video_from_path(
     crop: Coords and sizes for spatial cropping (x, y, width, height) (optional).
     scale: Size(s) for spatial scaling. Scalar or (width, height) (optional).
     trim: Frame numbers for temporal trimming (start, end) (optional).
+    codec: The codec to use ('h264' or 'mjpeg')
     crf: Constant rate factor for H.264 encoding (higher = more compression).
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
     scale_algorithm: The algorithm used for scaling. Default: bicubic
+    quiet: Whether to suppress ffmpeg log
   """
   # Get metadata of original video
   fps, n, w, h, _, _, r, _ = probe_video(path=path)
@@ -380,11 +409,13 @@ def write_video_from_path(
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
   stream, _, _, _, _ = _ffmpeg_filtering(
-      stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale,
-      trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
+    stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale,
+    trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm,
+    requires_even_dims=(codec=='h264'))
   # Output
   _ffmpeg_output_to_file(
-    stream, output_dir=output_dir, output_file=output_file, pix_fmt=pix_fmt, crf=crf, overwrite=overwrite)
+    stream, output_dir=output_dir, output_file=output_file, pix_fmt=pix_fmt, codec=codec,
+    crf=crf, overwrite=overwrite, quiet=quiet)
 
 def write_video_from_numpy(
     data: np.ndarray,
@@ -393,8 +424,10 @@ def write_video_from_numpy(
     output_dir: str,
     output_file: str,
     out_pix_fmt: str = 'yuv420p',
+    codec: str = 'h264',
     crf: int = 12,
-    overwrite: bool = False
+    overwrite: bool = False,
+    quiet: bool = True
   ):
   """Write data from a numpy array to a video file.
 
@@ -405,6 +438,7 @@ def write_video_from_numpy(
     output_dir: The directory where the video will be written
     ourput_file: The filename as which the video will be written
     pix_fmt: The pixel format for the output video
+    codec: The codec to use ('h264' or 'mjpeg')
     crf: Constant rate factor for H.264 encoding (higher = more compression)
     overwrite: Overwrite if file exists?
   """
@@ -412,6 +446,8 @@ def write_video_from_numpy(
   _, h, w, _ = data.shape
   stream = _ffmpeg_input_from_numpy(w=w, h=h, fps=fps, pix_fmt=pix_fmt)
   buffer = data.flatten().tobytes()
+  if (h % 2 != 0 or w % 2 != 0) and codec == 'h264':
+    raise ValueError('H264 requires both height and width of the video to be even numbers, but received h={} w={}'.format(h, w))
   _ffmpeg_output_to_file(
     stream, output_dir=output_dir, output_file=output_file, from_stdin=buffer,
-    crf=crf, pix_fmt=out_pix_fmt, overwrite=overwrite)
+    codec=codec, crf=crf, pix_fmt=out_pix_fmt, overwrite=overwrite, quiet=quiet)
