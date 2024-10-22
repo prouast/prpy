@@ -22,10 +22,29 @@ import numpy as np
 from prpy.numpy.image import crop_slice_resize
 from typing import Tuple, Union
 
+def _force_even_dims(roi: tuple) -> tuple:
+  """Force even dimensions
+  
+  Args:
+    roi: The region of interest with potentially uneven dimensions
+  Returns:
+    roi: The region of interest with forced even dimensions
+  """
+  roi_w = roi[2] - roi[0]
+  roi_h = roi[3] - roi[1]
+  if roi_w % 2 != 0:
+    assert roi[2] > 2
+    roi = (roi[0], roi[1], roi[2]-1, roi[3])
+  if roi_h % 2 != 0:
+    assert roi[3] > 2
+    roi = (roi[0], roi[1], roi[2], roi[3]-1)
+  return roi
+
 def _get_roi_from_det(
     det: Union[tuple, np.ndarray],
     rel_change: tuple,
-    clip_dims: Union[tuple, None] = None
+    clip_dims: Union[tuple, None] = None,
+    force_even_dims: bool = False
   ) -> Tuple[int, int, int, int]:
   """Convert face detection to roi by relative add/reduce.
 
@@ -33,6 +52,7 @@ def _get_roi_from_det(
     det: The face detection [0, H/W] in format (x0, y0, x1, y1).
     rel_change: The relative change to make in format (left, top, right, bottom).
     clip_dims: tuple (frame_w, frame_h) to clip the result to (optional).
+    force_even_dims: Force to return even height and width roi.
   Returns:
     out: The roi [0, H/W] in format (x0, y0, x1, y1)
   """
@@ -51,14 +71,18 @@ def _get_roi_from_det(
   abs_ch_r = int(rel_ch_r * det_w)
   abs_ch_b = int(rel_ch_b * det_h)
   if clip_dims is not None:
-    return (_clip_dims(det[0] - abs_ch_l, 0, clip_dims[0]),
-            _clip_dims(det[1] - abs_ch_t, 0, clip_dims[1]),
-            _clip_dims(det[2] + abs_ch_r, 0, clip_dims[0]),
-            _clip_dims(det[3] + abs_ch_b, 0, clip_dims[1]))
+    out = (_clip_dims(det[0] - abs_ch_l, 0, clip_dims[0]),
+           _clip_dims(det[1] - abs_ch_t, 0, clip_dims[1]),
+           _clip_dims(det[2] + abs_ch_r, 0, clip_dims[0]),
+           _clip_dims(det[3] + abs_ch_b, 0, clip_dims[1]))
   else:
-    return (det[0]-abs_ch_l, det[1]-abs_ch_t, det[2]+abs_ch_r, det[3]+abs_ch_b)
+    out = (det[0]-abs_ch_l, det[1]-abs_ch_t, det[2]+abs_ch_r, det[3]+abs_ch_b)
+  return _force_even_dims(out) if force_even_dims else out
 
-def get_face_roi_from_det(det: tuple) -> tuple:
+def get_face_roi_from_det(
+    det: tuple,
+    force_even_dims: bool = False
+  ) -> tuple:
   """Convert face detection into face roi.
   Reduces width to 60% and height to 80%. 
   
@@ -67,9 +91,14 @@ def get_face_roi_from_det(det: tuple) -> tuple:
   Returns:
     out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
-  return _get_roi_from_det(det=det, rel_change=(-0.2, -0.1, -0.2, -0.1))
+  return _get_roi_from_det(det=det,
+                           rel_change=(-0.2, -0.1, -0.2, -0.1),
+                           force_even_dims=force_even_dims)
 
-def get_forehead_roi_from_det(det: tuple) -> tuple:
+def get_forehead_roi_from_det(
+    det: tuple,
+    force_even_dims: bool = False
+  ) -> tuple:
   """Convert face detection into forehead roi.
   Reduces det to forehead as 35% to 65% of width, and 15% to 25% of height. 
   
@@ -78,13 +107,16 @@ def get_forehead_roi_from_det(det: tuple) -> tuple:
   Returns:
     out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
-  return _get_roi_from_det(det=det, rel_change=(-0.35, -0.15, -0.35, -0.75))
+  return _get_roi_from_det(det=det,
+                           rel_change=(-0.35, -0.15, -0.35, -0.75),
+                           force_even_dims=force_even_dims)
 
 def get_upper_body_roi_from_det(
-    det: tuple,
+    det: Union[tuple, np.ndarray],
     clip_dims: tuple,
     cropped: bool = False,
-    v: int = 1
+    v: int = 1,
+    force_even_dims: bool = False
   ) -> tuple:
   """Convert face detection into upper body roi and clip to frame constraints.
 
@@ -101,41 +133,58 @@ def get_upper_body_roi_from_det(
   if v == 0:
     # V0: (.25, .3, .25, .5) -> (.175, .27, .175, .45)
     if not cropped:
-      return _get_roi_from_det(
-        det=det, rel_change=(.25, .3, .25, .5), clip_dims=clip_dims)
+      return _get_roi_from_det(det=det,
+                               rel_change=(.25, .3, .25, .5),
+                               clip_dims=clip_dims,
+                               force_even_dims=force_even_dims)
     else:
-      return _get_roi_from_det(
-        det=det, rel_change=(.175, .27, .175, .45), clip_dims=clip_dims)
+      return _get_roi_from_det(det=det,
+                               rel_change=(.175, .27, .175, .45),
+                               clip_dims=clip_dims,
+                               force_even_dims=force_even_dims)
   elif v == 1:
     # V1: (.25, .2, .25, .4) -> (.175, .15, .175, .3)
     if not cropped:
-      return _get_roi_from_det(
-        det=det, rel_change=(.25, .2, .25, .4), clip_dims=clip_dims)
+      return _get_roi_from_det(det=det,
+                               rel_change=(.25, .2, .25, .4),
+                               clip_dims=clip_dims,
+                               force_even_dims=force_even_dims)
     else:
-      return _get_roi_from_det(
-        det=det, rel_change=(.175, .15, .175, .3), clip_dims=clip_dims)
+      return _get_roi_from_det(det=det,
+                               rel_change=(.175, .15, .175, .3), 
+                               clip_dims=clip_dims,
+                               force_even_dims=force_even_dims)
   elif v == 2:
     # V2: (.25, .1, .25, .5) -> (.175, .075, .175, .375)
     if not cropped:
-      return _get_roi_from_det(
-        det=det, rel_change=(.25, .1, .25, .5), clip_dims=clip_dims)
+      return _get_roi_from_det(det=det,
+                               rel_change=(.25, .1, .25, .5),
+                               clip_dims=clip_dims,
+                               force_even_dims=force_even_dims)
     else:
-      return _get_roi_from_det(
-        det=det, rel_change=(.175, .075, .175, .375), clip_dims=clip_dims)
+      return _get_roi_from_det(det=det,
+                               rel_change=(.175, .075, .175, .375),
+                               clip_dims=clip_dims,
+                               force_even_dims=force_even_dims)
   elif v == 3:
     # V3: (.2, .3, .2, .45) -> (.15, .25, .15, .35)
     if not cropped:
-      return _get_roi_from_det(
-        det=det, rel_change=(.2, .3, .2, .45), clip_dims=clip_dims)
+      return _get_roi_from_det(det=det,
+                               rel_change=(.2, .3, .2, .45),
+                               clip_dims=clip_dims,
+                               force_even_dims=force_even_dims)
     else:
-      return _get_roi_from_det(
-        det=det, rel_change=(.15, .25, .15, .35), clip_dims=clip_dims)
+      return _get_roi_from_det(det=det,
+                               rel_change=(.15, .25, .15, .35),
+                               clip_dims=clip_dims,
+                               force_even_dims=force_even_dims)
   else:
     raise ValueError("v {} is not defined".format(v))
 
 def get_meta_roi_from_det(
     det: tuple,
-    clip_dims: tuple
+    clip_dims: tuple,
+    force_even_dims: bool = False
   ) -> tuple:
   """Convert face detection into meta roi and clip to frame constraints.
 
@@ -145,13 +194,16 @@ def get_meta_roi_from_det(
   Returns:
     out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
-  return _get_roi_from_det(
-    det=det, rel_change=(.2, .2, .2, .2), clip_dims=clip_dims)
+  return _get_roi_from_det(det=det,
+                           rel_change=(.2, .2, .2, .2),
+                           clip_dims=clip_dims,
+                           force_even_dims=force_even_dims)
 
 def get_roi_from_det(
     det: tuple,
     roi_method: Union[str, None],
-    clip_dims: Union[tuple, None] = None
+    clip_dims: Union[tuple, None] = None,
+    force_even_dims: bool = False
   ) -> tuple:
   """Convert face detection into specified roi.
 
@@ -165,20 +217,30 @@ def get_roi_from_det(
   """
   assert roi_method is None or isinstance(roi_method, str)
   if roi_method == 'face':
-    return get_face_roi_from_det(det)
+    return get_face_roi_from_det(det,
+                                 force_even_dims=force_even_dims)
   elif roi_method == 'forehead':
-    return get_forehead_roi_from_det(det)
+    return get_forehead_roi_from_det(det,
+                                     force_even_dims=force_even_dims)
   elif roi_method == 'upper_body':
     assert clip_dims is not None
-    return get_upper_body_roi_from_det(det, clip_dims=clip_dims, cropped=False)
+    return get_upper_body_roi_from_det(det,
+                                       clip_dims=clip_dims,
+                                       cropped=False,
+                                       force_even_dims=force_even_dims)
   elif roi_method == 'upper_body_cropped':
     assert clip_dims is not None
-    return get_upper_body_roi_from_det(det, clip_dims=clip_dims, cropped=True)
+    return get_upper_body_roi_from_det(det,
+                                       clip_dims=clip_dims,
+                                       cropped=True,
+                                       force_even_dims=force_even_dims)
   elif roi_method == 'meta':
     assert clip_dims is not None
-    return get_meta_roi_from_det(det, clip_dims=clip_dims)
+    return get_meta_roi_from_det(det,
+                                 clip_dims=clip_dims,
+                                 force_even_dims=force_even_dims)
   elif roi_method is None or roi_method == 'det':
-    return det
+    return _force_even_dims(det) if force_even_dims else det
   else:
     raise ValueError("roi method {} is not supported".format(roi_method))
 
@@ -188,7 +250,8 @@ def crop_resize_from_det(
     size: tuple,
     roi_method: str,
     library: str,
-    scale_algorithm: str
+    scale_algorithm: str,
+    force_even_dims: bool = False
   ) -> np.ndarray:
   """Crop and resize a video according to a single face detection.
   Resize to specified size with specified method.
@@ -207,7 +270,10 @@ def crop_resize_from_det(
   """
   assert isinstance(video, np.ndarray) and len(video.shape) == 4
   _, height, width, _ = video.shape
-  roi = get_roi_from_det(det, roi_method=roi_method, clip_dims=(width, height))
+  roi = get_roi_from_det(det,
+                         roi_method=roi_method,
+                         clip_dims=(width, height),
+                         force_even_dims=force_even_dims)
   return crop_slice_resize(
     inputs=video, target_size=size, roi=roi, library=library,
     preserve_aspect_ratio=False, scale_algorithm=scale_algorithm)

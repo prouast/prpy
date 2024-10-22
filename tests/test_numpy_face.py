@@ -31,10 +31,16 @@ def test_get_face_roi_from_det():
   det = (100, 100, 180, 220)
   roi = get_face_roi_from_det(det)
   assert roi == (116, 112, 164, 208)
+  det = (100, 100, 181, 220)
+  roi = get_face_roi_from_det(det, force_even_dims=True)
+  assert roi == (116, 112, 164, 208)
 
 def test_get_forehead_roi_from_det():
   det = (100, 100, 180, 220)
   roi = get_forehead_roi_from_det(det)
+  assert roi == (128, 118, 152, 130)
+  det = (100, 100, 181, 220)
+  roi = get_forehead_roi_from_det(det, force_even_dims=True)
   assert roi == (128, 118, 152, 130)
 
 @pytest.mark.parametrize("cropped", [True, False])
