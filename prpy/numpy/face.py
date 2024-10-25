@@ -20,7 +20,7 @@
 
 import numpy as np
 from prpy.numpy.image import crop_slice_resize
-from typing import Tuple, Union
+from typing import Union
 
 def _force_even_dims(roi: tuple) -> tuple:
   """Force even dimensions
@@ -45,7 +45,7 @@ def _get_roi_from_det(
     rel_change: tuple,
     clip_dims: Union[tuple, None] = None,
     force_even_dims: bool = False
-  ) -> Tuple[int, int, int, int]:
+  ) -> tuple:
   """Convert face detection to roi by relative add/reduce.
 
   Args:

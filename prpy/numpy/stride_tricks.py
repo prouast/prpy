@@ -19,7 +19,7 @@
 # SOFTWARE.
 
 import numpy as np
-from typing import Union
+from typing import Union, Tuple
 
 def window_view(
     x: np.ndarray,
@@ -28,7 +28,7 @@ def window_view(
     overlap: int,
     pad_mode: str = 'constant',
     const_val: Union[float, int] = np.nan
-  ) -> np.ndarray:
+  ) -> Tuple[np.ndarray, int, int]:
   """Create a window view into an n-d array `x` along its first dim.
 
   Args:
@@ -39,9 +39,10 @@ def window_view(
     pad_mode: The pad mode
     const_val: The constant value to be padded with if pad_mode == 'constant'
   Returns:
-    y: The n+1-d windowed view into x of shape (n_windows, window_size, ...)
-    pad_start: How much padding was applied at the start (scalar)
-    pad_end: How much padding was applied at the end (scalar)
+    Tuple of
+     - y: The n+1-d windowed view into x of shape (n_windows, window_size, ...)
+     - pad_start: How much padding was applied at the start (scalar)
+     - pad_end: How much padding was applied at the end (scalar)
   """
   assert isinstance(min_window_size, int) and min_window_size >= 0
   assert isinstance(max_window_size, int) and max_window_size >= min_window_size

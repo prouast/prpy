@@ -65,8 +65,9 @@ class ReduceNanMean:
     Args:
       x: The values.
     Returns:
-      out: The computed mean.
-      grad: Function calculating the gradient
+      Tuple of
+       - out: The computed mean.
+       - grad: Function calculating the gradient
     """
     assert isinstance(x, tf.Tensor)
     mask = tf.math.is_finite(x)
@@ -158,8 +159,9 @@ class ReduceNanSum:
     Args:
       x: The values.
     Returns:
-      out: The computed sum.
-      grad: Function calculating the gradient
+      Tuple of
+       - out: The computed sum.
+       - grad: Function calculating the gradient
     """
     assert isinstance(x, tf.Tensor)
     mask = tf.math.is_finite(x)
@@ -209,8 +211,9 @@ class NanLinearCombination:
       val_1: The second value used in the linear combination.
       val_2: The second value used in the linear combination.
     Returns:
-      out: The computed sum.
-      grad: Function calculating the gradient
+      Tuple of
+       - out: The computed sum.
+       - grad: Function calculating the gradient
     """
     # Compute the linear combination
     val_1 = tf.broadcast_to(val_1, x.shape)

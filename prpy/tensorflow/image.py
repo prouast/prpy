@@ -33,6 +33,8 @@ def _reduction_dims(
   Args:
     x: The tensor to be reduced
     axis: Dims to be reduced or None
+  Returns:
+    Either the axis, or a tensorflow equivalent
   """
   assert isinstance(x, tf.Tensor)
   assert axis is None or isinstance(axis, int) or isinstance(axis, tuple)

@@ -140,7 +140,7 @@ def snr(
     tol: Union[float, int] = .1,
     f_min: Union[float, int] = .5,
     f_max: Union[float, int] = 4.
-  ):
+  ) -> np.ndarray:
   """Signal-to-noise ratio
   Args:
     f_true: The true frequencies. Shape (b,) or ()

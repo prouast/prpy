@@ -116,11 +116,12 @@ def _ffmpeg_filtering(
       Supported: bicubic, bilinear, area, lanczos. Default: bicubic
     requires_even_dims: target_w and target_h must be divisible by 2
   Returns:
-    stream: The modified ffmpeg stream
-    target_n: The target number of frames
-    target_w: The target width
-    target_h: The target shape
-    ds_factor: The applied downsampling factor
+    Tuple of
+     - stream: The modified ffmpeg stream
+     - target_n: The target number of frames
+     - target_w: The target width
+     - target_h: The target shape
+     - ds_factor: The applied downsampling factor
   """
   assert isinstance(stream, ffmpeg.nodes.FilterableStream)
   assert isinstance(fps, (float, int))
@@ -340,8 +341,9 @@ def read_video_from_path(
     dim_deltas: Allowed deviation from target (n_frames, height, width)
     quiet: Whether to suppress ffmpeg output
   Returns:
-    frames: The video frames (n, h, w, 3)
-    ds_factor: The applied downsampling factor
+    Tuple of
+     - frames: The video frames (n, h, w, 3)
+     - ds_factor: The applied downsampling factor
   """
   assert isinstance(path, str)
   # Check if file exists

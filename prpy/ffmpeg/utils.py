@@ -44,9 +44,10 @@ def find_factors_near(
     max_delta_2: Maximum deviation allowed for f2
     max_delta_3: Maximum deviation allowed for f3
   Returns:
-    f1: The actual first factor
-    f2: The actual second factor
-    f3: The actual third factor
+    Tuple of
+     - f1: The actual first factor
+     - f2: The actual second factor
+     - f3: The actual third factor
   """
   assert isinstance(i, int)
   assert isinstance(f1, int)

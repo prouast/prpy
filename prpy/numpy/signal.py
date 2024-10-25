@@ -269,7 +269,7 @@ def butter_bandpass(
     fs: Union[int, float],
     axis: Union[int, tuple, None] = -1,
     order: int = 5
-  ):
+  ) -> np.ndarray:
   """Apply a butterworth bandpass filter.
 
   Args:
@@ -429,7 +429,7 @@ def estimate_freq_periodogram(
   ) -> np.ndarray:
   """Use a periodigram to estimate maximum frequencies at f_res.
   
-  When signal is sampled at a lower frequency than f_res, this is essentially done
+  - When signal is sampled at a lower frequency than f_res, this is essentially done
     by interpolating in the frequency domain.
   
   Args:

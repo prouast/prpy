@@ -158,7 +158,7 @@ def crop_slice_resize(
 def resample_bilinear(
     im: np.ndarray,
     size: Union[int, tuple]
-  ):
+  ) -> np.ndarray:
   """Compute bilinear resampling with batch dimension
   
   Args:
@@ -173,7 +173,7 @@ def resample_bilinear(
 def resample_box(
     im: np.ndarray,
     size: Union[int, tuple]
-  ):
+  ) -> np.ndarray:
   """Compute box resampling with batch dimension
 
   - Note: This implementation only works for downsampling at least 2x in each dimension

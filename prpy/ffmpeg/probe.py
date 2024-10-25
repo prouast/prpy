@@ -32,14 +32,15 @@ def probe_video(
   Args:
     path: The path of the video.
   Returns:
-    fps: The frame rate of the video
-    total_frames: The total number of frames
-    width: The width dimension of the video
-    height: The height dimension of the video
-    codec: The codec of the video
-    bitrate: The bitrate of the video
-    rotation: The rotation of the video
-    issues: Indicates if there are issues with the video
+    Tuple of
+     - fps: The frame rate of the video
+     - total_frames: The total number of frames
+     - width: The width dimension of the video
+     - height: The height dimension of the video
+     - codec: The codec of the video
+     - bitrate: The bitrate of the video
+     - rotation: The rotation of the video
+     - issues: Indicates if there are issues with the video
   """
   # Check if file exists
   assert isinstance(path, str)

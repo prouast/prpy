@@ -24,7 +24,7 @@ import glob
 import logging
 import os
 import torch
-from typing import Union, Callable, Tuple
+from typing import Union, Callable
 
 class Candidate(object):
   """A candidate model with a score"""
@@ -91,7 +91,7 @@ class ModelSaver(object):
     self.sort_reverse = sort_reverse
     self.log_fn = log_fn
 
-  def __save(self, info, filepath: str):
+  def __save(self, info: tuple, filepath: str):
     """Save a model to disk.
     
     Args:
@@ -128,7 +128,7 @@ class ModelSaver(object):
     else:
       return self.best_candidates[0].score
 
-  def save_keep(self, info, step: int, name: str):
+  def save_keep(self, info: tuple, step: int, name: str):
     """Save and keep the given model.
 
     Args:
@@ -142,7 +142,7 @@ class ModelSaver(object):
     filepath = os.path.join(self.dir, name + "_keep_" + str(step))
     self.__save(info=info, filepath=filepath)
 
-  def save_latest(self, info, step: int, name: str):
+  def save_latest(self, info: tuple, step: int, name: str):
     """Save the given model as currently latest.
     
     Args:
@@ -170,7 +170,7 @@ class ModelSaver(object):
           os.remove(file)
       self.latest_candidates = self.latest_candidates[0:self.keep_latest]
 
-  def save_best(self, info, score: float, step: int, name: str):
+  def save_best(self, info: tuple, score: float, step: int, name: str):
     """Save the given model as a candidate for best model.
 
     Args:
