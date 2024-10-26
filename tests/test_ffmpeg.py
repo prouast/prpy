@@ -102,53 +102,50 @@ def test_read_video_from_path_uneven_crop_scale_crf(sample_video_file):
   assert ds_factor == cor_ds_factor
   assert frames.shape == (cor_frames, 40, 40, SAMPLE_CHANNELS)
 
-def test_write_video_from_path(sample_video_file):
+def test_write_video_from_path(temp_dir, sample_video_file):
   test_filename = "test_out.mp4"
   write_video_from_path(
-    sample_video_file, output_dir="", output_file=test_filename, target_fps=None,
+    sample_video_file, output_dir=temp_dir, output_file=test_filename, target_fps=None,
     crop=(40, 60, 140, 200), scale=None, trim=None, crf=0, preserve_aspect_ratio=False,
     overwrite=True, codec='h264')
   frames_orig, _ = read_video_from_path(path=sample_video_file)
-  frames_test, _ = read_video_from_path(path=test_filename)
+  frames_test, _ = read_video_from_path(path=os.path.join(temp_dir, test_filename))
   np.testing.assert_allclose(frames_test, frames_orig[:,60:200,40:140], rtol=1e-4)
-  os.remove(test_filename)
 
-def test_write_video_from_path_uneven_crop(sample_video_file, caplog):
+def test_write_video_from_path_uneven_crop(temp_dir, sample_video_file, caplog):
   test_filename = "test_out.mp4"
   write_video_from_path(
-    sample_video_file, output_dir="", output_file=test_filename, target_fps=None,
+    sample_video_file, output_dir=temp_dir, output_file=test_filename, target_fps=None,
     crop=(40, 60, 140, 201), scale=None, trim=None, crf=0, preserve_aspect_ratio=False,
     overwrite=True, codec='h264')
   frames_orig, _ = read_video_from_path(path=sample_video_file)
-  frames_test, _ = read_video_from_path(path=test_filename)
+  frames_test, _ = read_video_from_path(path=os.path.join(temp_dir, test_filename))
   np.testing.assert_allclose(frames_test, frames_orig[:,60:200,40:140], rtol=1e-4)
-  os.remove(test_filename)
   assert "Reducing uneven crop height from 141 to 140 to make operation possible." in caplog.text
 
-def test_write_video_from_path_uneven_scale(sample_video_file, caplog):
+def test_write_video_from_path_uneven_scale(temp_dir, sample_video_file, caplog):
   test_filename = "test_out.mp4"
   with pytest.raises(ValueError, match="Cannot use this scale"):
     write_video_from_path(
-      sample_video_file, output_dir="", output_file=test_filename, target_fps=None,
+      sample_video_file, output_dir=temp_dir, output_file=test_filename, target_fps=None,
       crop=None, scale=41, trim=None, crf=0, preserve_aspect_ratio=False,
       overwrite=True, codec='h264')
 
-def test_write_video_from_numpy(sample_video_data):
+def test_write_video_from_numpy(temp_dir, sample_video_data):
   test_filename = "test_out.mp4"
   sample_video_data_copy = sample_video_data.copy()
   write_video_from_numpy(
-    sample_video_data, fps=SAMPLE_FPS, pix_fmt='rgb24', output_dir="",
+    sample_video_data, fps=SAMPLE_FPS, pix_fmt='rgb24', output_dir=temp_dir,
     output_file=test_filename, out_pix_fmt='rgb24', crf=0, overwrite=True)
-  frames_test, _ = read_video_from_path(path=test_filename, pix_fmt='rgb24')
+  frames_test, _ = read_video_from_path(path=os.path.join(temp_dir, test_filename), pix_fmt='rgb24')
   np.testing.assert_allclose(frames_test, sample_video_data, rtol=1e-4, atol=2)
-  os.remove(test_filename)
   np.testing.assert_equal(sample_video_data, sample_video_data_copy) # No side effects
 
-def test_write_video_from_numpy_uneven_dims(sample_video_data):
+def test_write_video_from_numpy_uneven_dims(temp_dir, sample_video_data):
   test_filename = "test_out.mp4"
   with pytest.raises(ValueError, match="H264 requires both height and width of the video to be even numbers"):
     write_video_from_numpy(
-    sample_video_data[:,10:15,12:19], fps=SAMPLE_FPS, pix_fmt='rgb24', output_dir="",
+    sample_video_data[:,10:15,12:19], fps=SAMPLE_FPS, pix_fmt='rgb24', output_dir=temp_dir,
     output_file=test_filename, out_pix_fmt='rgb24', crf=0, overwrite=True)
 
 def test_read_video_from_path_trim(sample_video_file, sample_video_data):

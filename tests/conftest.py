@@ -19,9 +19,11 @@
 # SOFTWARE.
 
 import numpy as np
+from PIL import Image
 import os
-import random as rand
 import pytest
+import random as rand
+import tempfile
 
 import sys
 sys.path.append('../prpy')
@@ -33,23 +35,26 @@ SAMPLE_FRAMES = 250
 SAMPLE_WIDTH = 320
 SAMPLE_HEIGHT = 240
 
+@pytest.fixture(scope='session')
+def temp_dir():
+  with tempfile.TemporaryDirectory() as temp:
+    yield temp
+
 @pytest.fixture
 def random():
   rand.seed(0)
   np.random.seed(0)
 
-@pytest.fixture
-def sample_video_file(scope='session'):
+@pytest.fixture(scope='session')
+def sample_video_file(temp_dir):
   # Create sample stream
   stream = create_test_video_stream(10)
   # Write stream to h264 video file
   filename = 'test.mp4'
-  _ffmpeg_output_to_file(stream, output_dir='', output_file=filename, overwrite=True)
-  yield filename
-  # After all tests finished
-  os.remove(filename)
+  _ffmpeg_output_to_file(stream, output_dir=temp_dir, output_file=filename, overwrite=True)
+  yield os.path.join(temp_dir, filename)
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def sample_video_data():
   # Create sample stream
   stream = create_test_video_stream(10)
@@ -58,6 +63,27 @@ def sample_video_data():
     stream, r=0, fps=SAMPLE_FPS, n=SAMPLE_FRAMES, w=SAMPLE_WIDTH, h=SAMPLE_HEIGHT,
     pix_fmt='rgb24')
   return data
+
+@pytest.fixture(scope='session')
+def sample_image_file(temp_dir):
+  # Create sample image
+  random_image_data = np.random.randint(0, 256, (SAMPLE_HEIGHT, SAMPLE_WIDTH, 3), dtype=np.uint8)
+  # Convert the array to an image
+  image = Image.fromarray(random_image_data)
+  # Save as a JPEG file
+  filepath = os.path.join(temp_dir, "image.jpg")
+  image.save(filepath, "JPEG")
+  return filepath
+
+@pytest.fixture(scope='session')
+def sample_image_data():
+  # Create sample image
+  random_image_data = np.random.randint(0, 256, (SAMPLE_HEIGHT, SAMPLE_WIDTH, 3), dtype=np.uint8)
+  return random_image_data
+
+@pytest.fixture(scope='session')
+def sample_dims():
+  return SAMPLE_FRAMES, SAMPLE_HEIGHT, SAMPLE_WIDTH, 3
 
 def pytest_collection_modifyitems(config, items):
   """Add marker for tests which parametrize cv2 or tf"""
