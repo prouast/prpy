@@ -441,7 +441,7 @@ def estimate_freq_periodogram(
   Returns:
     f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
-  assert isinstance(f_s, (float, int)) and f_s > 0
+  assert isinstance(f_s, (float, int, np.float32, np.float64, np.int32, np.int64)) and f_s > 0
   assert f_range is None or (isinstance(f_range, tuple) and len(f_range) == 2 and all(isinstance(i, (int, float)) for i in f_range))
   assert f_res is None or (isinstance(f_res, (float, int)) and f_res > 0)
   assert isinstance(axis, int) and (axis == 0 or axis == 1 or axis == -1)
