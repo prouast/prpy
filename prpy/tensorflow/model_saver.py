@@ -22,6 +22,7 @@
 
 import glob
 import logging
+import numpy as np
 import os
 import shutil
 import tensorflow as tf
@@ -31,7 +32,7 @@ class Candidate(object):
   """A candidate model with a score"""
   def __init__(
       self,
-      score: Union[float, int],
+      score: Union[float, int, np.float32, np.float64, np.int32, np.int64],
       dir: str,
       filename: str
     ):
@@ -42,7 +43,7 @@ class Candidate(object):
       dir: The directory where the candidate model can be saved
       filename: The filename under which the candidate model can be saved
     """
-    assert isinstance(score, (float, int))
+    assert isinstance(score, (float, int, np.float32, np.float64, np.int32, np.int64))
     assert isinstance(dir, str)
     assert isinstance(filename, str)
     self.score = score
@@ -96,7 +97,11 @@ class ModelSaver(object):
     self.sort_reverse = sort_reverse
     self.log_fn = log_fn
 
-  def __save(self, model: tf.keras.Model, filepath: str):
+  def __save(
+      self,
+      model: tf.keras.Model,
+      filepath: str
+    ):
     """Save a model to disk.
     
     Args:
@@ -115,7 +120,12 @@ class ModelSaver(object):
       model.save_weights(
         filepath=filepath, overwrite=True, save_format=self.save_format)
 
-  def save_keep(self, model: tf.keras.Model, step: int, name: str):
+  def save_keep(
+      self,
+      model: tf.keras.Model,
+      step: Union[int, np.int32, np.int64],
+      name: str
+    ):
     """Save and keep the given model.
 
     Args:
@@ -124,13 +134,18 @@ class ModelSaver(object):
       name: The model name
     """
     assert isinstance(model, tf.keras.Model)
-    assert isinstance(step, int)
+    assert isinstance(step, (int, np.int32, np.int64))
     assert isinstance(name, str)
     self.log_fn("Saving and keeping model for step {}".format(step))
     filepath = os.path.join(self.dir, name + "_keep_" + str(step))
     self.__save(model=model, filepath=filepath)
 
-  def save_latest(self, model: tf.keras.Model, step: int, name: str):
+  def save_latest(
+      self,
+      model: tf.keras.Model, 
+      step: Union[int, np.int32, np.int64],
+      name: str
+    ):
     """Save the given model as currently latest.
     
     Args:
@@ -139,7 +154,7 @@ class ModelSaver(object):
       name: The model name
     """
     assert isinstance(model, tf.keras.Model)
-    assert isinstance(step, int)
+    assert isinstance(step, (int, np.int32, np.int64))
     assert isinstance(name, str)
     name = name + "_latest_" + str(step)
     # Use step as score
@@ -162,7 +177,13 @@ class ModelSaver(object):
             os.remove(file)
       self.latest_candidates = self.latest_candidates[0:self.keep_latest]
 
-  def save_best(self, model: tf.keras.Model, score: float, step: int, name: str):
+  def save_best(
+      self,
+      model: tf.keras.Model,
+      score: Union[float, np.float32, np.float64],
+      step: Union[int, np.int32, np.int64],
+      name: str
+    ):
     """Save the given model as a candidate for best model.
 
     Args:
@@ -172,8 +193,8 @@ class ModelSaver(object):
       name: The name of the model
     """
     assert isinstance(model, tf.keras.Model)
-    assert isinstance(score, float)
-    assert isinstance(step, int)
+    assert isinstance(score, (float, np.float32, np.float64))
+    assert isinstance(step, (int, np.int32, np.int64))
     assert isinstance(name, str)
     self.log_fn('Saving model for step {}'.format(step))
     name = name + "_best_" + str(step)

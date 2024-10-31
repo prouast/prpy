@@ -22,6 +22,7 @@
 
 import glob
 import logging
+import numpy as np
 import os
 import torch
 from typing import Union, Callable
@@ -30,7 +31,7 @@ class Candidate(object):
   """A candidate model with a score"""
   def __init__(
       self,
-      score: Union[float, int],
+      score: Union[float, int, np.float32, np.float64, np.int32, np.int64],
       dir: str,
       filename: str
     ):
@@ -41,7 +42,7 @@ class Candidate(object):
       dir: The directory where the candidate model can be saved
       filename: The filename under which the candidate model can be saved
     """
-    assert isinstance(score, (float, int))
+    assert isinstance(score, (float, int, np.float32, np.float64, np.int32, np.int64))
     assert isinstance(dir, str)
     assert isinstance(filename, str)
     self.score = score
@@ -91,7 +92,11 @@ class ModelSaver(object):
     self.sort_reverse = sort_reverse
     self.log_fn = log_fn
 
-  def __save(self, info: tuple, filepath: str):
+  def __save(
+      self,
+      info: tuple,
+      filepath: str
+    ):
     """Save a model to disk.
     
     Args:
@@ -128,7 +133,12 @@ class ModelSaver(object):
     else:
       return self.best_candidates[0].score
 
-  def save_keep(self, info: tuple, step: int, name: str):
+  def save_keep(
+      self,
+      info: tuple,
+      step: Union[int, np.int32, np.int64],
+      name: str
+    ):
     """Save and keep the given model.
 
     Args:
@@ -136,13 +146,18 @@ class ModelSaver(object):
       step: The current training step
       name: The model name
     """
-    assert isinstance(step, int)
+    assert isinstance(step, (int, np.int32, np.int64))
     assert isinstance(name, str)
     self.log_fn("Saving and keeping model for step {}".format(step))
     filepath = os.path.join(self.dir, name + "_keep_" + str(step))
     self.__save(info=info, filepath=filepath)
 
-  def save_latest(self, info: tuple, step: int, name: str):
+  def save_latest(
+      self,
+      info: tuple,
+      step: Union[int, np.int32, np.int64],
+      name: str
+    ):
     """Save the given model as currently latest.
     
     Args:
@@ -150,7 +165,7 @@ class ModelSaver(object):
       step: The current training step
       name: The model name
     """
-    assert isinstance(step, int)
+    assert isinstance(step, (int, np.int32, np.int64))
     assert isinstance(name, str)
     name = name + "_latest_" + str(step)
     # Use step as score
@@ -170,7 +185,13 @@ class ModelSaver(object):
           os.remove(file)
       self.latest_candidates = self.latest_candidates[0:self.keep_latest]
 
-  def save_best(self, info: tuple, score: float, step: int, name: str):
+  def save_best(
+      self,
+      info: tuple,
+      score: Union[float, np.float32, np.float64],
+      step: Union[int, np.int32, np.int64],
+      name: str
+    ):
     """Save the given model as a candidate for best model.
 
     Args:
@@ -179,8 +200,8 @@ class ModelSaver(object):
       step: The current training step
       name: The name of the model
     """
-    assert isinstance(score, float)
-    assert isinstance(step, int)
+    assert isinstance(score, (float, np.float32, np.float64))
+    assert isinstance(step, (int, np.int32, np.int64))
     assert isinstance(name, str)
     self.log_fn('Saving model for step {}'.format(step))
     name = name + "_best_" + str(step)
