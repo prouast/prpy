@@ -23,6 +23,35 @@ import numpy as np
 import operator
 import psutil
 
+def memory_available_to_use(
+    max_fraction_of_available_memory_to_use: float = 0.7
+  ) -> float:
+  """Return the amount of memory available to use.
+
+  Args:
+    max_fraction_of_available_memory_to_use: The maximum fraction of available memory to use.
+  Returns:
+    The available amount of memory in bytes
+  """
+  return psutil.virtual_memory().available * max_fraction_of_available_memory_to_use
+
+def memory_required_for_ndarray(
+    shape: tuple,
+    dtype: np.dtype
+  ) -> float:
+  """Return the amount of memory required to store an ndarray.
+  
+  Args:
+    shape: The shape of the ndarray.
+    dtype: The data type of the ndarray.
+  Returns:
+    The amount of memory required to store this array in bytes
+  """
+  total_elements = reduce(operator.mul, shape)
+  element_size = np.dtype(dtype).itemsize
+  required_bytes = total_elements * element_size
+  return required_bytes
+
 def enough_memory_for_ndarray(
     shape: tuple,
     dtype: np.dtype,
@@ -37,8 +66,6 @@ def enough_memory_for_ndarray(
   Returns:
     bool: True if there is enough memory available, False otherwise.
   """
-  total_elements = reduce(operator.mul, shape)
-  element_size = np.dtype(dtype).itemsize
-  required_bytes = total_elements * element_size
-  available_memory_bytes = psutil.virtual_memory().available
-  return max_fraction_of_available_memory_to_use * available_memory_bytes > required_bytes
+  required = memory_required_for_ndarray(shape=shape, dtype=dtype)
+  available = memory_available_to_use(max_fraction_of_available_memory_to_use)
+  return available > required
