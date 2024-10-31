@@ -22,6 +22,7 @@ from prpy.numpy.image import crop_slice_resize
 from prpy.numpy.image import resample_bilinear, resample_box
 from prpy.numpy.image import reduce_roi
 from prpy.numpy.image import parse_image_inputs
+from prpy.numpy.image import probe_image_inputs
 
 import os
 import numpy as np
@@ -152,6 +153,29 @@ def test_reduce_roi(scenario, dtype):
     exp,
     atol=1e-4, rtol=1e-4)
   np.testing.assert_equal(video, video_copy)
+
+@pytest.mark.parametrize("in_mode", ["np", "str"])
+@pytest.mark.parametrize("in_type", ["image", "video"])
+def test_probe_image_inputs(sample_image_file, sample_image_data, sample_video_file, sample_video_data, sample_dims,
+                            in_mode, in_type):
+  if in_mode == "np":
+    if in_type == "image":
+      inputs_in = sample_image_data
+    else:
+      inputs_in = sample_video_data
+  else:
+    if in_type == "image":
+      inputs_in = sample_image_file
+    else:
+      inputs_in = sample_video_file  
+  shape, fps, issues = probe_image_inputs(inputs=inputs_in,
+                                          fps=25. if in_mode == "np" and in_type == "video" else None)
+  expected_shape = sample_dims if in_type == "video" else sample_dims[1:]
+  expected_fps = 25. if in_type == "video" else None
+  expected_issues = False
+  assert shape == expected_shape
+  assert fps == expected_fps
+  assert issues == expected_issues
 
 @pytest.mark.parametrize("in_mode_lib", [("np", "cv2"), ("np", "tf"), ("np", "PIL"), ("np", "prpy"), ("str", "prpy")])
 @pytest.mark.parametrize("roi", [None, (100, 50, 220, 200)])

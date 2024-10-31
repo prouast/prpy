@@ -202,11 +202,81 @@ def reduce_roi(
 
   Args:
     video: The video to be reduced. Shape (n, h, w, 3)
-    roi: The roi in form (x0, y0, x1, y1). Shape (n, 4) 
+    roi: The roi in form (x0, y0, x1, y1). Shape (n, 4) or (4,)
   Returns:
     out: The reduced vals. Shape (n, 3)
   """
+  if len(roi.shape) == 1:
+    roi = np.tile(roi, (video.shape[0], 1))
   return reduce_roi_op(video, roi.astype(np.int64))
+
+def probe_image_inputs(
+    inputs: Union[np.ndarray, str],
+    fps: float = None,
+    min_video_frames: int = 1,
+    allow_image: bool = True
+  ) -> Tuple[tuple, float, bool]:
+  """Check the image or video inputs and probe to extract metadata.
+
+  Args:
+    inputs: The inputs. Either
+      - a filepath to video or image file
+      - a `np.ndarray` of `np.uint8` representing a video or image with shape (n, h, w, c) or (h, w, c)
+    fps: Sampling frequency of the input video. Required if type(video)==np.ndarray.
+    allow_image: Whether to allow images. If False, raise ValueError on image inputs.
+    min_frames: The minimum number of frames for a video
+  Returns:
+    Tuple of
+     - shape: The shape of the input image or video as (n, h, w, c) or (h, w, c)
+     - fps: Sampling frequency of the input video if video, else None.
+     - issues: True if a possible issue with the inputs has been detected.
+  """
+  # Check if inputs is array or file name
+  if isinstance(inputs, str):
+    if os.path.isfile(inputs):
+      # File
+      if imghdr.what(inputs) is not None:
+        # Image
+        if not allow_image:
+          raise ValueError("allow_image={}, but received a path to an image file.".format(allow_image))
+        with Image.open(inputs) as img:
+          width, height = img.size
+          channels = len(img.getbands())
+          return (height, width, channels), None, False
+      else:
+        # Video - check that fps is correct type
+        if not (fps is None or isinstance(fps, (int, float))):
+          raise ValueError("fps should be a number, but got {}".format(type(fps)))
+        try:
+          fps_, n, w_, h_, _, _, r, i = probe_video(inputs)
+          if fps is None: fps = fps_
+          if abs(r) == 90: h = w_; w = h_
+          else: h = h_; w = w_
+          if not n >= min_video_frames:
+            raise ValueError("video should have shape (n_frames [>= {}], h, w, 3), but found {}".format(min_video_frames, (n, h, w, 3)))
+          return (n, h, w, 3), fps, i
+        except Exception as e:
+          raise ValueError("Problem probing video at {}: {}".format(inputs, e)) 
+    else:
+      raise ValueError("No file found at {}".format(inputs))
+  elif isinstance(inputs, np.ndarray):
+    # Array
+    if len(inputs.shape) == 3:
+      # Image
+      if not allow_image:
+        raise ValueError("allow_image={}, but received a ndarray with image data.".format(allow_image))
+      return inputs.shape, None, False
+    elif len(inputs.shape) == 4:
+      # Video - check that fps is correct type
+      if not isinstance(fps, (int, float)):
+        raise ValueError("fps should be specified as a number, but got {}".format(type(fps)))
+      if inputs.dtype != np.uint8:
+        raise ValueError("video.dtype should be uint8, but got {}".format(inputs.dtype))
+      if inputs.shape[0] < min_video_frames or inputs.shape[3] != 3:
+        raise ValueError("video should have shape (n_frames [>= {}], h, w, 3), but found {}".format(min_video_frames, inputs.shape))
+      return inputs.shape, fps, False
+  else:
+    raise ValueError("Invalid video {}, type {}".format(inputs, type(input)))
 
 def parse_image_inputs(
     inputs: Union[np.ndarray, str],
@@ -222,7 +292,7 @@ def parse_image_inputs(
     allow_image: bool = True,
     videodims: bool = True 
   ) -> Tuple[np.ndarray, float, tuple, int, list]:
-  """Parse video inputs into required shape.
+  """Parse image or video inputs into required shape.
 
   Args:
     inputs: The inputs. Either
@@ -333,7 +403,7 @@ def parse_image_inputs(
     if len(shape_in) == 3:
       # Image
       if not allow_image:
-        raise ValueError("allow_image={}, but received a path to an image file.".format(allow_image))
+        raise ValueError("allow_image={}, but received a ndarray with image data.".format(allow_image))
       return parse_np_image(
         inputs=inputs, roi=roi, target_size=target_size, preserve_aspect_ratio=preserve_aspect_ratio,
         library=library, scale_algorithm=scale_algorithm)
@@ -341,6 +411,8 @@ def parse_image_inputs(
       # Video. Downsample / crop / scale if necessary
       if ds_factor is None: ds_factor = 1
       if target_fps is not None:
+        if fps is None:
+          raise ValueError("Must provide fps with `np.ndarray` video input and target_fps.")
         if target_fps > fps: logging.warning("target_fps should not be greater than fps. Ignoring.")
         else: ds_factor = max(round(fps / target_fps), 1)
       target_idxs = None if ds_factor == 1 else list(range(inputs.shape[0])[0::ds_factor])
@@ -357,4 +429,3 @@ def parse_image_inputs(
       return inputs, fps, shape_in, ds_factor, target_idxs
   else:
     raise ValueError("Invalid video {}, type {}".format(inputs, type(inputs)))
-  
