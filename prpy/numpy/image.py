@@ -275,6 +275,8 @@ def probe_image_inputs(
       if inputs.shape[0] < min_video_frames or inputs.shape[3] != 3:
         raise ValueError("video should have shape (n_frames [>= {}], h, w, 3), but found {}".format(min_video_frames, inputs.shape))
       return inputs.shape, fps, False
+    else:
+      raise ValueError("Inputs should have rank 3 or 4, but had {}".format(len(inputs.shape)))
   else:
     raise ValueError("Invalid video {}, type {}".format(inputs, type(input)))
 
