@@ -415,7 +415,7 @@ def parse_image_inputs(
       if target_fps is not None:
         if fps is None:
           raise ValueError("Must provide fps with `np.ndarray` video input and target_fps.")
-        if target_fps > fps: logging.warning("target_fps should not be greater than fps. Ignoring.")
+        if target_fps > fps: logging.debug("target_fps should not be greater than fps. Ignoring.")
         else: ds_factor = max(round(fps / target_fps), 1)
       target_idxs = None if ds_factor == 1 else list(range(inputs.shape[0])[0::ds_factor])
       if trim is not None:

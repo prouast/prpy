@@ -135,7 +135,7 @@ def _ffmpeg_filtering(
   assert isinstance(preserve_aspect_ratio, bool)
   assert isinstance(scale_algorithm, str)
   ds_factor = 1
-  if target_fps is not None and target_fps > fps: logging.warning("target_fps should not be greater than fps. Ignoring.")
+  if target_fps is not None and target_fps > fps: logging.debug("target_fps should not be greater than fps. Ignoring.")
   elif target_fps is not None: ds_factor = round(fps / target_fps)
   # Target number of frames
   target_n = trim[1] - trim[0] if trim is not None else n
@@ -156,8 +156,8 @@ def _ffmpeg_filtering(
     if isinstance(scale, int): scale = (scale, scale)
     if preserve_aspect_ratio:
       scale_ratio = max(scale) / max(target_w, target_h)
-      target_w = int(target_w * scale_ratio)
-      target_h = int(target_h * scale_ratio)
+      target_w = round(target_w * scale_ratio)
+      target_h = round(target_h * scale_ratio)
     else:
       target_w, target_h = scale
     if requires_even_dims and (target_h % 2 != 0 or target_w % 2 != 0):
