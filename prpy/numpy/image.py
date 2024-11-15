@@ -417,17 +417,22 @@ def parse_image_inputs(
           raise ValueError("Must provide fps with `np.ndarray` video input and target_fps.")
         if target_fps > fps: logging.debug("target_fps should not be greater than fps. Ignoring.")
         else: ds_factor = max(round(fps / target_fps), 1)
-      target_idxs = None if ds_factor == 1 else list(range(inputs.shape[0])[0::ds_factor])
+      n = shape_in[0]
+      expected_n = math.ceil(((trim[1]-trim[0]) if trim is not None else n) / ds_factor)
+      target_idxs_start = 0 if trim is None else trim[0]
+      target_idxs = None if ds_factor == 1 else list(range(target_idxs_start, n, ds_factor))
       if trim is not None:
-        if target_idxs is None: target_idxs = range(shape_in[0])
+        if target_idxs is None: target_idxs = range(target_idxs_start, n, 1)
         target_idxs = [idx for idx in target_idxs if trim[0] <= idx < trim[1]]
       if roi is not None or target_size is not None or target_idxs is not None:
         if target_size is None and roi is not None: target_size = (int(roi[3]-roi[1]), int(roi[2]-roi[0]))
-        elif target_size is None: target_size = (inputs.shape[1], inputs.shape[2])
+        elif target_size is None: target_size = (shape_in[1], shape_in[2])
         inputs = crop_slice_resize(
           inputs=inputs, target_size=target_size, roi=roi, target_idxs=target_idxs,
           preserve_aspect_ratio=preserve_aspect_ratio, library=library, scale_algorithm=scale_algorithm)
       if target_idxs is None: target_idxs = list(range(shape_in[0]))
+      if len(target_idxs) != expected_n or n != expected_n:
+        logging.warning(f"Returning unexpected number of frames: {len(target_idxs)} instead of {expected_n}")
       return inputs, fps, shape_in, ds_factor, target_idxs
   else:
     raise ValueError("Invalid video {}, type {}".format(inputs, type(inputs)))

@@ -24,6 +24,7 @@ from prpy.numpy.image import reduce_roi
 from prpy.numpy.image import parse_image_inputs
 from prpy.numpy.image import probe_image_inputs
 
+import math
 import os
 import numpy as np
 import pytest
@@ -227,7 +228,7 @@ def test_parse_image_inputs(sample_image_file, sample_image_data, sample_video_f
     expected_frames = sample_dims[0]
     expected_idxs = list(range(sample_dims[0]))
   elif (target_fps is not None or ds_factor is not None) and trim is None:
-    expected_frames = sample_dims[0] // 5
+    expected_frames = math.ceil(sample_dims[0] / 5)
     expected_idxs = list(range(0, sample_dims[0], 5))
   elif target_fps is None and ds_factor is None and trim is not None:
     expected_frames = trim[1] - trim[0]
