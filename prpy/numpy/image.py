@@ -431,7 +431,7 @@ def parse_image_inputs(
           inputs=inputs, target_size=target_size, roi=roi, target_idxs=target_idxs,
           preserve_aspect_ratio=preserve_aspect_ratio, library=library, scale_algorithm=scale_algorithm)
       if target_idxs is None: target_idxs = list(range(shape_in[0]))
-      if len(target_idxs) != expected_n or n != expected_n:
+      if len(target_idxs) != expected_n or inputs.shape[0] != expected_n:
         logging.warning(f"Returning unexpected number of frames: {len(target_idxs)} instead of {expected_n}")
       return inputs, fps, shape_in, ds_factor, target_idxs
   else:
