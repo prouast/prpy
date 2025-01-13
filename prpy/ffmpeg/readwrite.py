@@ -46,7 +46,7 @@ def _ffmpeg_input_from_path(
   assert isinstance(fps, (float, int))
   assert trim is None or (isinstance(trim, tuple) and all(isinstance(i, int) for i in trim))
   trim_start = 0 if trim is None else trim[0]
-  # Create the stream
+  # Create the stream and skip forward to trim start if applicable
   stream = ffmpeg.input(filename=path, ss=trim_start/fps)
   # Return
   return stream
@@ -164,6 +164,7 @@ def _ffmpeg_filtering(
       raise ValueError("Cannot use this scale ({}) because H264 encoding requires even height and width.".format(scale))
   # Trimming
   if trim is not None:
+    # Node: This works because we skipped forward to trim[0] when creating the stream.
     stream = stream.trim(start_frame=0, end_frame=trim[1]-trim[0])
     stream = stream.setpts('PTS-STARTPTS')
   # Downsampling
