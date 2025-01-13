@@ -179,7 +179,7 @@ def get_upper_body_roi_from_det(
                                clip_dims=clip_dims,
                                force_even_dims=force_even_dims)
   else:
-    raise ValueError("v {} is not defined".format(v))
+    raise ValueError(f"v {v} is not defined")
 
 def get_meta_roi_from_det(
     det: tuple,
@@ -242,7 +242,7 @@ def get_roi_from_det(
   elif roi_method is None or roi_method == 'det':
     return _force_even_dims(det) if force_even_dims else det
   else:
-    raise ValueError("roi method {} is not supported".format(roi_method))
+    raise ValueError(f"roi method {roi_method} is not supported")
 
 def crop_resize_from_det(
     video: np.ndarray,

@@ -169,7 +169,7 @@ def resolve_1d_window_view(
     elif fill_method == 'start':
       fill = x[0]
     else:
-      raise ValueError("fill_method {} not supported".format(fill_method))
+      raise ValueError(f"fill_method {fill_method} not supported")
     vals = np.concatenate([np.repeat(fill, window_size-1), x])
   elif overlap < window_size - 1:
     # For any other overlaps, we will have to build an intermediate 2-d

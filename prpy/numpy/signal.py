@@ -334,7 +334,7 @@ def estimate_freq(
   elif method == 'periodogram':
     return estimate_freq_periodogram(x, f_s=f_s, f_range=f_range, f_res=f_res, axis=axis)
   else:
-    return ValueError("method should be 'peak', 'fft', or 'periodogram' but was {}".format(method))
+    return ValueError(f"method should be 'peak', 'fft', or 'periodogram' but was {method}")
 
 def estimate_freq_fft(
     x: np.ndarray,

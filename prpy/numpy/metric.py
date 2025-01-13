@@ -153,11 +153,11 @@ def snr(
   Returns:
     snr: The signal to noise ratio. Shape (b,) or ()
   """
-  assert isinstance(f_s, (float, int, np.float32, np.float64, np.int32, np.int64)), "f_s should be float or int but was {}".format(type(f_s))
-  assert isinstance(f_res, (float, int, np.float32, np.float64, np.int32, np.int64)), "f_res should be float or int but was {}".format(type(f_s))
-  assert isinstance(tol, (float, int, np.float32, np.float64, np.int32, np.int64)), "tol should be float or int but was {}".format(type(f_s))
-  assert isinstance(f_min, (float, int, np.float32, np.float64, np.int32, np.int64)), "f_min should be float or int but was {}".format(type(f_s))
-  assert isinstance(f_max, (float, int, np.float32, np.float64, np.int32, np.int64)), "f_max should be float or int but was {}".format(type(f_s))
+  assert isinstance(f_s, (float, int, np.float32, np.float64, np.int32, np.int64)), f"f_s should be float or int but was {type(f_s)}"
+  assert isinstance(f_res, (float, int, np.float32, np.float64, np.int32, np.int64)), f"f_res should be float or int but was {type(f_res)}"
+  assert isinstance(tol, (float, int, np.float32, np.float64, np.int32, np.int64)), f"tol should be float or int but was {type(tol)}"
+  assert isinstance(f_min, (float, int, np.float32, np.float64, np.int32, np.int64)), f"f_min should be float or int but was {type(f_min)}"
+  assert isinstance(f_max, (float, int, np.float32, np.float64, np.int32, np.int64)), f"f_max should be float or int but was {type(f_max)}"
   f_s = float(f_s)
   f_res = float(f_res)
   tol = float(tol)

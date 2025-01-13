@@ -229,43 +229,43 @@ def test_model_saver(save_format, save_optimizer):
   model_saver.save_latest(model=model, step=0, name='model')
   assert len(model_saver.latest_candidates) == 1
   assert len(model_saver.best_candidates) == 0
-  assert os.path.exists('checkpoints/model_latest_0{}'.format(suffix))
+  assert os.path.exists(f"checkpoints/model_latest_0{suffix}")
   # Save best
   model_saver.save_best(model=model, score=0.1, step=10, name='model')
   assert len(model_saver.latest_candidates) == 1
   assert len(model_saver.best_candidates) == 1
-  assert os.path.exists('checkpoints/model_best_10{}'.format(suffix))
+  assert os.path.exists(f"checkpoints/model_best_10{suffix}")
   # Save latest
   model_saver.save_latest(model=model, step=20, name='model')
   assert len(model_saver.latest_candidates) == 1
   assert len(model_saver.best_candidates) == 1
-  assert not os.path.exists('checkpoints/model_latest_0{}'.format(suffix))
-  assert os.path.exists('checkpoints/model_latest_20{}'.format(suffix))
+  assert not os.path.exists(f"checkpoints/model_latest_0{suffix}")
+  assert os.path.exists(f"checkpoints/model_latest_20{suffix}")
   # Save best
   model_saver.save_best(model=model, score=0.2, step=30, name='model')
   assert len(model_saver.latest_candidates) == 1
   assert len(model_saver.best_candidates) == 2
-  assert os.path.exists('checkpoints/model_best_10{}'.format(suffix))
-  assert os.path.exists('checkpoints/model_best_30{}'.format(suffix))
+  assert os.path.exists(f"checkpoints/model_best_10{suffix}")
+  assert os.path.exists(f"checkpoints/model_best_30{suffix}")
   # Save latest
   model_saver.save_latest(model=model, step=40, name='model')
   assert len(model_saver.latest_candidates) == 1
   assert len(model_saver.best_candidates) == 2
-  assert not os.path.exists('checkpoints/model_latest_0{}'.format(suffix))
-  assert not os.path.exists('checkpoints/model_latest_20{}'.format(suffix))
-  assert os.path.exists('checkpoints/model_latest_40{}'.format(suffix))
+  assert not os.path.exists(f"checkpoints/model_latest_0{suffix}")
+  assert not os.path.exists(f"checkpoints/model_latest_20{suffix}")
+  assert os.path.exists(f"checkpoints/model_latest_40{suffix}")
   # Save best
   model_saver.save_best(model=model, score=0.3, step=50, name='model')
   assert len(model_saver.latest_candidates) == 1
   assert len(model_saver.best_candidates) == 2
-  assert not os.path.exists('checkpoints/model_best_10{}'.format(suffix))
-  assert os.path.exists('checkpoints/model_best_30{}'.format(suffix))
-  assert os.path.exists('checkpoints/model_best_50{}'.format(suffix))
+  assert not os.path.exists(f"checkpoints/model_best_10{suffix}")
+  assert os.path.exists(f"checkpoints/model_best_30{suffix}")
+  assert os.path.exists(f"checkpoints/model_best_50{suffix}")
   # Save keep
   model_saver.save_keep(model=model, step=60, name='model')
   assert len(model_saver.latest_candidates) == 1
   assert len(model_saver.best_candidates) == 2
-  assert os.path.exists('checkpoints/model_keep_60{}'.format(suffix))
+  assert os.path.exists(f"checkpoints/model_keep_60{suffix}")
   # Remove files
   shutil.rmtree('checkpoints')
 

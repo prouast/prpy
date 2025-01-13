@@ -80,7 +80,7 @@ def _ffmpeg_input_from_numpy(
   assert isinstance(h, int)
   assert isinstance(fps, (float, int))
   assert isinstance(pix_fmt, str)
-  stream = ffmpeg.input('pipe:', format='rawvideo', pix_fmt=pix_fmt, s='{}x{}'.format(w, h), r=fps)
+  stream = ffmpeg.input('pipe:', format='rawvideo', pix_fmt=pix_fmt, s=f'{w}x{h}', r=fps)
   return stream
 
 def _ffmpeg_filtering(
@@ -144,10 +144,10 @@ def _ffmpeg_filtering(
   if requires_even_dims and crop is not None and scale in [None, 0]:
     if (crop[2] - crop[0]) % 2 != 0:
       crop = (crop[0], crop[1], crop[2]-1, crop[3])
-      logging.warning("Reducing uneven crop width from {} to {} to make operation possible.".format(crop[2]+1-crop[0], crop[2]-crop[0]))
+      logging.warning(f"Reducing uneven crop width from {crop[2]+1-crop[0]} to {crop[2]-crop[0]} to make operation possible.")
     if (crop[3] - crop[1]) % 2 != 0:
       crop = (crop[0], crop[1], crop[2], crop[3]-1)
-      logging.warning("Reducing uneven crop height from {} to {} to make operation possible.".format(crop[3]+1-crop[1], crop[3]-crop[1]))
+      logging.warning(f"Reducing uneven crop height from {crop[3]+1-crop[1]} to {crop[3]-crop[1]} to make operation possible.")
   # Target size after taking into account cropping
   target_w = crop[2]-crop[0] if crop is not None else w
   target_h = crop[3]-crop[1] if crop is not None else h
@@ -161,7 +161,7 @@ def _ffmpeg_filtering(
     else:
       target_w, target_h = scale
     if requires_even_dims and (target_h % 2 != 0 or target_w % 2 != 0):
-      raise ValueError("Cannot use this scale ({}) because H264 encoding requires even height and width.".format(scale))
+      raise ValueError(f"Cannot use this scale ({scale}) because H264 encoding requires even height and width.")
   # Trimming
   if trim is not None:
     # Node: This works because we skipped forward to trim[0] when creating the stream.
@@ -169,7 +169,7 @@ def _ffmpeg_filtering(
     stream = stream.setpts('PTS-STARTPTS')
   # Downsampling
   if ds_factor > 1:
-    stream = ffmpeg.filter(stream, 'select', 'not(mod(n,{}))'.format(ds_factor))
+    stream = ffmpeg.filter(stream, 'select', f'not(mod(n,{ds_factor}))')
     stream = stream.setpts('N/FRAME_RATE/TB')
   # Cropping
   if crop is not None:
@@ -245,10 +245,10 @@ def _ffmpeg_output_to_numpy(
   # Swap h and w if necessary -> not needed if scaled!
   if r != 0:
     if abs(r) == 90:
-      logging.warning("Rotation {} present in video fixed; results in W and H swapped.".format(r))
+      logging.warning(f"Rotation {r} present in video fixed; results in W and H swapped.")
       w, h = h, w
     else:
-      logging.warning("Rotation {} present in video; Fixing is not yet supported.".format(r))
+      logging.warning(f"Rotation {r} present in video; Fixing is not yet supported.")
   # Parse result
   frames = np.frombuffer(out, np.uint8)
   try:
@@ -349,7 +349,7 @@ def read_video_from_path(
   assert isinstance(path, str)
   # Check if file exists
   if not os.path.exists(path):
-    raise FileNotFoundError("File {} does not exist".format(path))
+    raise FileNotFoundError(f"File {path} does not exist")
   # Get metadata of original video
   fps, n, w, h, _, _, r, _ = probe_video(path=path)
   # Input
@@ -450,7 +450,7 @@ def write_video_from_numpy(
   stream = _ffmpeg_input_from_numpy(w=w, h=h, fps=fps, pix_fmt=pix_fmt)
   buffer = data.flatten().tobytes()
   if (h % 2 != 0 or w % 2 != 0) and codec == 'h264':
-    raise ValueError('H264 requires both height and width of the video to be even numbers, but received h={} w={}'.format(h, w))
+    raise ValueError(f"H264 requires both height and width of the video to be even numbers, but received h={h} w={w}")
   _ffmpeg_output_to_file(
     stream, output_dir=output_dir, output_file=output_file, from_stdin=buffer,
     codec=codec, crf=crf, pix_fmt=out_pix_fmt, overwrite=overwrite, quiet=quiet)

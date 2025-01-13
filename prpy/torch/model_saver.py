@@ -148,7 +148,7 @@ class ModelSaver(object):
     """
     assert isinstance(step, (int, np.int32, np.int64))
     assert isinstance(name, str)
-    self.log_fn("Saving and keeping model for step {}".format(step))
+    self.log_fn(f"Saving and keeping model for step {step}")
     filepath = os.path.join(self.dir, name + "_keep_" + str(step))
     self.__save(info=info, filepath=filepath)
 
@@ -172,7 +172,7 @@ class ModelSaver(object):
     candidate = Candidate(score=step, dir=self.dir, filename=name)
     if len(self.latest_candidates) < self.keep_latest \
       or self.compare_fn_latest(candidate, self.latest_candidates[-1]):
-      self.log_fn("Saving latest model for step {}".format(step))
+      self.log_fn(f"Saving latest model for step {step}")
       # Keep candidate
       self.latest_candidates.append(candidate)
       self.latest_candidates = sorted(
@@ -181,7 +181,7 @@ class ModelSaver(object):
       self.__save(info, filepath=candidate.filepath)
       # Prune candidate
       for candidate in self.latest_candidates[self.keep_latest:]:
-        for file in glob.glob(r'{}*'.format(candidate.filepath)):
+        for file in glob.glob(fr"{candidate.filepath}*"):
           os.remove(file)
       self.latest_candidates = self.latest_candidates[0:self.keep_latest]
 
@@ -203,14 +203,13 @@ class ModelSaver(object):
     assert isinstance(score, (float, np.float32, np.float64))
     assert isinstance(step, (int, np.int32, np.int64))
     assert isinstance(name, str)
-    self.log_fn('Saving model for step {}'.format(step))
+    self.log_fn(f"Saving model for step {step}")
     name = name + "_best_" + str(step)
     candidate = Candidate(score, dir=self.dir, filename=name)
     if len(self.best_candidates) < self.keep_best \
       or self.compare_fn_best(candidate, self.best_candidates[-1]):
       # Keep candidate
-      self.log_fn("Keeping model {} with score {:.4f}".format(
-        candidate.filepath, candidate.score))
+      self.log_fn(f"Keeping model {candidate.filepath} with score {candidate.score:.4f}")
       self.best_candidates.append(candidate)
       self.best_candidates = sorted(
         self.best_candidates, key=lambda x: x.score, reverse=self.sort_reverse)
@@ -218,12 +217,11 @@ class ModelSaver(object):
       self.__save(info, filepath=candidate.filepath)
       # Prune candidates
       for candidate in self.best_candidates[self.keep_best:]:
-        self.log_fn('Removing old model {} with score {:.4f}'.format(
-          candidate.filepath, candidate.score))
-        for file in glob.glob(r'{}*'.format(candidate.filepath)):
+        self.log_fn(f"Removing old model {candidate.filepath} with score {candidate.score:.4f}")
+        for file in glob.glob(fr"{candidate.filepath}*"):
           os.remove(file)
       self.best_candidates = self.best_candidates[0:self.keep_best]
     else:
       # Skip the candidate
-      self.log_fn('Skipping candidate {}'.format(candidate.filepath))
+      self.log_fn(f"Skipping candidate {candidate.filepath}")
       

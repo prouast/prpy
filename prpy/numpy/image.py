@@ -110,7 +110,7 @@ def crop_slice_resize(
       try:
         library_algorithm = mapping[scale_algorithm]
       except KeyError:
-        raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
+        raise ValueError(f"Scaling algorithm {scale_algorithm} is not supported by {library}")
       out = tf.image.resize(
         images=inputs_sliced, size=out_size,
         preserve_aspect_ratio=preserve_aspect_ratio,
@@ -122,7 +122,7 @@ def crop_slice_resize(
       try:
         library_algorithm = mapping[scale_algorithm]
       except KeyError:
-        raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
+        raise ValueError(f"Scaling algorithm {scale_algorithm} is not supported by {library}")
       # PIL requires (width, height)
       out_size = (out_size[1], out_size[0])
       out = np.asarray([
@@ -134,7 +134,7 @@ def crop_slice_resize(
       try:
         library_algorithm = mapping[scale_algorithm]
       except KeyError:
-        raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
+        raise ValueError(f"Scaling algorithm {scale_algorithm} is not supported by {library}")
       # cv2 requires (width, height)
       out_size = (out_size[1], out_size[0])
       out = np.asarray([
@@ -147,9 +147,9 @@ def crop_slice_resize(
         else:
           out = resample_bilinear(im=inputs_sliced, size=out_size)
       else:
-        raise ValueError("Scaling algorithm {} is not supported by {}".format(scale_algorithm, library))
+        raise ValueError(f"Scaling algorithm {scale_algorithm} is not supported by {library}")
     else:
-      raise ValueError("Library {} not supported".format(library))
+      raise ValueError(f"Library {library} not supported")
   if keepdims and len(out.shape) == 3 and len(inputs_shape) == 4:
     # Add temporal dim back - might have been lost when slicing
     newaxis = tf.newaxis if library == 'tf' else np.newaxis
@@ -238,7 +238,7 @@ def probe_image_inputs(
       if imghdr.what(inputs) is not None:
         # Image
         if not allow_image:
-          raise ValueError("allow_image={}, but received a path to an image file.".format(allow_image))
+          raise ValueError(f"allow_image={allow_image}, but received a path to an image file.")
         with Image.open(inputs) as img:
           width, height = img.size
           channels = len(img.getbands())
@@ -246,39 +246,39 @@ def probe_image_inputs(
       else:
         # Video - check that fps is correct type
         if not (fps is None or isinstance(fps, (int, float))):
-          raise ValueError("fps should be a number, but got {}".format(type(fps)))
+          raise ValueError(f"fps should be a number, but got {type(fps)}")
         try:
           fps_, n, w_, h_, _, _, r, i = probe_video(inputs)
           if fps is None: fps = fps_
           if abs(r) == 90: h = w_; w = h_
           else: h = h_; w = w_
           if not n >= min_video_frames:
-            raise ValueError("video should have shape (n_frames [>= {}], h, w, 3), but found {}".format(min_video_frames, (n, h, w, 3)))
+            raise ValueError(f"video should have shape (n_frames [>= {min_video_frames}], h, w, 3), but found {(n, h, w, 3)}")
           return (n, h, w, 3), fps, i
         except Exception as e:
-          raise ValueError("Problem probing video at {}: {}".format(inputs, e)) 
+          raise ValueError(f"Problem probing video at {inputs}: {e}") 
     else:
-      raise ValueError("No file found at {}".format(inputs))
+      raise ValueError(f"No file found at {inputs}")
   elif isinstance(inputs, np.ndarray):
     # Array
     if len(inputs.shape) == 3:
       # Image
       if not allow_image:
-        raise ValueError("allow_image={}, but received a ndarray with image data.".format(allow_image))
+        raise ValueError(f"allow_image={allow_image}, but received a ndarray with image data.")
       return inputs.shape, None, False
     elif len(inputs.shape) == 4:
       # Video - check that fps is correct type
       if not isinstance(fps, (int, float)):
-        raise ValueError("fps should be specified as a number, but got {}".format(type(fps)))
+        raise ValueError(f"fps should be specified as a number, but got {type(fps)}")
       if inputs.dtype != np.uint8:
-        raise ValueError("video.dtype should be uint8, but got {}".format(inputs.dtype))
+        raise ValueError(f"video.dtype should be uint8, but got {inputs.dtype}")
       if inputs.shape[0] < min_video_frames or inputs.shape[3] != 3:
-        raise ValueError("video should have shape (n_frames [>= {}], h, w, 3), but found {}".format(min_video_frames, inputs.shape))
+        raise ValueError(f"video should have shape (n_frames [>= {min_video_frames}], h, w, 3), but found {inputs.shape}")
       return inputs.shape, fps, False
     else:
-      raise ValueError("Inputs should have rank 3 or 4, but had {}".format(len(inputs.shape)))
+      raise ValueError(f"Inputs should have rank 3 or 4, but had {len(inputs.shape)}")
   else:
-    raise ValueError("Invalid video {}, type {}".format(inputs, type(input)))
+    raise ValueError(f"Invalid video {inputs}, type {type(input)}")
 
 def parse_image_inputs(
     inputs: Union[np.ndarray, str],
@@ -355,11 +355,11 @@ def parse_image_inputs(
       if imghdr.what(inputs) is not None:
         # Image file
         if not allow_image:
-          raise ValueError("allow_image={}, but received a path to an image file.".format(allow_image))
+          raise ValueError(f"allow_image={allow_image}, but received a path to an image file.")
         try:
           inputs = np.asarray(Image.open(open(inputs, 'rb')))
         except Exception as e:
-          raise ValueError("Problem reading image from {}: {}".format(inputs, e))
+          raise ValueError(f"Problem reading image from {inputs}: {e}")
         return parse_np_image(
           inputs=inputs, roi=roi, target_size=target_size, preserve_aspect_ratio=preserve_aspect_ratio,
           library=library, scale_algorithm=scale_algorithm)
@@ -382,10 +382,10 @@ def parse_image_inputs(
             raise ValueError(VIDEO_PARSE_ERROR)
           expected_n = math.ceil(((trim[1]-trim[0]) if trim is not None else n) / ds_factor)
           if inputs.shape[0] < expected_n:
-            logging.warning("Less frames received than expected (delta = {}) - this may indicate an issue with the video file. Padding to avoid issues.".format(inputs.shape[0]-expected_n))
+            logging.warning(f"Less frames received than expected (delta = {inputs.shape[0]-expected_n}) - this may indicate an issue with the video file. Padding to avoid issues.")
             inputs = np.concatenate((np.repeat(inputs[:1], expected_n - inputs.shape[0], axis=0), inputs), axis=0)
           elif inputs.shape[0] > expected_n:
-            logging.warning("More frames received than expected (delta = {}) - this may indicate an issue with the video file. Trimming to avoid issues.".format(inputs.shape[0]-expected_n))
+            logging.warning(f"More frames received than expected (delta = {inputs.shape[0]-expected_n}) - this may indicate an issue with the video file. Trimming to avoid issues.")
             inputs = inputs[:expected_n]
           start_idx = max(0, trim[0]) if trim is not None else 0
           end_idx = min(n, trim[1]) if trim is not None else n
@@ -397,15 +397,15 @@ def parse_image_inputs(
           dims = (h, w, 3) if n == 1 and not videodims else (n, h, w, 3)
           return inputs, fps, dims, ds_factor, idxs
         except Exception as e:
-          raise ValueError("Problem reading video from {}: {}".format(inputs, e))
+          raise ValueError(f"Problem reading video from {inputs}: {e}")
     else:
-      raise ValueError("No file found at {}".format(inputs))
+      raise ValueError(f"No file found at {inputs}")
   elif isinstance(inputs, np.ndarray):
     shape_in = inputs.shape
     if len(shape_in) == 3:
       # Image
       if not allow_image:
-        raise ValueError("allow_image={}, but received a ndarray with image data.".format(allow_image))
+        raise ValueError(f"allow_image={allow_image}, but received a ndarray with image data.")
       return parse_np_image(
         inputs=inputs, roi=roi, target_size=target_size, preserve_aspect_ratio=preserve_aspect_ratio,
         library=library, scale_algorithm=scale_algorithm)
@@ -435,4 +435,4 @@ def parse_image_inputs(
         logging.warning(f"Returning unexpected number of frames: {len(target_idxs)} instead of {expected_n}")
       return inputs, fps, shape_in, ds_factor, target_idxs
   else:
-    raise ValueError("Invalid video {}, type {}".format(inputs, type(inputs)))
+    raise ValueError(f"Invalid video {inputs}, type {type(inputs)}")

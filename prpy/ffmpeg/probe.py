@@ -45,13 +45,13 @@ def probe_video(
   # Check if file exists
   assert isinstance(path, str)
   if not os.path.exists(path):
-    raise FileNotFoundError("File {} does not exist".format(path))
+    raise FileNotFoundError(f"File {path} does not exist")
   # ffprobe -show_streams -count_frames -pretty video.mp4
   try:
     probe = ffmpeg.probe(filename=path)
   except Exception as e:
     # The exception returned by `ffprobe` is in bytes
-    logging.warning("Exception probing video: {}".format(e))
+    logging.warning(f"Exception probing video: {e}")
   else:
     # Check if the file contains video streams
     if 'streams' not in probe or not any(s['codec_type'] == 'video' for s in probe['streams']):
