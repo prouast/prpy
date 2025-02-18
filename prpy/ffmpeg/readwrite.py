@@ -229,7 +229,7 @@ def _ffmpeg_output_to_numpy(
   assert isinstance(dim_deltas, tuple) and len(dim_deltas) == 3 and all(isinstance(i, int) for i in dim_deltas)
   if crf is None:
     # Stream straight to raw video. Absorps any rotation metadata present in the input video into pixels.
-    stream = stream.output("pipe:", fps_mode="passthrough", format="rawvideo", pix_fmt=pix_fmt)
+    stream = stream.output("pipe:", vsync="passthrough", format="rawvideo", pix_fmt=pix_fmt)
     out, err = stream.run(capture_stdout=True, capture_stderr=True)
     _, _, out_r = _read_output_stream_properties(err, quiet=quiet)
     assert out_r == 0, "Rotation should be 0 at this point"
@@ -237,7 +237,7 @@ def _ffmpeg_output_to_numpy(
     # Run stream to encode H264 with crf.
     # Explicitly specify output dimensions so rotation metadata present in the input video is correctly absorbed into pixels.
     w, h, r = _rectify_w_h_rotation(w, h, r)
-    stream = stream.output("pipe:", fps_mode="passthrough", format='rawvideo', vcodec='libx264', s=f"{w}x{h}", crf=crf)
+    stream = stream.output("pipe:", vsync="passthrough", format='rawvideo', vcodec='libx264', s=f"{w}x{h}", crf=crf)
     out, err = stream.run(capture_stdout=True, capture_stderr=True)
     _, _, out_r = _read_output_stream_properties(err, quiet=quiet)
     # Run stream to decode H264 to raw video
@@ -245,7 +245,7 @@ def _ffmpeg_output_to_numpy(
     stream, _, w, h, _ = _ffmpeg_filtering(
       stream, fps=fps, n=n, w=w, h=h, scale=scale,
       preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
-    stream = stream.output("pipe:", fps_mode='passthrough', format="rawvideo", pix_fmt=pix_fmt)
+    stream = stream.output("pipe:", vsync='passthrough', format="rawvideo", pix_fmt=pix_fmt)
     out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=True, quiet=quiet)
     _, _, out_r = _read_output_stream_properties(err, quiet=quiet)
     assert out_r == 0, "Rotation should be 0 at this point"
@@ -300,9 +300,9 @@ def _ffmpeg_output_to_file(
   elif codec == 'mjpeg':
     stream = ffmpeg.output(stream, output_path, pix_fmt='yuvj420p', **{"q:v":crf}, vcodec='mjpeg')
   if overwrite:
-    stream = stream.global_args("-fps_mode", "passthrough", "-y")
+    stream = stream.global_args("-vsync", "passthrough", "-y")
   else:
-    stream = stream.global_args("-fps_mode", "passthrough")
+    stream = stream.global_args("-vsync", "passthrough")
   if from_stdin is None:
     stream.run(quiet=quiet, capture_stderr=quiet)
   else:
