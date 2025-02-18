@@ -23,6 +23,7 @@ import logging
 import math
 import numpy as np
 import os
+import re
 from typing import Tuple, Union
 
 from prpy.ffmpeg.probe import probe_video
@@ -200,7 +201,7 @@ def _ffmpeg_output_to_numpy(
   
   Args:
     stream: The ffmpeg stream
-    r: Rotation present in the video (after applying stream)
+    r: Rotation present (in terms of flipped w and h)
     fps: Framerate attempted to create in stream.
     n: Number of frames attempted to create in stream.
     w: Frame width attempted to create in stream.
@@ -227,28 +228,29 @@ def _ffmpeg_output_to_numpy(
   assert isinstance(pix_fmt, str)
   assert isinstance(dim_deltas, tuple) and len(dim_deltas) == 3 and all(isinstance(i, int) for i in dim_deltas)
   if crf is None:
-    # Run stream straight to raw video
-    stream = stream.output("pipe:", vsync=0, format="rawvideo", pix_fmt=pix_fmt)
-    stream = stream.global_args("-loglevel", "panic", "-hide_banner", "-nostdin", "-nostats")
-    out, _ = stream.run(capture_stdout=True, capture_stderr=quiet, quiet=quiet)
+    # Stream straight to raw video. Absorps any rotation metadata present in the input video into pixels.
+    stream = stream.output("pipe:", fps_mode="passthrough", format="rawvideo", pix_fmt=pix_fmt)
+    out, err = stream.run(capture_stdout=True, capture_stderr=True)
+    _, _, out_r = _read_output_stream_properties(err, quiet=quiet)
+    assert out_r == 0, "Rotation should be 0 at this point"
   else:
-    # Run stream to encode H264 with crf
-    stream = stream.output("pipe:", vsync=0, format='rawvideo', vcodec='libx264', crf=crf)
-    out, _ = stream.run(capture_stdout=True, capture_stderr=quiet, quiet=quiet)
+    # Run stream to encode H264 with crf.
+    # Explicitly specify output dimensions so rotation metadata present in the input video is correctly absorbed into pixels.
+    w, h, r = _rectify_w_h_rotation(w, h, r)
+    stream = stream.output("pipe:", fps_mode="passthrough", format='rawvideo', vcodec='libx264', s=f"{w}x{h}", crf=crf)
+    out, err = stream.run(capture_stdout=True, capture_stderr=True)
+    _, _, out_r = _read_output_stream_properties(err, quiet=quiet)
     # Run stream to decode H264 to raw video
     stream = _ffmpeg_input_from_pipe()
     stream, _, w, h, _ = _ffmpeg_filtering(
       stream, fps=fps, n=n, w=w, h=h, scale=scale,
       preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
-    stream = stream.output("pipe:", vsync=0, format="rawvideo", pix_fmt=pix_fmt)
-    out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=quiet, quiet=quiet)
-  # Swap h and w if necessary -> not needed if scaled!
-  if r != 0:
-    if abs(r) == 90:
-      logging.warning(f"Rotation {r} present in video fixed; results in W and H swapped.")
-      w, h = h, w
-    else:
-      logging.warning(f"Rotation {r} present in video; Fixing is not yet supported.")
+    stream = stream.output("pipe:", fps_mode='passthrough', format="rawvideo", pix_fmt=pix_fmt)
+    out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=True, quiet=quiet)
+    _, _, out_r = _read_output_stream_properties(err, quiet=quiet)
+    assert out_r == 0, "Rotation should be 0 at this point"
+  # Rectify h and w if necessary
+  w, h, r = _rectify_w_h_rotation(w, h, r)
   # Parse result
   frames = np.frombuffer(out, np.uint8)
   try:
@@ -298,14 +300,72 @@ def _ffmpeg_output_to_file(
   elif codec == 'mjpeg':
     stream = ffmpeg.output(stream, output_path, pix_fmt='yuvj420p', **{"q:v":crf}, vcodec='mjpeg')
   if overwrite:
-    stream = stream.global_args("-vsync", "2", "-y")
+    stream = stream.global_args("-fps_mode", "passthrough", "-y")
   else:
-    stream = stream.global_args("-vsync", "2")
+    stream = stream.global_args("-fps_mode", "passthrough")
   if from_stdin is None:
     stream.run(quiet=quiet, capture_stderr=quiet)
   else:
     process = stream.run_async(pipe_stdin=True, quiet=quiet)
     process.communicate(input=from_stdin)
+
+def _rectify_w_h_rotation(
+    w: int,
+    h: int,
+    r: int
+  ) -> Tuple[int, int, int]:
+  """Rectify any rotation in the order of w and h
+
+  Args:
+    w: The width with possible rotation
+    h: The height with possible rotation
+    r: The current rotation regarding w and h
+  Returns:
+    Tuple of
+     - w: The rectified width
+     - h: The rectified height
+     - r: The updated zero rotation
+  """
+  if r != 0:
+    if abs(r) == 90:
+      logging.debug(f"Rotation {r} present in video fixed; results in W and H swapped.")
+      w, h = h, w
+      r = 0
+    else:
+      logging.warning(f"Rotation {r} present in video; Fixing is not yet supported.")
+  return w, h, r
+
+def _read_output_stream_properties(err: bytes, quiet: bool = True) -> Tuple[int, int, int]:
+    """Extract output stream properties (width, height, rotation) from ffmpeg stderr log.
+
+    Args:
+      err: The stderr output from ffmpeg (as bytes) containing log information.
+      quiet: If False, prints the decoded log output to the console.
+    Returns:
+      A tuple of:
+       - w: The output width (int)
+       - h: The output height (int)
+       - r: The output rotation in degrees (int)
+    """
+    log_text = err.decode('utf-8', errors='replace')
+    if not quiet:
+      print(log_text)
+    w, h, r = 0, 0, 0
+    # Extract dimensions from a line like "Stream # ... Video: ... 1080x1920"
+    dim_match = re.search(r"Output #.*?Stream #.*?Video:.*?([1-9]\d*)x([1-9]\d*)", log_text, re.DOTALL)
+    if dim_match:
+      w = int(dim_match.group(1))
+      h = int(dim_match.group(2))
+    else:
+      logging.warning("Could not determine output dimensions from ffmpeg log.")
+    # Extract rotation from a line like "displaymatrix: rotation of -90.00 degrees"
+    rot_match = re.search(r"Output #.*?displaymatrix:\s*rotation of\s*([-\d.]+)\s*degrees", log_text)
+    if rot_match:
+      try:
+        r = int(round(float(rot_match.group(1))))
+      except ValueError:
+        logging.warning("Could not parse rotation value from ffmpeg log.")
+    return w, h, r
 
 def read_video_from_path(
     path: str,
@@ -360,8 +420,8 @@ def read_video_from_path(
     stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0,
     trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm,
     requires_even_dims=(crf is not None) or (crop is not None and scale in [None, 0]))
-  # Save whether rotation still present
-  if scale not in [None, 0] or crop is not None: r = 0
+  # Save whether rotation (in terms of flipped w and h) still present
+  if scale_0 not in [None, 0] or crop is not None: r = 0
   # Output
   fps = target_fps if target_fps is not None else fps
   scale_1 = 0 if order == 'scale_crf' or crf == None else scale
