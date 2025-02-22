@@ -377,16 +377,10 @@ def parse_image_inputs(
             inputs, ds_factor = read_video_from_path(
               path=inputs, target_fps=target_fps, crop=roi, scale=target_size, trim=trim,
               preserve_aspect_ratio=preserve_aspect_ratio, pix_fmt='rgb24', 
-              dim_deltas=(1, 0, 0), scale_algorithm=scale_algorithm)
+              scale_algorithm=scale_algorithm)
           except:
             raise ValueError(VIDEO_PARSE_ERROR)
           expected_n = math.ceil(((trim[1]-trim[0]) if trim is not None else n) / ds_factor)
-          if inputs.shape[0] < expected_n:
-            logging.warning(f"Less frames received than expected (delta = {inputs.shape[0]-expected_n}) - this may indicate an issue with the video file. Padding to avoid issues.")
-            inputs = np.concatenate((np.repeat(inputs[:1], expected_n - inputs.shape[0], axis=0), inputs), axis=0)
-          elif inputs.shape[0] > expected_n:
-            logging.warning(f"More frames received than expected (delta = {inputs.shape[0]-expected_n}) - this may indicate an issue with the video file. Trimming to avoid issues.")
-            inputs = inputs[:expected_n]
           start_idx = max(0, trim[0]) if trim is not None else 0
           end_idx = min(n, trim[1]) if trim is not None else n
           idxs = list(range(start_idx, end_idx, ds_factor))

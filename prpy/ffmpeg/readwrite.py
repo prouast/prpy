@@ -378,7 +378,7 @@ def read_video_from_path(
     preserve_aspect_ratio: bool = False,
     scale_algorithm: str = 'bicubic',
     order: str = 'scale_crf',
-    dim_deltas: tuple = (0, 0, 0),
+    dim_deltas: tuple = (40, 0, 0),
     quiet: bool = True
   ) -> Tuple[np.ndarray, int]:
   """Read a video from path into a numpy array.
@@ -429,6 +429,14 @@ def read_video_from_path(
     stream=stream, r=r, fps=fps, n=target_n, w=target_w, h=target_h,
     scale=scale_1, crf=crf, pix_fmt=pix_fmt, scale_algorithm=scale_algorithm,
     dim_deltas=dim_deltas, quiet=quiet)
+  # Check the number of frames
+  expected_n = math.ceil(((trim[1]-trim[0]) if trim is not None else n) / ds_factor)
+  if frames.shape[0] < expected_n:
+    logging.warning(f"Less frames received than expected (delta = {frames.shape[0]-expected_n}) - this may indicate an issue with the video file. Padding to avoid issues.")
+    frames = np.concatenate((np.repeat(frames[:1], expected_n - frames.shape[0], axis=0), frames), axis=0)
+  elif frames.shape[0] > expected_n:
+    logging.warning(f"More frames received than expected (delta = {frames.shape[0]-expected_n}) - this may indicate an issue with the video file. Trimming to avoid issues.")
+    frames = frames[:expected_n]
   # Return
   return frames, ds_factor
 
