@@ -281,7 +281,7 @@ def _ffmpeg_output_to_file(
     output_dir: The directory where the video will be written
     ourput_file: The filename as which the video will be written
     from_stdin: Byte buffer to pipe data from (optional)
-    codec: The codec to use ('h264' or 'mjpeg')
+    codec: The codec to use ('h264', 'mjpeg', or 'ffv1')
     pix_fmt: Pixel format to write into
     crf: Constant rate factor for h264 encoding (higher = more compression)
     overwrite: Overwrite if file exists?
@@ -291,7 +291,7 @@ def _ffmpeg_output_to_file(
   assert isinstance(output_file, str)
   assert from_stdin is None or isinstance(from_stdin, bytes)
   assert isinstance(pix_fmt, str)
-  assert codec in ['h264', 'mjpeg'], "Codec must be 'h264' or 'mjpeg'"
+  assert codec in ['h264', 'mjpeg', 'ffv1'], "Codec must be 'h264', 'mjpeg', or 'ffv1'"
   assert codec != 'h264' or isinstance(crf, int), "Must specify crf when writing video with H264"
   assert isinstance(overwrite, bool)
   output_path = os.path.join(output_dir, output_file)
@@ -299,6 +299,8 @@ def _ffmpeg_output_to_file(
     stream = ffmpeg.output(stream, output_path, pix_fmt=pix_fmt, crf=crf, vcodec='libx264')
   elif codec == 'mjpeg':
     stream = ffmpeg.output(stream, output_path, pix_fmt='yuvj420p', **{"q:v":crf}, vcodec='mjpeg')
+  elif codec == 'ffv1':
+    stream = ffmpeg.output(stream, output_path, pix_fmt='yuv444p', vcodec='ffv1')
   if overwrite:
     stream = stream.global_args("-vsync", "passthrough", "-y")
   else:
@@ -468,7 +470,7 @@ def write_video_from_path(
     crop: Coords for spatial cropping (x0, y0, x1, y1) (optional).
     scale: Size(s) for spatial scaling. Scalar or (width, height) (optional).
     trim: Frame numbers for temporal trimming (start, end) (optional).
-    codec: The codec to use ('h264' or 'mjpeg')
+    codec: The codec to use ('h264', 'mjpeg', or 'ffv1')
     crf: Constant rate factor for H.264 encoding (higher = more compression).
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
     scale_algorithm: The algorithm used for scaling. Default: bicubic
@@ -509,7 +511,7 @@ def write_video_from_numpy(
     output_dir: The directory where the video will be written
     ourput_file: The filename as which the video will be written
     pix_fmt: The pixel format for the output video
-    codec: The codec to use ('h264' or 'mjpeg')
+    codec: The codec to use ('h264', 'mjpeg', or 'ffv1')
     crf: Constant rate factor for H.264 encoding (higher = more compression)
     overwrite: Overwrite if file exists?
   """
