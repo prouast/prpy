@@ -18,93 +18,192 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import ffmpeg
 from fractions import Fraction
 import logging
 from typing import Tuple
 import os
+import json
+import subprocess
 
 def probe_video(
-    path: str
+    path: str,
+    need_exact_framecount: bool = False
   ) -> Tuple[float, int, int, int, str, float, int, bool]:
   """Probe a video file for metadata.
 
   Args:
-    path: The path of the video.
+    path: The path to the video file.
+    need_exact_framecount: If True and frame count info is missing,
+                              re-run ffprobe with -count_frames for an accurate count.
+                           If False, estimates frame count from duration * fps.
   Returns:
-    Tuple of
-     - fps: The frame rate of the video
-     - total_frames: The total number of frames
-     - width: The width dimension of the video
-     - height: The height dimension of the video
-     - codec: The codec of the video
-     - bitrate: The bitrate of the video
-     - rotation: The rotation of the video
-     - issues: Indicates if there are issues with the video
+    A tuple containing:
+      - fps: Frame rate (float)
+      - total_frames: Total number of frames (int)
+      - width: Video width (int)
+      - height: Video height (int)
+      - codec: Codec name (str)
+      - bitrate: Bitrate in kb/s (float)
+      - rotation: Rotation in degrees (int)
+      - issues: True if any issues were encountered (bool)
   """
-  # Check if file exists
-  assert isinstance(path, str)
+  if not isinstance(path, str):
+    raise ValueError("Path must be a string")
   if not os.path.exists(path):
     raise FileNotFoundError(f"File {path} does not exist")
-  # ffprobe -show_streams -count_frames -pretty video.mp4
+
+  def run_probe(count_frames: bool) -> dict:
+    cmd = [
+      "ffprobe",
+      "-v", "error",
+      "-show_streams",
+      "-show_format",
+      "-print_format", "json",
+    ]
+    if count_frames:
+      cmd.insert(3, "-count_frames")
+    cmd.append(path)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return json.loads(result.stdout)
+
+  # First probe without -count_frames for speed.
   try:
-    probe = ffmpeg.probe(filename=path)
+    probe = run_probe(count_frames=False)
   except Exception as e:
-    # The exception returned by `ffprobe` is in bytes
     logging.warning(f"Exception probing video: {e}")
-  else:
-    # Check if the file contains video streams
-    if 'streams' not in probe or not any(s['codec_type'] == 'video' for s in probe['streams']):
-      raise ValueError("No video streams found")
-    video_stream = next(
-      (
-        stream
-        for stream in probe["streams"]
-        if stream["codec_type"] == "video"
-      ),
-      None,
-    )
-    issues = False
-    try:
-      fps = float(Fraction(video_stream["avg_frame_rate"]))
-    except Exception as e:
-      logging.warning("Frame rate information missing")
-      issues = True
-      fps = None
-    try:
-      duration = float(video_stream['duration'])
-    except Exception as e:
-      duration = None
-    try:
-      total_frames = int(video_stream["nb_frames"])
-    except Exception as e:
-      issues = True
-      if fps is not None and duration is not None:
-        logging.warning("Number of frames missing. Inferring using duration and fps.")
-        total_frames = int(duration*fps)
-      else:
-        logging.warning("Cannot infer number of total frames")
-        total_frames = None
-    width = video_stream["width"]
-    height = video_stream["height"]
-    codec = video_stream["codec_name"]
-    try:
-      bitrate = float(video_stream["bit_rate"])/1000.0
-    except Exception as e:
+    raise e
+
+  streams = probe.get("streams", [])
+  video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
+  if video_stream is None:
+    raise ValueError("No video streams found")
+
+  issues = False
+
+  # Get frame rate.
+  try:
+    # avg_frame_rate is usually a string like "28.67/1"
+    fps = float(Fraction(video_stream.get("avg_frame_rate", "0/0")))
+    if fps == 0:
+      raise ValueError
+  except Exception:
+    logging.warning("Frame rate information missing")
+    issues = True
+    fps = None
+
+  # Duration: try stream then format metadata.
+  try:
+    duration = float(video_stream.get("duration", probe.get("format", {}).get("duration")))
+  except Exception:
+    duration = None
+
+  # Get total frames.
+  frames_str = video_stream.get("nb_frames") or video_stream.get("nb_read_frames")
+  if frames_str is None:
+    if need_exact_framecount:
+      # Re-run ffprobe with -count_frames if frame count info is missing.
+      try:
+        logging.debug("Frame count info missing. Re-running ffprobe with -count_frames.")
+        probe = run_probe(count_frames=True)
+        streams = probe.get("streams", [])
+        video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
+        frames_str = video_stream.get("nb_frames") or video_stream.get("nb_read_frames")
+      except Exception as e:
+        logging.warning(f"Re-run with -count_frames failed: {e}.")
+        frames_str = None
+    else:
+      logging.warning("Frame count info missing. Falling back to estimation using duration and fps.")
+
+  try:
+    total_frames = int(frames_str)
+  except Exception:
+    issues = True
+    if fps is not None and duration is not None:
+      logging.warning("Number of frames missing. Inferring using duration and fps.")
+      total_frames = int(duration * fps)
+    else:
+      logging.warning("Cannot infer number of total frames")
+      total_frames = None
+
+  # Get dimensions and codec.
+  width = video_stream.get("width")
+  height = video_stream.get("height")
+  codec = video_stream.get("codec_name")
+
+  # Bitrate: try the stream first, then format metadata.
+  try:
+    bitrate = float(video_stream.get("bit_rate"))
+    bitrate = bitrate / 1000.0  # Convert to kb/s.
+  except Exception:
+    if "bit_rate" in probe.get("format", {}):
+      try:
+        bitrate = float(probe["format"]["bit_rate"]) / 1000.0
+        logging.debug("Bitrate fetched from format metadata.")
+      except Exception:
+        logging.warning("Bitrate information missing")
+        bitrate = None
+    else:
       logging.warning("Bitrate information missing")
       bitrate = None
-    rotation = 0
-    if 'tags' in video_stream and 'rotate' in video_stream['tags']:
-      # Regular
-      rotation = int(video_stream['tags']['rotate'])
-    elif 'side_data_list' in video_stream and 'rotation' in video_stream['side_data_list'][0]:
-      # iPhone
-      rotation = int(video_stream['side_data_list'][0]['rotation'])
-    if not issues:
-      # Check for other issues
-      if total_frames is not None and duration is not None and fps is not None:
-        expected_frames = int(duration * fps)
-        if abs(total_frames - expected_frames) > 1:
-          logging.warning("Mismatch between number of frames and duration / fps information")
-          issues = True
-    return fps, total_frames, width, height, codec, bitrate, rotation, issues
+
+  # Rotation: check tags and side_data_list.
+  rotation = 0
+  if "tags" in video_stream and "rotate" in video_stream["tags"]:
+    try:
+      rotation = int(video_stream["tags"]["rotate"])
+    except Exception:
+      rotation = 0
+  elif "side_data_list" in video_stream and video_stream["side_data_list"]:
+    for data in video_stream["side_data_list"]:
+      if "rotation" in data:
+        try:
+          rotation = int(data["rotation"])
+        except Exception:
+          rotation = 0
+        break
+
+  # Check for mismatches between total_frames and duration * fps.
+  if not issues and total_frames is not None and duration is not None and fps is not None:
+    expected_frames = int(duration * fps)
+    if abs(total_frames - expected_frames) > 1:
+      logging.warning("Mismatch between total frames and duration/fps information")
+      issues = True
+
+  return fps, total_frames, width, height, codec, bitrate, rotation, issues
+
+def probe_video_frame_timestamps(path: str) -> list:
+  """Probe a video file for a best effort estimate of its frame timestamps.
+
+  Args:
+    path: The path of the video.
+  Returns:
+    List with the frame timestamps in seconds.
+  """
+  if not os.path.exists(path):
+    raise FileNotFoundError(f"File {path} does not exist")
+
+  # Build the ffprobe command to extract the best effort timestamp for each frame.
+  cmd = [
+      "ffprobe",
+      "-v", "error",
+      "-select_streams", "v:0",
+      "-show_entries", "frame=best_effort_timestamp_time",
+      "-of", "csv=p=0",
+      path
+  ]
+
+  try:
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    output = result.stdout
+  except subprocess.CalledProcessError as e:
+    logging.error("ffprobe error: %s", e)
+    return []
+
+  timestamps = []
+  for line in output.strip().splitlines():
+    try:
+      ts = float(line.strip())
+      timestamps.append(ts)
+    except ValueError:
+      logging.warning("Could not parse timestamp: %s", line)
+  return timestamps
