@@ -273,7 +273,8 @@ def _ffmpeg_output_to_file(
     crf: int = 12,
     overwrite: bool = False,
     quiet: bool = True,
-    preset: str = 'medium'
+    preset: str = 'medium',
+    hwaccel: Union[None, str] = None
   ):
   """Run the stream and encode to file with selected codec.
   
@@ -288,6 +289,7 @@ def _ffmpeg_output_to_file(
     overwrite: Overwrite if file exists?
     quiet: Suppress ffmpeg output?
     preset: Encoding speed preset (faster encoding vs. compression efficiency)
+    hwaccel: Pass 'nvidia' to enable hardware acceleration for h264 or h265
   """
   assert isinstance(stream, ffmpeg.nodes.FilterableStream)
   assert isinstance(output_dir, str)
@@ -300,15 +302,28 @@ def _ffmpeg_output_to_file(
          "Preset is relevant only for h264/h265"
   assert isinstance(crf, int), "Must specify crf as integer"
   assert isinstance(overwrite, bool)
+  assert hwaccel in [None, 'nvidia']
   output_path = os.path.join(output_dir, output_file)
+  # Decide encoder
   if codec == 'h264':
-    stream = ffmpeg.output(stream, output_path, pix_fmt=pix_fmt, crf=crf, vcodec='libx264', preset=preset)
+    vcodec = 'h264_nvenc' if hwaccel == 'nvidia' else 'libx264'
   elif codec == 'h265':
-    stream = ffmpeg.output(stream, output_path, pix_fmt=pix_fmt, crf=crf, vcodec='libx265', preset=preset, x265_params='lossless=0')
+    vcodec = 'hevc_nvenc' if hwaccel == 'nvidia' else 'libx265'
   elif codec == 'mjpeg':
-    stream = ffmpeg.output(stream, output_path, pix_fmt='yuvj420p', **{"q:v":crf}, vcodec='mjpeg')
+    vcodec = 'mjpeg'
   elif codec == 'ffv1':
-    stream = ffmpeg.output(stream, output_path, pix_fmt='yuv444p', vcodec='ffv1')
+    vcodec = 'ffv1'
+  # Set up common options
+  kwargs = {}
+  if codec in ['h264', 'h265']:
+    kwargs.update(dict(pix_fmt=pix_fmt, crf=crf, vcodec=vcodec, preset=preset))
+    if hwaccel != 'nvidia' and codec == 'h265':
+      kwargs['x265-params'] = 'lossless=0'
+  elif codec == 'mjpeg':
+    kwargs.update(dict(pix_fmt='yuvj420p', vcodec='mjpeg', **{"q:v": crf}))
+  elif codec == 'ffv1':
+    kwargs.update(dict(pix_fmt='yuv444p', vcodec='ffv1'))
+  stream = ffmpeg.output(stream, output_path, **kwargs)
   if overwrite:
     stream = stream.global_args("-vsync", "passthrough", "-y")
   else:
@@ -465,7 +480,8 @@ def write_video_from_path(
     scale_algorithm: str = 'bicubic',
     overwrite: bool = False,
     quiet: bool = True,
-    preset: str = 'medium'
+    preset: str = 'medium',
+    hwaccel: Union[None, str] = None
   ):
   """Read a video from path and write back to a video file.
   Optionally transformed by downsampling, spatial cropping, spatial scaling
@@ -487,6 +503,7 @@ def write_video_from_path(
     overwrite: Overwrite file if it exists?
     quiet: Whether to suppress ffmpeg log
     preset: Encoding speed preset (faster encoding vs. compression efficiency)
+    hwaccel: Pass 'nvidia' to enable hardware acceleration for h264 or h265
   """
   # Get metadata of original video
   fps, n, w, h, _, _, r, _ = probe_video(path=path)
@@ -500,7 +517,7 @@ def write_video_from_path(
   # Output
   _ffmpeg_output_to_file(
     stream, output_dir=output_dir, output_file=output_file, pix_fmt=pix_fmt, codec=codec,
-    crf=crf, overwrite=overwrite, quiet=quiet, preset=preset)
+    crf=crf, overwrite=overwrite, quiet=quiet, preset=preset, hwaccel=hwaccel)
 
 def write_video_from_numpy(
     data: np.ndarray,
@@ -513,7 +530,8 @@ def write_video_from_numpy(
     crf: int = 12,
     overwrite: bool = False,
     quiet: bool = True,
-    preset: str = 'medium'
+    preset: str = 'medium',
+    hwaccel: Union[None, str] = None
   ):
   """Write data from a numpy array to a video file.
 
@@ -529,6 +547,7 @@ def write_video_from_numpy(
     overwrite: Overwrite if file exists?
     quiet: Suppress ffmpeg output?
     preset: Encoding speed preset (faster encoding vs. compression efficiency)
+    hwaccel: Pass 'nvidia' to enable hardware acceleration for h264 or h265
   """
   assert isinstance(data, np.ndarray)
   _, h, w, _ = data.shape
@@ -537,5 +556,5 @@ def write_video_from_numpy(
   if (h % 2 != 0 or w % 2 != 0) and (codec=='h264' or codec=='h265'):
     raise ValueError(f"H264 requires both height and width of the video to be even numbers, but received h={h} w={w}")
   _ffmpeg_output_to_file(
-    stream, output_dir=output_dir, output_file=output_file, from_stdin=buffer,
-    codec=codec, crf=crf, pix_fmt=out_pix_fmt, overwrite=overwrite, quiet=quiet, preset=preset)
+    stream, output_dir=output_dir, output_file=output_file, from_stdin=buffer, codec=codec,
+    crf=crf, pix_fmt=out_pix_fmt, overwrite=overwrite, quiet=quiet, preset=preset, hwaccel=hwaccel)
