@@ -162,7 +162,7 @@ def _ffmpeg_filtering(
     else:
       target_w, target_h = scale
     if requires_even_dims and (target_h % 2 != 0 or target_w % 2 != 0):
-      raise ValueError(f"Cannot use this scale ({scale}) because H264 encoding requires even height and width.")
+      raise ValueError(f"Cannot use this scale ({scale}) because encoding requires even height and width.")
   # Trimming
   if trim is not None:
     # Node: This works because we skipped forward to trim[0] when creating the stream.
@@ -272,31 +272,39 @@ def _ffmpeg_output_to_file(
     codec: str = 'h264',
     crf: int = 12,
     overwrite: bool = False,
-    quiet: bool = True
+    quiet: bool = True,
+    preset: str = 'medium'
   ):
-  """Run the stream and encode to file as H264.
+  """Run the stream and encode to file with selected codec.
   
   Args:
     stream: The ffmpeg stream
-    output_dir: The directory where the video will be written
-    ourput_file: The filename as which the video will be written
-    from_stdin: Byte buffer to pipe data from (optional)
-    codec: The codec to use ('h264', 'mjpeg', or 'ffv1')
-    pix_fmt: Pixel format to write into
+    output_dir: Directory for output video
+    output_file: Filename for the output video
+    from_stdin: Optional bytes input for ffmpeg
+    pix_fmt: Pixel format ('yuv420p', 'yuv444p', etc.)
+    codec: Video codec ('h264', 'h265', 'mjpeg', 'ffv1')
     crf: Constant rate factor for h264 encoding (higher = more compression)
     overwrite: Overwrite if file exists?
+    quiet: Suppress ffmpeg output?
+    preset: Encoding speed preset (faster encoding vs. compression efficiency)
   """
   assert isinstance(stream, ffmpeg.nodes.FilterableStream)
   assert isinstance(output_dir, str)
   assert isinstance(output_file, str)
   assert from_stdin is None or isinstance(from_stdin, bytes)
   assert isinstance(pix_fmt, str)
-  assert codec in ['h264', 'mjpeg', 'ffv1'], "Codec must be 'h264', 'mjpeg', or 'ffv1'"
-  assert codec != 'h264' or isinstance(crf, int), "Must specify crf when writing video with H264"
+  assert codec in ['h264', 'h265', 'mjpeg', 'ffv1'], \
+         "Codec must be 'h264', 'h265', 'mjpeg', or 'ffv1'"
+  assert codec in ['h264', 'h265'] or preset == 'medium', \
+         "Preset is relevant only for h264/h265"
+  assert isinstance(crf, int), "Must specify crf as integer"
   assert isinstance(overwrite, bool)
   output_path = os.path.join(output_dir, output_file)
   if codec == 'h264':
-    stream = ffmpeg.output(stream, output_path, pix_fmt=pix_fmt, crf=crf, vcodec='libx264')
+    stream = ffmpeg.output(stream, output_path, pix_fmt=pix_fmt, crf=crf, vcodec='libx264', preset=preset)
+  elif codec == 'h265':
+    stream = ffmpeg.output(stream, output_path, pix_fmt=pix_fmt, crf=crf, vcodec='libx265', preset=preset, x265_params='lossless=0')
   elif codec == 'mjpeg':
     stream = ffmpeg.output(stream, output_path, pix_fmt='yuvj420p', **{"q:v":crf}, vcodec='mjpeg')
   elif codec == 'ffv1':
@@ -456,7 +464,8 @@ def write_video_from_path(
     preserve_aspect_ratio: bool = False,
     scale_algorithm: str = 'bicubic',
     overwrite: bool = False,
-    quiet: bool = True
+    quiet: bool = True,
+    preset: str = 'medium'
   ):
   """Read a video from path and write back to a video file.
   Optionally transformed by downsampling, spatial cropping, spatial scaling
@@ -465,16 +474,19 @@ def write_video_from_path(
   Args:
     path: The path from which video will be read.
     output_dir: The directory where the video will be written.
-    ourput_file: The filename as which the video will be written.
+    output_file: The filename as which the video will be written.
     target_fps: Try to downsample frames to achieve this framerate (optional).
     crop: Coords for spatial cropping (x0, y0, x1, y1) (optional).
     scale: Size(s) for spatial scaling. Scalar or (width, height) (optional).
     trim: Frame numbers for temporal trimming (start, end) (optional).
-    codec: The codec to use ('h264', 'mjpeg', or 'ffv1')
+    pix_fmt: Pixel format ('yuv420p', 'yuv444p', etc.)
+    codec: The codec to use ('h264', 'h265', 'mjpeg', or 'ffv1')
     crf: Constant rate factor for H.264 encoding (higher = more compression).
     preserve_aspect_ratio: Preserve the aspect ratio if scaling.
     scale_algorithm: The algorithm used for scaling. Default: bicubic
+    overwrite: Overwrite file if it exists?
     quiet: Whether to suppress ffmpeg log
+    preset: Encoding speed preset (faster encoding vs. compression efficiency)
   """
   # Get metadata of original video
   fps, n, w, h, _, _, r, _ = probe_video(path=path)
@@ -484,11 +496,11 @@ def write_video_from_path(
   stream, _, _, _, _ = _ffmpeg_filtering(
     stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale,
     trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm,
-    requires_even_dims=(codec=='h264'))
+    requires_even_dims=(codec=='h264' or codec=='h265'))
   # Output
   _ffmpeg_output_to_file(
     stream, output_dir=output_dir, output_file=output_file, pix_fmt=pix_fmt, codec=codec,
-    crf=crf, overwrite=overwrite, quiet=quiet)
+    crf=crf, overwrite=overwrite, quiet=quiet, preset=preset)
 
 def write_video_from_numpy(
     data: np.ndarray,
@@ -500,7 +512,8 @@ def write_video_from_numpy(
     codec: str = 'h264',
     crf: int = 12,
     overwrite: bool = False,
-    quiet: bool = True
+    quiet: bool = True,
+    preset: str = 'medium'
   ):
   """Write data from a numpy array to a video file.
 
@@ -509,18 +522,20 @@ def write_video_from_numpy(
     fps: The frame rate
     pix_fmt: The pixel format of `data`
     output_dir: The directory where the video will be written
-    ourput_file: The filename as which the video will be written
-    pix_fmt: The pixel format for the output video
-    codec: The codec to use ('h264', 'mjpeg', or 'ffv1')
+    output_file: The filename as which the video will be written
+    out_pix_fmt: The pixel format for the output video
+    codec: The codec to use ('h264', 'h265', 'mjpeg', or 'ffv1')
     crf: Constant rate factor for H.264 encoding (higher = more compression)
     overwrite: Overwrite if file exists?
+    quiet: Suppress ffmpeg output?
+    preset: Encoding speed preset (faster encoding vs. compression efficiency)
   """
   assert isinstance(data, np.ndarray)
   _, h, w, _ = data.shape
   stream = _ffmpeg_input_from_numpy(w=w, h=h, fps=fps, pix_fmt=pix_fmt)
   buffer = data.flatten().tobytes()
-  if (h % 2 != 0 or w % 2 != 0) and codec == 'h264':
+  if (h % 2 != 0 or w % 2 != 0) and (codec=='h264' or codec=='h265'):
     raise ValueError(f"H264 requires both height and width of the video to be even numbers, but received h={h} w={w}")
   _ffmpeg_output_to_file(
     stream, output_dir=output_dir, output_file=output_file, from_stdin=buffer,
-    codec=codec, crf=crf, pix_fmt=out_pix_fmt, overwrite=overwrite, quiet=quiet)
+    codec=codec, crf=crf, pix_fmt=out_pix_fmt, overwrite=overwrite, quiet=quiet, preset=preset)
