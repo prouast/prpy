@@ -24,6 +24,7 @@ from typing import Tuple
 import os
 import json
 import subprocess
+import numpy as np
 
 def probe_video(
     path: str,
@@ -171,11 +172,12 @@ def probe_video(
 
   return fps, total_frames, width, height, codec, bitrate, rotation, issues
 
-def probe_video_frame_timestamps(path: str) -> list:
+def probe_video_frame_timestamps(path: str, sanity_check: bool = False) -> list:
   """Probe a video file for a best effort estimate of its frame timestamps.
 
   Args:
     path: The path of the video.
+    sanity_check: Whether to check result against ffprobe count
   Returns:
     List with the frame timestamps in seconds.
   """
@@ -183,27 +185,42 @@ def probe_video_frame_timestamps(path: str) -> list:
     raise FileNotFoundError(f"File {path} does not exist")
 
   # Build the ffprobe command to extract the best effort timestamp for each frame.
-  cmd = [
-      "ffprobe",
-      "-v", "error",
-      "-select_streams", "v:0",
-      "-show_entries", "frame=best_effort_timestamp_time",
-      "-of", "csv=p=0",
-      path
+  ts_cmd = [
+    "ffprobe", "-v", "error",
+    "-select_streams", "v:0",
+    "-show_entries", "frame=best_effort_timestamp_time",
+    "-of", "csv=p=0",
+    path
   ]
-
   try:
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    output = result.stdout
+    proc = subprocess.run(ts_cmd, capture_output=True, text=True, check=True)
+    raw = proc.stdout
   except subprocess.CalledProcessError as e:
     logging.error("ffprobe error: %s", e)
     return []
+  # Clean trailing commas and process with numpy
+  cleaned = "\n".join(line.rstrip(",") for line in raw.splitlines())
+  timestamps = np.fromstring(cleaned, dtype=float, sep="\n")
 
-  timestamps = []
-  for line in output.strip().splitlines():
+  if sanity_check:
+    # Grab the frame count
+    count_cmd = [
+      "ffprobe", "-v", "error",
+      "-count_frames",
+      "-select_streams", "v:0",
+      "-show_entries", "stream=nb_read_frames",
+      "-of", "default=nokey=1:noprint_wrappers=1",
+      path
+    ]
     try:
-      ts = float(line.strip())
-      timestamps.append(ts)
-    except ValueError:
-      logging.warning("Could not parse timestamp: %s", line)
+      proc = subprocess.run(count_cmd, capture_output=True, text=True, check=True)
+      expected_frames = int(proc.stdout.strip())
+      if timestamps.size != expected_frames:
+        logging.warning(
+          "Frame count mismatch: parsed %d timestamps but ffprobe reports %d frames",
+          timestamps.size, expected_frames
+        )
+    except Exception:
+      expected_frames = None
+      logging.warning("Could not perform sanity check")
   return timestamps

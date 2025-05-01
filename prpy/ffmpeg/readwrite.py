@@ -304,30 +304,59 @@ def _ffmpeg_output_to_file(
   assert isinstance(overwrite, bool)
   assert hwaccel in [None, 'nvidia']
   output_path = os.path.join(output_dir, output_file)
-  # Decide encoder
-  if codec == 'h264':
-    vcodec = 'h264_nvenc' if hwaccel == 'nvidia' else 'libx264'
-  elif codec == 'h265':
-    vcodec = 'hevc_nvenc' if hwaccel == 'nvidia' else 'libx265'
-  elif codec == 'mjpeg':
-    vcodec = 'mjpeg'
-  elif codec == 'ffv1':
-    vcodec = 'ffv1'
-  # Set up common options
+  # Determine vcodec based on codec and hardware acceleration.
+  vcodecs = {
+    'h264': 'h264_nvenc' if hwaccel == 'nvidia' else 'libx264',
+    'h265': 'hevc_nvenc' if hwaccel == 'nvidia' else 'libx265',
+    'mjpeg': 'mjpeg',
+    'ffv1': 'ffv1'
+  }
+  vcodec = vcodecs[codec]
+  # Build encoder options.
   kwargs = {}
-  if codec in ['h264', 'h265']:
-    kwargs.update(dict(pix_fmt=pix_fmt, crf=crf, vcodec=vcodec, preset=preset))
-    if hwaccel != 'nvidia' and codec == 'h265':
-      kwargs['x265-params'] = 'lossless=0'
+  if codec == 'h264':
+    kwargs = {
+      'pix_fmt': pix_fmt,
+      'crf': crf,
+      'vcodec': vcodec,
+      'preset': preset
+    }
+  elif codec == 'h265':
+    if hwaccel == 'nvidia':
+      kwargs = {
+        'pix_fmt': pix_fmt,
+        'vcodec': vcodec,
+        'preset': preset,
+        'rc': 'constqp',
+        'qp': crf
+      }
+    else:
+      kwargs = {
+        'pix_fmt': pix_fmt,
+        'crf': crf,
+        'vcodec': vcodec,
+        'preset': preset,
+        'x265-params': 'lossless=0'
+      }
   elif codec == 'mjpeg':
-    kwargs.update(dict(pix_fmt='yuvj420p', vcodec='mjpeg', **{"q:v": crf}))
+    kwargs = {
+      'pix_fmt': 'yuvj420p',
+      'vcodec': vcodec,
+      "q:v": crf
+    }
   elif codec == 'ffv1':
-    kwargs.update(dict(pix_fmt='yuv444p', vcodec='ffv1'))
+    kwargs = {
+      'pix_fmt': 'yuv444p',
+      'vcodec': vcodec,
+    }
+  # Add the output.
   stream = ffmpeg.output(stream, output_path, **kwargs)
+  # Set up global args.
+  global_args = ["-vsync", "passthrough"]
   if overwrite:
-    stream = stream.global_args("-vsync", "passthrough", "-y")
-  else:
-    stream = stream.global_args("-vsync", "passthrough")
+    global_args.append("-y")
+  stream = stream.global_args(*global_args)
+  # Run the stream.
   if from_stdin is None:
     stream.run(quiet=quiet, capture_stderr=quiet)
   else:
