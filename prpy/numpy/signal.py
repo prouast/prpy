@@ -497,6 +497,7 @@ def interpolate_filtered(
     t_out: np.ndarray,
     band: tuple = None,
     order: int = 4,
+    extrapolate: bool = False,
     axis: int = 0
   ) -> np.ndarray:
   """Interpolate data with bandpass filter and zero-phase polyphase resample (with PCHIP fallback) from `t_in` to `t_out`
@@ -507,6 +508,7 @@ def interpolate_filtered(
     t_out: The new timestamp values at which we want to interpolate [seconds]. 1-dim.
     band: Optional (low, high) band tuple in Hz.
     order: Butterworth filter order, with higher values producing a steeper roll-off in the pass-band
+    extrapolate: Whether to extrapolate to out-of-bounds points (only applies to PCHIP fallback) 
     axis: Time axis of s_in.
   Returns:
     s_out: The interpolated signal values
@@ -545,7 +547,7 @@ def interpolate_filtered(
     return s_rs
   else:
     # Fallback: shape‑preserving spline (PCHIP)
-    pchip = interpolate.PchipInterpolator(t_in, s_in, axis=axis, extrapolate=False)
+    pchip = interpolate.PchipInterpolator(t_in, s_in, axis=axis, extrapolate=extrapolate)
     return pchip(t_out)
 
 def interpolate_cubic_spline(
