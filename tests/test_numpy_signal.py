@@ -23,7 +23,7 @@ sys.path.append('../prpy')
 
 from prpy.numpy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend
 from prpy.numpy.signal import estimate_freq_fft, estimate_freq_peak, estimate_freq_periodogram
-from prpy.numpy.signal import interpolate_vals, interpolate_cubic_spline, interpolate_linear_sequence_outliers, interpolate_data_outliers
+from prpy.numpy.signal import interpolate_vals, interpolate_cubic_spline, interpolate_linear_sequence_outliers, interpolate_data_outliers, interpolate_filtered
 from prpy.numpy.signal import _component_periodicity, select_most_periodic
 
 import numpy as np
@@ -311,6 +311,44 @@ def test_interpolate_cubic_spline():
   np.testing.assert_equal(x, x_copy)
   np.testing.assert_equal(y, y_copy)
   np.testing.assert_equal(xs, xs_copy)
+
+@pytest.mark.parametrize(
+  "t_in,s_in,t_out,band,order,s_out_exp",
+  [
+    (
+      np.array([0, 2, 3, 4, 7, 8, 9], dtype=float),
+      np.array([0.1, 0.4, 0.3, 0.1, 0.2, 0.25, 0.4]),
+      np.array([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]),
+      None,
+      4,
+      np.array([0.235938, 0.382812, 0.366667, 0.183333, 0.104534, 0.134483, 0.178225, 0.220797, 0.309375])
+    ),
+    (
+      np.array([0., 0.002, 0.004, 0.006, 0.008, 0.01, 0.012, 0.014, 0.016, 0.018, 0.02, 0.022, 0.024, 0.026, 0.028, 0.03, 0.032, 0.034, 0.036, 0.038]),
+      np.array([0.03259748, -0.03539362, 0.10271604, 0.16905992, 0.06804494, 0.23287238, 0.41249463, 0.49898612, 0.42037613, 0.59396127, 0.68605126, 0.6030388, 0.5608828, 0.79987835, 0.86046953, 0.78139013, 0.7121775, 0.93807187, 0.90422569, 1.03567749]),
+      np.array([0., 0.01, 0.02, 0.03]),
+      (0.5, 40),
+      2,
+      np.array([-0.63106405, -1.00498653, -0.61134973, -0.60124307])
+    )
+  ]
+)
+@pytest.mark.parametrize("extradim", [False, True])
+def test_interpolate_filtered(t_in, s_in, t_out, band, order, s_out_exp, extradim):
+  if extradim:
+    s_in = np.asarray([s_in, s_in])
+    s_out_exp = np.asarray([s_out_exp, s_out_exp])
+  # Immutable originals
+  t_in_copy = t_in.copy()
+  s_in_copy = s_in.copy()
+  t_out_copy = t_out.copy()
+  # Run and compare
+  s_out = interpolate_filtered(t_in=t_in, s_in=s_in, t_out=t_out, band=band, order=order, axis=-1)
+  np.testing.assert_allclose(s_out, s_out_exp, atol=1e-6)
+  # Test no side effects
+  np.testing.assert_equal(t_in, t_in_copy)
+  np.testing.assert_equal(s_in, s_in_copy)
+  np.testing.assert_equal(t_out, t_out_copy)
 
 def test_component_periodicity():
   # Test data

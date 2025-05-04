@@ -491,6 +491,63 @@ def interpolate_vals(
   x[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), x[~mask])
   return x
 
+def interpolate_filtered(
+    t_in: np.ndarray,
+    s_in: np.ndarray,
+    t_out: np.ndarray,
+    band: tuple = None,
+    order: int = 4,
+    axis: int = 0
+  ) -> np.ndarray:
+  """Interpolate data with bandpass filter and zero-phase polyphase resample (with PCHIP fallback) from `t_in` to `t_out`
+  Args:
+    t_in: The timestamp values we want to interpolate [seconds]. Along the given axis,
+      shape of s_in must match shape of t_in.
+    s_in: The signal values we want to interpolate. 1-dim.
+    t_out: The new timestamp values at which we want to interpolate [seconds]. 1-dim.
+    band: Optional (low, high) band tuple in Hz.
+    order: Butterworth filter order, with higher values producing a steeper roll-off in the pass-band
+    axis: Time axis of s_in.
+  Returns:
+    s_out: The interpolated signal values
+  """
+  t_in, s_in, t_out = map(np.asarray, (t_in, s_in, t_out))
+  # Handle NaNs cleanly
+  mask = np.isnan(s_in)
+  if mask.any():
+    s_in = s_in.copy()
+    s_in[mask] = np.interp(t_in[mask], t_in[~mask], s_in[~mask])
+  # Nothing to do if grids are identical
+  if np.array_equal(t_in, t_out):
+    return s_in
+  def is_uniform(t, tol=1e-6):
+    dt = np.diff(t)
+    return np.allclose(dt, dt[0], rtol=0, atol=tol)
+  if isinstance(band, tuple) and is_uniform(t_in) and is_uniform(t_out):
+    # True resampling
+    fs_in  = 1.0 / np.median(np.diff(t_in))
+    fs_out = 1.0 / np.median(np.diff(t_out))
+    # Design zero‑phase band‑pass
+    low, high = band
+    nyq = 0.5 * fs_in
+    b, a = signal.butter(order, [low/nyq, high/nyq], btype="band")
+    s_filt = signal.filtfilt(b, a, s_in, axis=axis)
+    # Poly‑phase resample
+    gcd = math.gcd(int(round(fs_in)), int(round(fs_out)))
+    up = int(round(fs_out)) // gcd
+    down = int(round(fs_in)) // gcd
+    s_rs = signal.resample_poly(s_filt, up, down, axis=axis)
+    # Align length exactly to len(ts)
+    if s_rs.shape[axis] != t_out.size:
+      slicer = [slice(None)] * s_rs.ndim
+      slicer[axis] = slice(0, t_out.size)
+      s_rs = s_rs[tuple(slicer)]
+    return s_rs
+  else:
+    # Fallback: shape‑preserving spline (PCHIP)
+    pchip = interpolate.PchipInterpolator(t_in, s_in, axis=axis, extrapolate=False)
+    return pchip(t_out)
+
 def interpolate_cubic_spline(
     x: np.ndarray,
     y: np.ndarray,
