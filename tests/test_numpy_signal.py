@@ -334,7 +334,8 @@ def test_interpolate_cubic_spline():
   ]
 )
 @pytest.mark.parametrize("extradim", [False, True])
-def test_interpolate_filtered(t_in, s_in, t_out, band, order, s_out_exp, extradim):
+@pytest.mark.parametrize("fill_nan", [False, True])
+def test_interpolate_filtered(t_in, s_in, t_out, band, order, s_out_exp, extradim, fill_nan):
   if extradim:
     s_in = np.asarray([s_in, s_in])
     s_out_exp = np.asarray([s_out_exp, s_out_exp])
@@ -343,7 +344,7 @@ def test_interpolate_filtered(t_in, s_in, t_out, band, order, s_out_exp, extradi
   s_in_copy = s_in.copy()
   t_out_copy = t_out.copy()
   # Run and compare
-  s_out = interpolate_filtered(t_in=t_in, s_in=s_in, t_out=t_out, band=band, order=order, axis=-1)
+  s_out = interpolate_filtered(t_in=t_in, s_in=s_in, t_out=t_out, band=band, order=order, fill_nan=fill_nan, axis=-1)
   np.testing.assert_allclose(s_out, s_out_exp, atol=1e-6)
   # Test no side effects
   np.testing.assert_equal(t_in, t_in_copy)

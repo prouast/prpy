@@ -498,6 +498,7 @@ def interpolate_filtered(
     band: tuple = None,
     order: int = 4,
     extrapolate: bool = False,
+    fill_nan: bool = True,
     axis: int = 0
   ) -> np.ndarray:
   """Interpolate data with bandpass filter and zero-phase polyphase resample (with PCHIP fallback) from `t_in` to `t_out`
@@ -508,17 +509,19 @@ def interpolate_filtered(
     t_out: The new timestamp values at which we want to interpolate [seconds]. 1-dim.
     band: Optional (low, high) band tuple in Hz.
     order: Butterworth filter order, with higher values producing a steeper roll-off in the pass-band
-    extrapolate: Whether to extrapolate to out-of-bounds points (only applies to PCHIP fallback) 
+    extrapolate: Whether to extrapolate to out-of-bounds points (only applies to PCHIP fallback)
+    fill_nan: If True, any NaNs in `s_in` get linearly interpolated before filtering (default=True)
     axis: Time axis of s_in.
   Returns:
     s_out: The interpolated signal values
   """
   t_in, s_in, t_out = map(np.asarray, (t_in, s_in, t_out))
-  # Handle NaNs cleanly
-  mask = np.isnan(s_in)
-  if mask.any():
-    s_in = s_in.copy()
-    s_in[mask] = np.interp(t_in[mask], t_in[~mask], s_in[~mask])
+  if fill_nan:
+    # Fill NaNs
+    mask = np.isnan(s_in)
+    if mask.any():
+      s_in = s_in.copy()
+      s_in[mask] = np.interp(t_in[mask], t_in[~mask], s_in[~mask])
   # Nothing to do if grids are identical
   if np.array_equal(t_in, t_out):
     return s_in
