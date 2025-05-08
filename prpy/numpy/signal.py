@@ -503,44 +503,48 @@ def interpolate_filtered(
   ) -> np.ndarray:
   """Interpolate data with bandpass filter and zero-phase polyphase resample (with PCHIP fallback) from `t_in` to `t_out`
   Args:
-    t_in: The timestamp values we want to interpolate [seconds]. Along the given axis,
-      shape of s_in must match shape of t_in.
-    s_in: The signal values we want to interpolate. 1-dim.
-    t_out: The new timestamp values at which we want to interpolate [seconds]. 1-dim.
+    t_in: The timestamp values we want to interpolate [seconds]. ndarray, shape (T,)
+    s_in: The signal values we want to interpolate. ndarray, shape (..., T, ...)
+    t_out: The new timestamp values at which we want to interpolate [seconds]. ndarray, shape (T2,)
     band: Optional (low, high) band tuple in Hz.
     order: Butterworth filter order, with higher values producing a steeper roll-off in the pass-band
     extrapolate: Whether to extrapolate to out-of-bounds points (only applies to PCHIP fallback)
-    fill_nan: If True, any NaNs in `s_in` get linearly interpolated before filtering (default=True)
+    fill_nan: If True, any NaNs in `s_in` get linearly interpolated first (default=True)
     axis: Time axis of s_in.
   Returns:
-    s_out: The interpolated signal values
+    s_out: The interpolated signal values, shape (..., T2, ...)
   """
   t_in, s_in, t_out = map(np.asarray, (t_in, s_in, t_out))
+  axis = axis % s_in.ndim
+  def is_uniform(ts, tol=1e-6):
+    dt = np.diff(ts)
+    return np.allclose(dt, dt[0], atol=tol)
+  uniform = is_uniform(t_in) and is_uniform(t_out)
+  can_filter = isinstance(band, tuple) and uniform
+  has_nan = np.isnan(s_in).any()
+  # Optionally fill NaNs per time-series (handles 1-D or N-D with axis)
   if fill_nan:
-    # Fill NaNs
-    mask = np.isnan(s_in)
-    if mask.any():
-      s_in = s_in.copy()
-      s_in[mask] = np.interp(t_in[mask], t_in[~mask], s_in[~mask])
+    def _fill_1d(y):
+      m = np.isnan(y)
+      if m.any():
+        y = y.copy()
+        y[m] = np.interp(t_in[m], t_in[~m], y[~m])
+      return y
+    s_in = np.apply_along_axis(_fill_1d, axis, s_in)
   # Nothing to do if grids are identical
   if np.array_equal(t_in, t_out):
     return s_in
-  def is_uniform(t, tol=1e-6):
-    dt = np.diff(t)
-    return np.allclose(dt, dt[0], rtol=0, atol=tol)
-  if isinstance(band, tuple) and is_uniform(t_in) and is_uniform(t_out):
-    # True resampling
-    fs_in  = 1.0 / np.median(np.diff(t_in))
-    fs_out = 1.0 / np.median(np.diff(t_out))
-    # Design zero‑phase band‑pass
+  if can_filter and (fill_nan or not has_nan):
+    # zero-phase Butterworth
+    fs_in = 1.0 / np.median(np.diff(t_in))
     low, high = band
     nyq = 0.5 * fs_in
     b, a = signal.butter(order, [low/nyq, high/nyq], btype="band")
     s_filt = signal.filtfilt(b, a, s_in, axis=axis)
-    # Poly‑phase resample
-    gcd = math.gcd(int(round(fs_in)), int(round(fs_out)))
-    up = int(round(fs_out)) // gcd
-    down = int(round(fs_in)) // gcd
+    # Polyphase resample
+    fs_out = 1.0 / np.median(np.diff(t_out))
+    g = math.gcd(int(round(fs_in)), int(round(fs_out)))
+    up, down = int(round(fs_out))//g, int(round(fs_in))//g
     s_rs = signal.resample_poly(s_filt, up, down, axis=axis)
     # Align length exactly to len(ts)
     if s_rs.shape[axis] != t_out.size:
@@ -548,10 +552,31 @@ def interpolate_filtered(
       slicer[axis] = slice(0, t_out.size)
       s_rs = s_rs[tuple(slicer)]
     return s_rs
-  else:
-    # Fallback: shape‑preserving spline (PCHIP)
-    pchip = interpolate.PchipInterpolator(t_in, s_in, axis=axis, extrapolate=extrapolate)
-    return pchip(t_out)
+  # Fallback: shape‑preserving spline (PCHIP)
+  nan_mask = None
+  if not fill_nan and has_nan:
+    # Create 1D nan taking into account all extra dims in s
+    other_axes = tuple(i for i in range(s_in.ndim) if i != axis)
+    nan_mask = np.any(np.isnan(s_in), axis=other_axes)
+  # Build PCHIP on the finite points
+  t_good = t_in[~nan_mask] if nan_mask is not None else t_in
+  y_good = np.take(s_in, np.nonzero(~nan_mask)[0], axis=axis) if nan_mask is not None else s_in
+  pchip = interpolate.PchipInterpolator(t_good, y_good, axis=axis, extrapolate=extrapolate)
+  s_out = pchip(t_out)
+  # If propagating nans, carve them back
+  if nan_mask is not None:
+    prev = np.concatenate(([False], nan_mask[:-1]))
+    nxt = np.concatenate((nan_mask[1:], [False]))
+    starts = np.nonzero(nan_mask & ~prev)[0]
+    ends = np.nonzero(nan_mask & ~nxt)[0]
+    if starts.size:
+      t0 = t_in[starts][:, None]
+      t1 = t_in[ends][:, None]
+      inside = np.any((t_out >= t0) & (t_out <= t1), axis=0)
+      sl = [slice(None)] * s_out.ndim
+      sl[axis] = inside
+      s_out[tuple(sl)] = np.nan
+  return s_out
 
 def interpolate_cubic_spline(
     x: np.ndarray,
