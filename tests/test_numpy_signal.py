@@ -82,45 +82,67 @@ def test_standardize():
   standardize(x)
   np.testing.assert_equal(x, x_copy)
 
-def test_moving_average():
-  # Check with axis=1
-  np.testing.assert_allclose(
-    moving_average(x=np.array([[0., .4, 1.2, 2., .2],
-                               [0., .1, .5, .3, -.1],
-                               [.3, 0., .3, -.2, -.6],
-                               [.2, -.1, -1.2, -.4, .2]]),
-                   axis=-1, size=3, pad_method='reflect', scale=False),
-    np.array([[.133333333, .533333333, 1.2, 1.133333333, 0.8],
-              [.033333333, .2, .3, .233333333, 0.033333333],
-              [.2, .2, .033333333, -.166666667, -.466666667],
-              [.1, -.366666667, -.566666667, -.466666667, 0.]]))
-  # Check with axis=0
-  np.testing.assert_allclose(
-    moving_average(x=np.array([[0., .4, 1.2, 2., .2],
-                               [0., .1, .5, .3, -.1],
-                               [.3, 0., .3, -.2, -.6],
-                               [.2, -.1, -1.2, -.4, .2]]),
-                   axis=0, size=3, pad_method='reflect', scale=False),
-    np.array([[0., .3, .966666667, 1.433333333, 0.1],
-              [.1, .166666667, .666666667, .7, -.166666667],
-              [.166666667, 0., -.133333333, -.1, -.166666667],
-              [.233333334, -.066666667, -.7, -.333333333, -.066666667]]))
-  # Check with small numbers and scale
-  factor = 1000000.
-  x = np.array([[0., .4, 1.2, 2., .2],
-                [0., .1, .5, .3, -.1],
-                [.3, 0., .3, -.2, -.6],
-                [.2, -.1, -1.2, -.4, .2]])/factor
+MA_ARR = np.array([
+  [0.,  .4,  1.2,  2.,   .2 ],
+  [0.,  .1,   .5,  .3,  -.1 ],
+  [.3,  0.,   .3, -.2,  -.6 ],
+  [.2, -.1, -1.2, -.4,   .2 ]
+])
+
+MA_REF_AXIS_LAST = np.array([
+  [.133333333, .533333333, 1.2, 1.133333333, 0.8],
+  [.033333333, .2,         .3,  .233333333, 0.033333333],
+  [.2,         .2,         .033333333, -0.166666667, -0.466666667],
+  [.1,        -0.366666667,-0.566666667,-0.466666667, 0.]
+])
+
+MA_REF_AXIS_0 = np.array([
+  [0., .3, .966666667, 1.433333333, 0.1],
+  [.1, .166666667, .666666667, .7,  -0.166666667],
+  [.166666667, 0., -0.133333333, -0.1, -0.166666667],
+  [.233333334, -0.066666667, -0.7, -0.333333333, -0.066666667]
+])
+
+MA_REF_AXIS_LAST_LEFT = np.array([
+  [.133333333, .133333333, .533333333, 1.2,         1.133333333],
+  [.033333333, .033333333, .2,         .3,          .233333333],
+  [.2,         .2,         .2,         .033333333, -0.166666667],
+  [.1,         .1,        -0.366666667,-0.566666667,-0.466666667]
+])
+
+MA_REF_AXIS_0_LEFT = np.array([
+  [0., .3, .966666667, 1.433333333, 0.1],
+  [0., .3, .966666667, 1.433333333, 0.1],
+  [.1, .166666667, .666666667, .7,  -0.166666667],
+  [.166666667, 0., -0.133333333, -0.1, -0.166666667]
+])
+
+@pytest.mark.parametrize(
+  "x,size,axis,center,mode,precision,expected,atol",
+  [
+    (MA_ARR, 3, -1, True, "reflect", np.float64, MA_REF_AXIS_LAST, 1e-9),
+    (MA_ARR, 3, 0,  True, "reflect", np.float64, MA_REF_AXIS_0, 1e-9),
+    (MA_ARR, 3, -1, False, "reflect", np.float64, MA_REF_AXIS_LAST_LEFT, 1e-9),
+    (MA_ARR, 3,  0, False, "reflect", np.float64, MA_REF_AXIS_0_LEFT, 1e-9),
+    (MA_ARR / 1e6, 3, -1, True, "reflect", np.float64, MA_REF_AXIS_LAST / 1e6, 1e-6),
+  ]
+)
+def test_moving_average(x, size, axis, center, mode, precision, expected, atol):
+  """Single parametrised test that covers all expected behaviours."""
   x_copy = x.copy()
-  np.testing.assert_allclose(
-    moving_average(x=x,
-                   axis=-1, size=3, pad_method='reflect', scale=True),
-    np.array([[.133333333, .533333333, 1.2, 1.133333333, 0.8],
-              [.033333333, .2, .3, .233333333, 0.033333333],
-              [.2, .2, .033333333, -.166666667, -.466666667],
-              [.1, -.366666667, -.566666667, -.466666667, 0.]])/factor)
-  # No side effects
+
+  out = moving_average(
+    x=x,
+    size=size,
+    axis=axis,
+    center=center,
+    mode=mode,
+    precision=precision
+  )
+
+  np.testing.assert_allclose(out, expected, atol=atol)
   np.testing.assert_equal(x, x_copy)
+  assert out.dtype == x.dtype
 
 @pytest.mark.parametrize("cutoff_freq", [0.01, 0.1, 1, 10])
 def test_moving_average_size_for_response(cutoff_freq):

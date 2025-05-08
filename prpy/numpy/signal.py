@@ -97,36 +97,42 @@ def standardize(
 def moving_average(
     x: np.ndarray,
     size: int,
-    axis: Union[int, None] = -1,
-    pad_method: str = 'reflect',
-    scale: bool = False,
-    scale_factor: float = 1000000000.
+    axis: int = -1,
+    mode: str = 'reflect',
+    center: bool = True,
+    precision = np.float64,
   ) -> np.ndarray:
-  """Perform moving average
+  """NaN-aware moving average.
 
   Args:
     x: The input data
     size: The size of the moving average window
     axis: Axis over which to calculate moving average
-    pad_method: Method for padding ends to keep same dims
-    scale: Internally scale the input data up before applying filter
-    scale_factor: Factor to use for scaling
+    mode: Padding mode for the edges (reflect, nearest, wrap, ...)
+    center: True -> Window is centered; False -> Left-aligned
+    precision: working dtype (default float64; use np.float128 for extreme cases)
   Returns:
-    x: The averaged data
+    y: The averaged data
   """
-  assert axis is None or isinstance(axis, int) or (isinstance(axis, tuple) and all(isinstance(i, int) for i in axis))
-  assert isinstance(size, int) and size > 0
-  assert isinstance(scale, bool)
-  assert isinstance(scale_factor, float)
-  x = np.array(x)
-  if np.isnan(x).any():
-    return x
-  if scale:
-    x *= scale_factor
-  y = uniform_filter1d(x, size, mode=pad_method, origin=0, axis=axis)
-  if scale:
-    y /= scale_factor
-  return y
+  if not isinstance(size, int) or size < 1: raise ValueError('`size` must be a positive integer')
+  if not isinstance(axis, int): raise TypeError('`axis` must be an int')
+  
+  # Promote to the chosen working precision
+  work = np.asarray(x, dtype=precision)
+  out_dtype = x.dtype if isinstance(x, np.ndarray) else precision
+  origin = 0 if center else size // 2
+  
+  filled = np.nan_to_num(work, nan=0.0)
+  valid = np.isfinite(work).astype(precision)
+
+  win_sum = uniform_filter1d(filled, size, axis=axis, mode=mode, origin=origin)
+  win_count = uniform_filter1d(valid, size, axis=axis, mode=mode, origin=origin)
+
+  with np.errstate(divide='ignore', invalid='ignore'):
+    out = win_sum / win_count
+  out[win_count == 0] = np.nan
+  
+  return out.astype(out_dtype, copy=False)
 
 def moving_average_size_for_response(
     sampling_freq: Union[float, int],
@@ -250,7 +256,7 @@ def windowed_standardize(
   """
   x = np.array(x)
   if windowed_mean:
-    mean = moving_average(x, size=window_size, scale=True)
+    mean = moving_average(x, size=window_size)
   else:
     mean = np.mean(x)
   if windowed_std:
