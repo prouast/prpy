@@ -372,6 +372,15 @@ def test_interpolate_cubic_spline():
       2,
       np.array([-0.636099, -1.021032, -0.622056, -0.610314]),
       True
+    ),
+    (
+      np.array([0., 1., 2.], dtype=float),
+      np.array([10., 20., 30.]),
+      np.array([-1., 0.5, 1.5, 2.5]),
+      None,
+      4,
+      np.array([np.nan, 15., 25., np.nan]),
+      True
     )
   ]
 )

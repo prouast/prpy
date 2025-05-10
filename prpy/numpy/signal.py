@@ -522,6 +522,10 @@ def interpolate_filtered(
   """
   t_in, s_in, t_out = map(np.asarray, (t_in, s_in, t_out))
   axis = axis % s_in.ndim
+  def _nan_template(dt_len):
+    shp = list(s_in.shape)
+    shp[axis] = dt_len
+    return np.full(shp, np.nan, dtype=s_in.dtype)
   def is_uniform(ts, tol=1e-6):
     dt = np.diff(ts)
     return np.allclose(dt, dt[0], atol=tol)
@@ -540,6 +544,11 @@ def interpolate_filtered(
   # Nothing to do if grids are identical
   if np.array_equal(t_in, t_out):
     return s_in
+  # Mask in-range vs. out-of-range
+  inside = (t_out >= t_in[0]) & (t_out <= t_in[-1])
+  if not inside.any() and not (extrapolate and not can_filter):
+    # no overlap at all - return all-nan
+    return _nan_template(t_out.size)
   if can_filter and (fill_nan or not has_nan):
     # zero-phase Butterworth
     fs_in = 1.0 / np.median(np.diff(t_in))
@@ -547,17 +556,23 @@ def interpolate_filtered(
     nyq = 0.5 * fs_in
     b, a = signal.butter(order, [low/nyq, high/nyq], btype="band")
     s_filt = signal.filtfilt(b, a, s_in, axis=axis)
-    # Polyphase resample
-    fs_out = 1.0 / np.median(np.diff(t_out))
+    # Polyphase resample - only resample the region we need
+    t_mid = t_out[inside]
+    fs_out = 1.0 / np.median(np.diff(t_mid))
     g = math.gcd(int(round(fs_in)), int(round(fs_out)))
     up, down = int(round(fs_out))//g, int(round(fs_in))//g
     s_rs = signal.resample_poly(s_filt, up, down, axis=axis)
     # Align length exactly to len(ts)
-    if s_rs.shape[axis] != t_out.size:
+    if s_rs.shape[axis] != t_mid.size:
       slicer = [slice(None)] * s_rs.ndim
-      slicer[axis] = slice(0, t_out.size)
+      slicer[axis] = slice(0, t_mid.size)
       s_rs = s_rs[tuple(slicer)]
-    return s_rs
+    # inject into full-length nan canvas
+    s_out = _nan_template(t_out.size)
+    sl = [slice(None)] * s_out.ndim
+    sl[axis] = inside
+    s_out[tuple(sl)] = s_rs
+    return s_out
   # Fallback: shape‑preserving spline (PCHIP)
   nan_mask = None
   if not fill_nan and has_nan:
@@ -568,6 +583,17 @@ def interpolate_filtered(
   t_good = t_in[~nan_mask] if nan_mask is not None else t_in
   y_good = np.take(s_in, np.nonzero(~nan_mask)[0], axis=axis) if nan_mask is not None else s_in
   pchip = interpolate.PchipInterpolator(t_good, y_good, axis=axis, extrapolate=extrapolate)
+  if extrapolate:
+    # full call, no NaN padding needed
+    s_out = pchip(t_out)
+  else:
+    # only compute inside region, leave outside as NaN
+    t_mid = t_out[inside]
+    s_mid = pchip(t_mid)
+    s_out = _nan_template(t_out.size)
+    sl = [slice(None)] * s_out.ndim
+    sl[axis] = inside
+    s_out[tuple(sl)] = s_mid
   s_out = pchip(t_out)
   # If propagating nans, carve them back
   if nan_mask is not None:
