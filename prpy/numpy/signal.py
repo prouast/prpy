@@ -582,6 +582,9 @@ def interpolate_filtered(
   # Build PCHIP on the finite points
   t_good = t_in[~nan_mask] if nan_mask is not None else t_in
   y_good = np.take(s_in, np.nonzero(~nan_mask)[0], axis=axis) if nan_mask is not None else s_in
+  # Bail out safely if we have < 2 good samples
+  if t_good.size < 2:
+    return _nan_template(t_out.size)
   pchip = interpolate.PchipInterpolator(t_good, y_good, axis=axis, extrapolate=extrapolate)
   if extrapolate:
     # full call, no NaN padding needed
