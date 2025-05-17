@@ -23,7 +23,7 @@ sys.path.append('../prpy')
 
 from prpy.numpy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend
 from prpy.numpy.signal import estimate_freq_fft, estimate_freq_peak, estimate_freq_periodogram
-from prpy.numpy.signal import interpolate_vals, interpolate_cubic_spline, interpolate_linear_sequence_outliers, interpolate_data_outliers, interpolate_filtered
+from prpy.numpy.signal import interpolate_vals, interpolate_linear_sequence_outliers, interpolate_data_outliers, interpolate_filtered
 from prpy.numpy.signal import _component_periodicity, select_most_periodic
 
 import numpy as np
@@ -315,24 +315,6 @@ def test_interpolate_data_outliers():
       np.array([0.9, 1.6, 1.1, 1.3, 1.6, 1.2, 0.8, 1.0, 1.3, 0.9, 1000., 1000.]), z_score=2.),
     np.array([0.9, 1.6, 1.1, 1.3, 1.6, 1.2, 0.8, 1.0, 1.3, 0.9, 0.5, 1.109091]),
     atol=1e-4, rtol=1e-4)
-
-def test_interpolate_cubic_spline():
-  # Check a default use case
-  x = np.array([0, 2, 3, 4, 7, 8, 9])
-  y = np.array([[0.1, 0.4, 0.3, 0.1, 0.2, 0.25, 0.4],
-                [0.1, 0.4, 0.3, 0.1, 0.2, 0.25, 0.4]])
-  xs = np.array([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5])
-  x_copy = x.copy()
-  y_copy = y.copy()
-  xs_copy = xs.copy()
-  np.testing.assert_allclose(
-    interpolate_cubic_spline(x=x, y=y, xs=xs, axis=-1),
-    np.array([[.23781146, .38768688, .37072951, .19610327, .05045604, .06995432, .16060431, .22408638, .30091362, .57043189],
-              [.23781146, .38768688, .37072951, .19610327, .05045604, .06995432, .16060431, .22408638, .30091362, .57043189]]))
-  # No side effects
-  np.testing.assert_equal(x, x_copy)
-  np.testing.assert_equal(y, y_copy)
-  np.testing.assert_equal(xs, xs_copy)
 
 @pytest.mark.parametrize(
   "t_in,s_in,t_out,band,order,s_out_exp,fill_nan",
