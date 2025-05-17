@@ -613,32 +613,6 @@ def interpolate_filtered(
       s_out[tuple(sl)] = np.nan
   return s_out
 
-def interpolate_cubic_spline(
-    x: np.ndarray,
-    y: np.ndarray,
-    xs: np.ndarray,
-    axis: int = 0
-  ) -> np.ndarray:
-  """Interpolate data with a cubic spline.
-  Args:
-    x: The x values of the data we want to interpolate. 1-dim.
-    y: The y values of the data we want to interpolate. Along the given axis,
-      shape of y must match shape of x.
-    xs: The x values at which we want to interpolate. 1-dim.
-  Returns:
-    ys: The interpolated y values
-  """
-  assert isinstance(axis, int)
-  x = np.asarray(x)
-  y = np.asarray(y)
-  xs = np.asarray(xs)
-  x = np.nan_to_num(x) # Replace NAs with 0
-  y = np.nan_to_num(y) # Replace NAs with 0
-  if np.array_equal(x, xs):
-    return y
-  cs = interpolate.CubicSpline(x, y, axis=axis)
-  return cs(xs)
-
 def interpolate_linear_sequence_outliers(
     t: np.ndarray,
     max_diff_rel: float = 1.0,
