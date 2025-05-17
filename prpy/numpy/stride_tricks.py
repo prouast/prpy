@@ -29,7 +29,8 @@ def window_view(
     pad_mode: str = 'constant',
     const_val: Union[float, int] = np.nan
   ) -> Tuple[np.ndarray, int, int]:
-  """Create a window view into an n-d array `x` along its first dim.
+  """
+  Create a window view into an n-d array `x` along its first dim.
 
   Args:
     x: The n-d array into which we want to create a windowed view
@@ -82,7 +83,8 @@ def reduce_window_view(
     pad_end: int = 0,
     hanning: bool = False
   ) -> np.ndarray:
-  """Reduce an n-d window view by arranging the first dimension as sliding
+  """
+  Reduce an n-d window view by arranging the first dimension as sliding
   windows and then reducing it using the mean.
 
   Args:
@@ -136,7 +138,8 @@ def resolve_1d_window_view(
     fill_method: str,
     pad_val: float = np.nan
   ) -> np.ndarray:
-  """Resolve an 1-d window view by extending it to the expected shape.
+  """
+  Resolve an 1-d window view by extending it to the expected shape.
   
   - This is useful if processing on each window created a scalar value.
 
