@@ -67,7 +67,7 @@ def test_resolve_1d_window_view(n_data, window_size, overlap, fill_method):
   x_view_prc = np.nanmean(x_view, axis=-1)
   x_view_prc_res = resolve_1d_window_view(
       x=x_view_prc, window_size=window_size, overlap=overlap,
-      pad_end=pad_end, fill_method=fill_method)
+      pad_end=pad_end, fill_method=fill_method, pad_val=0.)
   np.testing.assert_allclose(x, x_view_prc_res)
   # No side effects
   np.testing.assert_equal(x, x_copy)

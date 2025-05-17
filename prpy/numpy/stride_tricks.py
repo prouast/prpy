@@ -134,7 +134,7 @@ def resolve_1d_window_view(
     overlap: int,
     pad_end: int,
     fill_method: str,
-    pad_val: float = None
+    pad_val: float = np.nan
   ) -> np.ndarray:
   """Resolve an 1-d window view by extending it to the expected shape.
   
