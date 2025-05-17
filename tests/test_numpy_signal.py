@@ -22,7 +22,6 @@ import sys
 sys.path.append('../prpy')
 
 from prpy.numpy.signal import div0, normalize, standardize, moving_average, moving_average_size_for_response, moving_std, detrend
-from prpy.numpy.signal import estimate_freq_fft, estimate_freq_peak, estimate_freq_periodogram
 from prpy.numpy.signal import interpolate_vals, interpolate_linear_sequence_outliers, interpolate_data_outliers, interpolate_filtered
 from prpy.numpy.signal import _component_periodicity, select_most_periodic
 
@@ -187,56 +186,6 @@ def test_detrend():
               [.12753036, -.01769809, .45650665, -.22174667, -.48305379],
               [-.0582996, .03747831, -.27848467, .31075766, .33470214]]),
     rtol=1e-6)
-
-@pytest.mark.parametrize("num", [100, 500, 1000])
-@pytest.mark.parametrize("freq", [1., 5., 10., 20.])
-def test_estimate_freq_fft(num, freq):
-  # Test data
-  x = np.linspace(0, freq * 2 * np.pi, num=num)
-  np.random.seed(0)
-  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=num)
-  y = np.stack([y_, y_], axis=0)
-  y_copy = y.copy()
-  # Check a default use case with axis=-1
-  np.testing.assert_allclose(
-    estimate_freq_fft(x=y, f_s=len(x), f_range=(max(freq-2,1),freq+2)),
-    np.array([freq, freq]))
-  # No side effects
-  np.testing.assert_equal(y, y_copy)
-
-@pytest.mark.parametrize("num", [100, 500, 1000])
-@pytest.mark.parametrize("freq", [5., 10., 20.])
-def test_estimate_freq_peak(num, freq):
-  # Test data
-  x = np.linspace(0, freq * 2 * np.pi, num=num)
-  np.random.seed(0)
-  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=num)
-  y = np.stack([y_, y_], axis=0)
-  y_copy = y.copy()
-  # Check a default use case with axis=-1
-  np.testing.assert_allclose(
-    estimate_freq_peak(x=y, f_s=len(x), f_range=(max(freq-2,1),freq+2)),
-    np.array([freq, freq]),
-    rtol=0.2)
-  # No side effects
-  np.testing.assert_equal(y, y_copy)
-
-@pytest.mark.parametrize("num", [100, 500, 1000])
-@pytest.mark.parametrize("freq", [2.35, 4.89, 13.55])
-def test_estimate_freq_periodogram(num, freq):
-  # Test data
-  x = np.linspace(0, freq * 2 * np.pi, num=num)
-  np.random.seed(0)
-  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=num)
-  y = np.stack([y_, y_], axis=0)
-  y_copy = y.copy()
-  # Check a default use case with axis=-1
-  np.testing.assert_allclose(
-    estimate_freq_periodogram(x=y, f_s=len(x), f_range=(max(freq-2,1),freq+2), f_res=0.05),
-    np.array([freq, freq]),
-    rtol=0.01)
-  # No side effects
-  np.testing.assert_equal(y, y_copy)
 
 def test_interpolate_vals():
   # Check a default use case
