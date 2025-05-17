@@ -133,7 +133,8 @@ def resolve_1d_window_view(
     window_size: int,
     overlap: int,
     pad_end: int,
-    fill_method: str
+    fill_method: str,
+    pad_val: float = None
   ) -> np.ndarray:
   """Resolve an 1-d window view by extending it to the expected shape.
   
@@ -144,7 +145,9 @@ def resolve_1d_window_view(
     window_size: The window size used to create the view
     overlap: The overlap used to create the view
     pad_end: How much padding was applied to the end
-    fill_method: Method for filling/padding the result
+    fill_method: Method for filling/padding the result.
+      - `pad_val`, `mean`, or `start`
+    pad_val: Value to use for filling/padding when fill_method is pad_val
   Returns:
     vals: The 1-d resolved data
   """
@@ -162,8 +165,8 @@ def resolve_1d_window_view(
   elif overlap == window_size - 1:
     # If overlap is one less than the window size, then values are mostly
     # already ok. We just have to fill the start.
-    if fill_method == 'zero':
-      fill = 0.0
+    if fill_method == 'pad_val':
+      fill = pad_val
     elif fill_method == 'mean':
       fill = np.mean(x)
     elif fill_method == 'start':

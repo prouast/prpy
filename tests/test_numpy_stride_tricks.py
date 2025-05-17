@@ -58,7 +58,7 @@ def test_reduce_window_view(max_window_size):
 @pytest.mark.parametrize("n_data", [6, 20])
 @pytest.mark.parametrize("window_size", [3, 5])
 @pytest.mark.parametrize("overlap", [0, 2])
-@pytest.mark.parametrize("fill_method", ['mean', 'zero', 'start'])
+@pytest.mark.parametrize("fill_method", ['mean', 'start', 'pad_val'])
 def test_resolve_1d_window_view(n_data, window_size, overlap, fill_method):
   x = np.zeros((n_data,))
   x_copy = x.copy()
