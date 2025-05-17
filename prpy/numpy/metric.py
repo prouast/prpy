@@ -23,7 +23,8 @@ from scipy import signal
 from typing import Union
 
 def mag2db(mag: Union[np.ndarray, np.float64]) -> np.ndarray:
-  """Magnitude to decibels element-wise.
+  """
+  Magnitude to decibels element-wise.
 
   Args:
     mag: Magnitude. Arbitrary shape.
@@ -38,7 +39,8 @@ def mae(
     y_pred: np.ndarray,
     axis: Union[int, None] = -1
   ) -> np.ndarray:
-  """Mean absolute error
+  """
+  Mean absolute error
 
   Args:
     y_true: True values. Shape (..., dim_n, dim_axis)
@@ -61,7 +63,8 @@ def mse(
     y_pred: np.ndarray,
     axis: Union[int, None] = -1
   ) -> np.ndarray:
-  """Mean squared error
+  """
+  Mean squared error
 
   Args:
     y_true: True values. Shape (..., dim_n, dim_axis)
@@ -84,7 +87,8 @@ def rmse(
     y_pred: np.ndarray,
     axis: Union[int, None] = -1
   ) -> np.ndarray:
-  """Root mean squared error
+  """
+  Root mean squared error
 
   Args:
     y_true: True values. Shape (..., dim_n, dim_axis)
@@ -107,7 +111,8 @@ def cor(
     y_pred: np.ndarray,
     axis: Union[int, None] = -1
   ) -> np.ndarray:
-  """Pearson's correlation coefficient
+  """
+  Pearson's correlation coefficient
 
   Args:
     y_true: True values. Shape (..., dim_n, dim_axis)
@@ -141,7 +146,9 @@ def snr(
     f_min: Union[float, int] = .5,
     f_max: Union[float, int] = 4.
   ) -> np.ndarray:
-  """Signal-to-noise ratio
+  """
+  Signal-to-noise ratio
+  
   Args:
     f_true: The true frequencies. Shape (b,) or ()
     y_pred: Predicted vals. Shape (b, t) or (t,)

@@ -42,7 +42,8 @@ def crop_slice_resize(
     library: str = 'PIL',
     scale_algorithm: str = 'bicubic'
   ) -> np.ndarray:
-  """Crop, slice, and resize image(s) with all same settings.
+  """
+  Crop, slice, and resize image(s) with all same settings.
 
   Args:
     inputs: The inputs of shape (h, w, 3) or (n_frames, h, w, 3)
@@ -165,7 +166,8 @@ def resample_bilinear(
     im: np.ndarray,
     size: Union[int, tuple]
   ) -> np.ndarray:
-  """Compute bilinear resampling with batch dimension
+  """
+  Compute bilinear resampling with batch dimension
   
   Args:
     im: The image(s) to be resized. Shape (n, h, w, c) or (h, w, c)
@@ -180,7 +182,8 @@ def resample_box(
     im: np.ndarray,
     size: Union[int, tuple]
   ) -> np.ndarray:
-  """Compute box resampling with batch dimension
+  """
+  Compute box resampling with batch dimension
 
   - Note: This implementation only works for downsampling at least 2x in each dimension
     I.e., h/new_h >= 2 and w/new_w >= 2
@@ -198,7 +201,8 @@ def reduce_roi(
     video: np.ndarray,
     roi: np.ndarray
   ) -> np.ndarray:
-  """Reduce the spatial dimensions of a video by mean using ROI.
+  """
+  Reduce the spatial dimensions of a video by mean using ROI.
 
   Args:
     video: The video to be reduced. Shape (n, h, w, 3)
@@ -216,7 +220,8 @@ def probe_image_inputs(
     min_video_frames: int = 1,
     allow_image: bool = True
   ) -> Tuple[tuple, float, bool]:
-  """Check the image or video inputs and probe to extract metadata.
+  """
+  Check the image or video inputs and probe to extract metadata.
 
   Args:
     inputs: The inputs. Either
@@ -294,7 +299,8 @@ def parse_image_inputs(
     allow_image: bool = True,
     videodims: bool = True 
   ) -> Tuple[np.ndarray, float, tuple, int, list]:
-  """Parse image or video inputs into required shape.
+  """
+  Parse image or video inputs into required shape.
 
   Args:
     inputs: The inputs. Either

@@ -28,7 +28,8 @@ def interpolate_vals(
     x: np.ndarray,
     val_fn: Callable[[np.ndarray], np.ndarray] = lambda x: np.isnan(x)
   ) -> np.ndarray:
-  """Linearly interpolate vals matching val_fn
+  """
+  Linearly interpolate vals matching val_fn
 
   Args:
     x: The values, shape (n_vals,)
@@ -56,7 +57,9 @@ def interpolate_filtered(
     fill_nan: bool = True,
     axis: int = 0
   ) -> np.ndarray:
-  """Interpolate data with bandpass filter and zero-phase polyphase resample (with PCHIP fallback) from `t_in` to `t_out`
+  """
+  Interpolate data with bandpass filter and zero-phase polyphase resample (with PCHIP fallback) from `t_in` to `t_out`
+  
   Args:
     t_in: The timestamp values we want to interpolate [seconds]. ndarray, shape (T,)
     s_in: The signal values we want to interpolate. ndarray, shape (..., T, ...)
@@ -167,7 +170,8 @@ def interpolate_linear_sequence_outliers(
     max_diff_rel: float = 1.0,
     max_diff_abs: Union[float, None] = None
   ) -> np.ndarray:
-  """Interpolate outliers in an otherwise linear sequence.
+  """
+  Interpolate outliers in an otherwise linear sequence.
   
   - For example: Measurement timestamps
   - I.e., goal is to make the sequence strictly increasing with approx. constant diff.
@@ -218,7 +222,8 @@ def interpolate_data_outliers(
     x: np.ndarray,
     z_score: Union[int, float] = 3
   ) -> np.ndarray:
-  """Recursively interpolate outliers in sensor data.
+  """
+  Recursively interpolate outliers in sensor data.
 
   - Example: ECG signal
   - Goal is to remove outliers in sensor data which may be caused by electrical interference etc.

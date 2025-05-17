@@ -23,7 +23,8 @@ from prpy.numpy.image import crop_slice_resize
 from typing import Union
 
 def _force_even_dims(roi: tuple) -> tuple:
-  """Force even dimensions
+  """
+  Force even dimensions
   
   Args:
     roi: The region of interest with potentially uneven dimensions
@@ -46,7 +47,8 @@ def _get_roi_from_det(
     clip_dims: Union[tuple, None] = None,
     force_even_dims: bool = False
   ) -> tuple:
-  """Convert face detection to roi by relative add/reduce.
+  """
+  Convert face detection to roi by relative add/reduce.
 
   Args:
     det: The face detection [0, H/W] in format (x0, y0, x1, y1).
@@ -83,8 +85,10 @@ def get_face_roi_from_det(
     det: tuple,
     force_even_dims: bool = False
   ) -> tuple:
-  """Convert face detection into face roi.
-  Reduces width to 60% and height to 80%. 
+  """
+  Convert face detection into face roi. 
+  
+  - Reduces width to 60% and height to 80%. 
   
   Args:
     det: The face detection [0, H/W] in form (x0, y0, x1, y1)
@@ -99,8 +103,10 @@ def get_forehead_roi_from_det(
     det: tuple,
     force_even_dims: bool = False
   ) -> tuple:
-  """Convert face detection into forehead roi.
-  Reduces det to forehead as 35% to 65% of width, and 15% to 25% of height. 
+  """
+  Convert face detection into forehead roi.
+  
+  - Reduces det to forehead as 35% to 65% of width, and 15% to 25% of height. 
   
   Args:
     det: The face detection [0, H/W] in form (x0, y0, x1, y1)
@@ -118,7 +124,8 @@ def get_upper_body_roi_from_det(
     v: int = 1,
     force_even_dims: bool = False
   ) -> tuple:
-  """Convert face detection into upper body roi and clip to frame constraints.
+  """
+  Convert face detection into upper body roi and clip to frame constraints.
 
   Args:
     det: The face detection [0, H/W] in form (x0, y0, x1, y1)
@@ -186,7 +193,8 @@ def get_meta_roi_from_det(
     clip_dims: tuple,
     force_even_dims: bool = False
   ) -> tuple:
-  """Convert face detection into meta roi and clip to frame constraints.
+  """
+  Convert face detection into meta roi and clip to frame constraints.
 
   Args:
     det: The face detection [0, H/W] in form (x0, y0, x1, y1)
@@ -205,7 +213,8 @@ def get_roi_from_det(
     clip_dims: Union[tuple, None] = None,
     force_even_dims: bool = False
   ) -> tuple:
-  """Convert face detection into specified roi.
+  """
+  Convert face detection into specified roi.
 
   Args:
     det: The face detection [0, H/W] in form (x0, y0, x1, y1)
@@ -253,8 +262,10 @@ def crop_resize_from_det(
     scale_algorithm: str,
     force_even_dims: bool = False
   ) -> np.ndarray:
-  """Crop and resize a video according to a single face detection.
-  Resize to specified size with specified method.
+  """
+  Crop and resize a video according to a single face detection.
+  
+  - Resize to specified size with specified method.
 
   Args:
     video: The video. Shape (n_frames, h, w, c)

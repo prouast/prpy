@@ -26,7 +26,8 @@ def div0(
     b: Union[np.ndarray, float, int],
     fill: Union[float, int] = np.nan
   ) -> np.ndarray:
-  """Divide after accounting for zeros in divisor, e.g.:
+  """
+  Divide after accounting for zeros in divisor, e.g.:
   
   - div0( [-1, 0, 1], 0, fill=np.nan) -> [nan nan nan]
   - div0( 1, 0, fill=np.inf ) -> inf
@@ -53,7 +54,8 @@ def standardize(
     x: np.ndarray,
     axis: Union[int, None] = -1
   ) -> np.ndarray:
-  """Perform standardization
+  """
+  Perform standardization
   
   - Note: Returns zero if std == 0
   
@@ -74,7 +76,8 @@ def normalize(
     x: np.ndarray,
     axis: Union[int, tuple, None] = -1
   ) -> np.ndarray:
-  """Perform normalization
+  """
+  Perform normalization
 
   Args:
     x: The input data
