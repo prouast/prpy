@@ -20,7 +20,10 @@
 
 from .core import *
 from .face import *
+from .filters import *
 from .freq import *
 from .image import *
+from .interp import *
 from .metric import *
 from .stride_tricks import *
+from .utils import *
