@@ -22,6 +22,8 @@ import numpy as np
 from scipy import signal, fft
 from typing import Union
 
+from prpy.numpy.core import div0
+
 def estimate_freq(
     x: np.ndarray,
     f_s: Union[float, int],
@@ -31,7 +33,8 @@ def estimate_freq(
     max_periodicity_deviation: float = 0.5,
     axis: int = -1
   ) -> np.ndarray:
-  """Determine maximum frequencies in x.
+  """
+  Determine maximum frequencies in x.
 
   Args:
     x: The signal data. Shape: (n_data,) or (n_sig, n_data)
@@ -61,7 +64,8 @@ def estimate_freq_fft(
     f_range: Union[tuple, None] = None,
     axis: int = -1
   ) -> np.ndarray:
-  """Use a fourier transform to determine maximum frequencies.
+  """
+  Use a fourier transform to determine maximum frequencies.
   
   Args:
     x: The signal data. Shape: (n_data,) or (n_sig, n_data)
@@ -103,7 +107,8 @@ def estimate_freq_peak(
     max_periodicity_deviation: float = 0.5,
     axis: int = -1
   ) -> np.ndarray:
-  """Use peak detection to determine maximum frequencies in x.
+  """
+  Use peak detection to determine maximum frequencies in x.
 
   Args:
     x: The signal data. Shape: (n_data,) or (n_sig, n_data)
@@ -147,7 +152,8 @@ def estimate_freq_periodogram(
     f_res: Union[float, None] = None,
     axis: int = -1
   ) -> np.ndarray:
-  """Use a periodigram to estimate maximum frequencies at f_res.
+  """
+  Use a periodigram to estimate maximum frequencies at f_res.
   
   - When signal is sampled at a lower frequency than f_res, this is essentially done
     by interpolating in the frequency domain.
@@ -188,3 +194,43 @@ def estimate_freq_periodogram(
   f_out = np.squeeze(f_out)
   # Return
   return f_out
+
+def _component_periodicity(x: np.ndarray) -> list:
+  """
+  Compute the periodicity of the maximum frequency components
+
+  Args:
+    x: The signal data. Shape (n_sig, n_data)
+  Returns:
+    result: The periodicities. Shape (n_sig,)
+  """
+  x = np.asarray(x) # Make sure x is np array
+  x = np.nan_to_num(x) # Replace NAs with 0
+  assert x.ndim == 2, "x.ndim must equal 2"
+  # Perform FFT
+  w = fft.rfft(x, axis=1)
+  # Determine maximum frequency component of each dim
+  w_ = np.square(np.abs(w))
+  w_ = div0(w_, np.sum(w_, axis=1)[:, np.newaxis], fill=0)
+  idxs = np.argmax(w_, axis=1)
+  # Compute periodicity for maximum frequency component
+  return [w_[i,idx] for i, idx in enumerate(idxs)]
+
+def select_most_periodic(x: np.ndarray) -> np.ndarray:
+  """
+  Select the most periodic signal
+
+  Args:
+    x: The signal data. Shape (n_sig, n_data)
+  Returns:
+    y: Signal with highest periodicity
+  """
+  x = np.asarray(x) # Make sure x is np array
+  x = np.nan_to_num(x) # Replace NAs with 0
+  assert x.ndim == 2, "x.ndim must equal 2"
+  # Compute component periodicity
+  p = _component_periodicity(x)
+  idx = np.argmax(p)
+  y = x[idx]
+  assert x.shape[1] == y.shape[0]
+  return y
