@@ -80,7 +80,7 @@ def interpolate_filtered(
     return np.full(shp, np.nan, dtype=s_in.dtype)
   def is_uniform(ts, tol=1e-6):
     dt = np.diff(ts)
-    return np.allclose(dt, dt[0], atol=tol)
+    return len(dt) > 0 and np.allclose(dt, dt[0], atol=tol)
   uniform = is_uniform(t_in) and is_uniform(t_out)
   can_filter = isinstance(band, tuple) and uniform
   has_nan = np.isnan(s_in).any()
@@ -259,3 +259,39 @@ def interpolate_data_outliers(
       return new_x
   # Recursive interpolation of data outliers
   return interpolation_step(x=x, z_score=z_score)
+
+def interpolate_skipped(
+  diffs: np.ndarray,
+  threshold: float = 0.3
+) -> np.ndarray:
+  """
+  Corrects a series of time diffs (e.g., due to skipped beats) by detecting diffs 
+  that deviate more than a given threshold from the median and then replacing them 
+  using linear interpolation.
+  
+  Args:
+    diffs: Array of beat-to-beat differences.
+    threshold: Maximum allowed relative deviation from the median (e.g., 0.25 means 25%).
+  Returns:
+    np.ndarray: Corrected RR intervals.
+  """
+  median_diff = np.median(diffs)
+  # Identify outliers
+  outliers = np.abs(diffs - median_diff) > threshold * median_diff
+  if not np.any(outliers):
+    # No outliers, do nothing
+    return diffs
+
+  logging.debug(f"Interpolating {np.sum(outliers)} outlier events")
+  idxs = np.arange(len(diffs))
+  good_idxs = idxs[~outliers]
+  good_diffs = diffs[~outliers]
+  
+  # Check if there are any good indices for interpolation
+  if good_idxs.size == 0:
+    logging.error("No good diff values found for interpolation, returning original diffs")
+    return diffs
+
+  corrected_diffs = diffs.copy()
+  corrected_diffs[outliers] = np.interp(idxs[outliers], good_idxs, good_diffs)
+  return corrected_diffs

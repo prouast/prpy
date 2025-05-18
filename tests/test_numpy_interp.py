@@ -22,7 +22,7 @@ import sys
 sys.path.append('../prpy')
 
 from prpy.numpy.interp import interpolate_vals, interpolate_linear_sequence_outliers
-from prpy.numpy.interp import interpolate_data_outliers, interpolate_filtered
+from prpy.numpy.interp import interpolate_data_outliers, interpolate_filtered, interpolate_skipped
 
 import numpy as np
 import pytest
@@ -171,3 +171,14 @@ def test_interpolate_filtered(t_in, s_in, t_out, band, order, s_out_exp, fill_na
   np.testing.assert_equal(t_in, t_in_copy)
   np.testing.assert_equal(s_in, s_in_copy)
   np.testing.assert_equal(t_out, t_out_copy)
+
+@pytest.mark.parametrize("rr_intervals,threshold,expected", [
+  (np.array([1, 1, 1, 1, 1]), 0.25, np.array([1, 1, 1, 1, 1])),
+  (np.array([1, 1, 2, 1, 1]), 0.25, np.array([1, 1, 1, 1, 1])),
+  (np.array([1, .8, 2, .9, 1]), 0.25, np.array([1, .8, .85, .9, 1])),
+  (np.array([2, 1, 1, 1, 2]), 0.25, np.array([1, 1, 1, 1, 1])),
+  (np.array([1, 1, 2, 1, 1]), 1.5, np.array([1, 1, 2, 1, 1])),
+])
+def test_interpolate_skipped(rr_intervals, threshold, expected):
+  corrected = interpolate_skipped(rr_intervals, threshold)
+  np.testing.assert_allclose(corrected, expected, atol=1e-2)
