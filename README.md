@@ -9,7 +9,7 @@ It contains subpackages for working with `numpy`, `ffmpeg`, `tensorflow`, and `t
 
 ## Installation
 
-General prerequisites are `python>=3.8` and `ffmpeg` installed and accessible via the `$PATH` environment variable.
+General prerequisites are `python>=3.9` and `ffmpeg` installed and accessible via the `$PATH` environment variable.
 
 - Please note: If using `numpy` or `tensorflow` options, we only support Python `<3.12` because of the dependencies. 
 

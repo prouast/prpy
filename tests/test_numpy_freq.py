@@ -54,7 +54,10 @@ def test_estimate_freq_peak(num, freq):
   y_copy = y.copy()
   # Check a default use case with axis=-1
   np.testing.assert_allclose(
-    estimate_freq_peak(x=y, f_s=len(x), f_range=(max(freq-2,1),freq+2)),
+    estimate_freq_peak(x=y,
+                       f_s=len(x),
+                       f_range=(max(freq-2,1),freq+2),
+                       window_size=num),
     np.array([freq, freq]),
     rtol=0.2)
   # No side effects

@@ -20,9 +20,13 @@
 
 import numpy as np
 from scipy import signal, fft
-from typing import Union
+from typing import Union, Any
 
 from prpy.numpy.core import div0
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+  from prpy.numpy.detect import detect_valid_peaks
 
 def estimate_freq(
     x: np.ndarray,
@@ -30,8 +34,8 @@ def estimate_freq(
     f_range: tuple = None,
     f_res: float = None,
     method: str = 'fft',
-    max_periodicity_deviation: float = 0.5,
-    axis: int = -1
+    axis: int = -1,
+    **kw: Any
   ) -> np.ndarray:
   """
   Determine maximum frequencies in x.
@@ -43,8 +47,8 @@ def estimate_freq(
     f_res: Optional frequency resolution for analysis [Hz]
       (useful if signal small; applies only to periodogram)
     method: The method to be used [fft, peak, or periodogram]
-    max_periodicity_deviation: Maximum relative deviation of peaks from regular periodicity
     axis: The axis along which to estimate frequencies
+    **kw: Extra args forwarded to the underlying frequency estimator.
   Returns:
     f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
@@ -52,7 +56,7 @@ def estimate_freq(
   if method == 'fft':
     return estimate_freq_fft(x, f_s=f_s, f_range=f_range, axis=axis)
   elif method == 'peak':
-    return estimate_freq_peak(x, f_s=f_s, f_range=f_range, max_periodicity_deviation=max_periodicity_deviation, axis=axis)
+    return estimate_freq_peak(x, f_s=f_s, f_range=f_range, axis=axis, **kw)
   elif method == 'periodogram':
     return estimate_freq_periodogram(x, f_s=f_s, f_range=f_range, f_res=f_res, axis=axis)
   else:
@@ -104,8 +108,8 @@ def estimate_freq_peak(
     x: np.ndarray,
     f_s: Union[float, int],
     f_range: Union[tuple, None] = None,
-    max_periodicity_deviation: float = 0.5,
-    axis: int = -1
+    axis: int = -1,
+    **kw: Any
   ) -> np.ndarray:
   """
   Use peak detection to determine maximum frequencies in x.
@@ -114,32 +118,36 @@ def estimate_freq_peak(
     x: The signal data. Shape: (n_data,) or (n_sig, n_data)
     f_s: The sampling frequency [Hz]
     f_range: Optional expected range of freqs [Hz] - (min, max)
-    max_periodicity_deviation: Maximum relative deviation of peaks from regular periodicity
-    axis: The axis along which to estimate frequencies
+    axis: The axis along which to estimate frequencies,
+    **detect_kwargs: Extra args forwarded to `detect_valid_peaks`.
   Returns:
     f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
+  from prpy.numpy.detect import detect_valid_peaks
   assert isinstance(f_s, (float, int)) and f_s > 0
   assert f_range is None or (isinstance(f_range, tuple) and len(f_range) == 2 and all(isinstance(i, (int, float)) for i in f_range))
-  assert isinstance(max_periodicity_deviation, float)
   assert isinstance(axis, int) and (axis == 0 or axis == 1 or axis == -1)
   x = np.asarray(x)
   # Change to 2-dim array if necessary
   if len(x.shape) == 1:
     x = np.expand_dims(x, axis=0)
-  # Derive minimum distance between peaks if necessary
-  min_dist = max(1/f_range[1]*f_s*(1-max_periodicity_deviation), 0) if f_range is not None else 0
-  # Peak detection is only available for 1-D tensors
-  # TODO: Use `detect_valid_peaks`?
-  def estimate_freq_peak_for_single_axis(x):
+  # Helper for a single 1-D trace
+  def _freq_1d(trace: np.ndarray):
     # Find peaks in the signal
-    det_idxs, _ = signal.find_peaks(x, height=0, distance=min_dist)
-    # Calculate mean distance between peaks
-    mean_idx_dist = np.mean(np.diff(det_idxs), axis=-1)
+    seqs, _ = detect_valid_peaks(
+      vals=trace,
+      f_s=f_s,
+      f_range=f_range,
+      **kw
+    )
+    diffs = np.concatenate([np.diff(seq) for seq in seqs if len(seq) > 1])
+    if diffs.size == 0:
+      # Not enough peaks
+      return np.nan
     # Derive the frequency
-    return f_s/mean_idx_dist
+    return f_s/np.median(diffs)
   # Apply function
-  f_out = np.apply_along_axis(estimate_freq_peak_for_single_axis, axis=axis, arr=x)
+  f_out = np.apply_along_axis(_freq_1d, axis=axis, arr=x)
   # Squeeze if necessary
   f_out = np.squeeze(f_out)
   # Return
