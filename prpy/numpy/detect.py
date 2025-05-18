@@ -46,11 +46,11 @@ def detect_valid_peaks(
     vals: np.ndarray,
     *,
     f_s: Optional[float] = None,
-    height: float,
-    prominence: Tuple[float, float],
-    period_rel_tol: Tuple[float, float],
+    height: float = 0.,
+    prominence: Optional[Tuple[float, float]] = None,
+    period_rel_tol: Tuple[float, float] = (0.4, 0.8),
     window_size: int,
-    overlap: int,
+    overlap: Optional[int] = None,
     min_det_for_valid_seq: int = 1,
     t: Optional[np.ndarray] = None,
     width: Optional[float | Tuple[float, float]] = None,
@@ -108,6 +108,7 @@ def detect_valid_peaks(
   period_rel_tol_shorter, period_rel_tol_longer = period_rel_tol
   # Sliding reference freq
   window_size = min(window_size, size - 1)
+  if overlap is None: overlap = window_size // 2
   freqs = rolling_calc(
     x=vals,
     calc_fn=lambda x: estimate_freq_periodogram(
