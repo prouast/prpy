@@ -36,9 +36,6 @@ def _make_ecg_like(
     missing_beat_at: int | None = None,
     noise_std: float = 0.05,
   ) -> np.ndarray:
-  """
-  Cheap synthetic ECG: sum of Gaussian R-peaks + pinkish noise.
-  """
   n = int(duration * fs)
   t = np.arange(n) / fs
   rr = 60.0 / hr_bpm

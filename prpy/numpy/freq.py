@@ -23,6 +23,7 @@ from scipy import signal, fft
 from typing import Union, Any
 
 from prpy.numpy.core import div0
+from prpy.numpy.interp import interpolate_skipped
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -34,6 +35,7 @@ def estimate_freq(
     f_range: tuple = None,
     f_res: float = None,
     method: str = 'fft',
+    interp_skipped: bool = False,
     axis: int = -1,
     **kw: Any
   ) -> np.ndarray:
@@ -47,6 +49,7 @@ def estimate_freq(
     f_res: Optional frequency resolution for analysis [Hz]
       (useful if signal small; applies only to periodogram)
     method: The method to be used [fft, peak, or periodogram]
+    interp_skipped: Insert interpolated detection for presumably skipped events
     axis: The axis along which to estimate frequencies
     **kw: Extra args forwarded to the underlying frequency estimator.
   Returns:
@@ -56,7 +59,7 @@ def estimate_freq(
   if method == 'fft':
     return estimate_freq_fft(x, f_s=f_s, f_range=f_range, axis=axis)
   elif method == 'peak':
-    return estimate_freq_peak(x, f_s=f_s, f_range=f_range, axis=axis, **kw)
+    return estimate_freq_peak(x, f_s=f_s, f_range=f_range, interp_skipped=interp_skipped, axis=axis, **kw)
   elif method == 'periodogram':
     return estimate_freq_periodogram(x, f_s=f_s, f_range=f_range, f_res=f_res, axis=axis)
   else:
@@ -108,6 +111,7 @@ def estimate_freq_peak(
     x: np.ndarray,
     f_s: Union[float, int],
     f_range: Union[tuple, None] = None,
+    interp_skipped: bool = False,
     axis: int = -1,
     **kw: Any
   ) -> np.ndarray:
@@ -118,6 +122,7 @@ def estimate_freq_peak(
     x: The signal data. Shape: (n_data,) or (n_sig, n_data)
     f_s: The sampling frequency [Hz]
     f_range: Optional expected range of freqs [Hz] - (min, max)
+    interp_skipped: Insert interpolated detection for presumably skipped events
     axis: The axis along which to estimate frequencies,
     **detect_kwargs: Extra args forwarded to `detect_valid_peaks`.
   Returns:
@@ -141,6 +146,8 @@ def estimate_freq_peak(
       **kw
     )
     diffs = np.concatenate([np.diff(seq) for seq in seqs if len(seq) > 1])
+    if interp_skipped:
+      diffs = interpolate_skipped(diffs, threshold=0.3)
     if diffs.size == 0:
       # Not enough peaks
       return np.nan
