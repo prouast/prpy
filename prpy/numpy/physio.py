@@ -128,12 +128,11 @@ def estimate_rate_per_minute_from_detections(
     confidence: np.ndarray | None = None,
     window_size: int | None = None,
     overlap: int | None = None,
-    interp_skipped: bool = False,
-    **kw
+    interp_skipped: bool = False
   ) -> np.ndarray:
   # TODO: Integrate confidence
   """
-  Estimate rate per minute from detection times `det_t`.
+  Estimate rate per minute from detection indices `det_idxs`.
   
   Args:
     det_idxs: The detection indices. Shape (n_dets,)
@@ -148,33 +147,34 @@ def estimate_rate_per_minute_from_detections(
   Returns:
     The estimated rate.
       - For Scope.GLOBAL: Shape ()
-      - For Scope.ROLLING: Same shape as `det_t`
+      - For Scope.ROLLING: Same shape as `det_idxs`
   """
-  # Basic checks
   if t is None and f_s is None: raise ValueError("Provide either `t` or `f_s`.")
-  # Validate special kwargs
   if scope is EScope.ROLLING:
     if window_size is None:
       raise ValueError("`window_size` is required when scope==Scope.ROLLING")
     if overlap is None: overlap = window_size - 1
-  def _estimate_freq_from_dets(det_idxs: np.ndarray):
-    det_t = t[det_idxs] if t is not None else det_idxs/f_s
-    if f_s is None: f_s = t.shape[0]/(t[-1] - t[0])
+  def _rate_from_dets(dets: np.ndarray) -> float:
+    """Convert a 1-D array of detection indices to rate [1/min]"""
+    if dets.size < 2: return np.nan
+    det_t = (t[dets] if t is not None else dets / f_s).astype(float)
     diffs = np.diff(det_t)
     if interp_skipped:
       diffs = interpolate_skipped(diffs, threshold=0.3)
-    return f_s/np.median(diffs)
+    if diffs.size == 0 or np.any(diffs == 0):
+      return np.nan
+    return 1 / np.median(diffs)
+  def _window_calc(dets_view: np.ndarray) -> np.ndarray:
+    return np.apply_along_axis(_rate_from_dets, 1, dets_view)
   if scope == EScope.GLOBAL:
-    return _estimate_freq_from_dets(det_idxs=det_idxs,
-                                    f_s=f_s,
-                                    t=t)
+    return _rate_from_dets(det_idxs) * SECONDS_PER_MINUTE
   else:
-    rolling_calc(x=det_idxs,
-                 calc_fn=_estimate_freq_from_dets,
-                 min_window_size=window_size,
-                 max_window_size=window_size,
-                 overlap=overlap,
-                 pad_val=np.nan) * SECONDS_PER_MINUTE
+    return rolling_calc(x=det_idxs,
+                        calc_fn=_window_calc,
+                        min_window_size=window_size,
+                        max_window_size=window_size,
+                        overlap=overlap,
+                        pad_val=np.nan) * SECONDS_PER_MINUTE
 
 def estimate_hr_from_signal(
     signal: np.ndarray,
