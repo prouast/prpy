@@ -21,12 +21,12 @@
 import sys
 sys.path.append('../prpy')
 
-from prpy.numpy.rolling import rolling_calc
+from prpy.numpy.rolling import rolling_calc, rolling_calc_ragged
 
 import numpy as np
 import pytest
 
-def test_rolling_mean_no_transform():
+def test_rolling_calc_mean_no_transform():
   x = np.arange(10.0)
   res = rolling_calc(
     x,
@@ -38,7 +38,7 @@ def test_rolling_mean_no_transform():
   assert pytest.approx(res[2]) == 1.0
   assert res.shape == x.shape
 
-def test_rolling_mean_with_transform():
+def test_rolling_calc_mean_with_transform():
   x = np.linspace(0, 2 * np.pi, 9)
   transform = lambda v: v - np.mean(v, axis=-1, keepdims=True)
   res = rolling_calc(
@@ -51,7 +51,7 @@ def test_rolling_mean_with_transform():
   assert not np.isnan(res[2])
   assert res.shape == x.shape
 
-def test_short_input_only_pad():
+def test_rolling_calc_short_input_only_pad():
   x = np.array([1.0, 2.0])
   res = rolling_calc(
     x,
@@ -60,3 +60,27 @@ def test_short_input_only_pad():
     max_window_size=3,
   )
   assert np.isnan(res).all()
+
+def test_rolling_calc_ragged_basic_count():
+  """Counts of detections per ragged window are splashed onto each sample."""
+  ts = np.array([0.3, 0.7, 1.2, 1.7, 2.1, 2.6])
+  out = rolling_calc_ragged(
+    ts,
+    calc_fn=lambda seg: seg.size,
+    min_window_size=0.5,
+    max_window_size=1.0
+  )
+  exp = np.array([np.nan, 2., 3., 2., 3., 3.])
+  np.testing.assert_array_equal(out, exp)
+
+def test_rolling_calc_ragged_rate_from_mean_interval():
+  """Median/mean-diff example – just sanity-check a few slots."""
+  ts  = np.array([0.3, 0.7, 1.2, 1.7, 2.1, 2.6, 3.1])
+  out = rolling_calc_ragged(
+    ts,
+    calc_fn=lambda seg: np.mean(np.diff(seg)),
+    min_window_size=1.0,
+    max_window_size=1.0,
+  )
+  exp = np.array([np.nan, np.nan, 0.45, 0.5, 0.45, 0.45, 0.5])
+  np.testing.assert_allclose(out, exp)

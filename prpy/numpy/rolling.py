@@ -33,8 +33,9 @@ def rolling_calc(
     transform_fn: Callable | None = None,
     fill_method: str = 'pad_val',
     pad_val: float = np.nan
-  ):
-  """Apply `calc_fn` to `x` using rolling window along its first dim.
+  ) -> np.ndarray:
+  """
+  Apply `calc_fn` to `x` using rolling window along its first dim.
 
   Args:
     x: The values to be processed. Shape (n, ...) -> m dims in total
@@ -84,3 +85,39 @@ def rolling_calc(
                                     pad_val=pad_val)
   assert result.shape[0] == size, f"result.shape[0] {result.shape[0]} != {size} size"
   return result
+
+def rolling_calc_ragged(
+    x: np.ndarray,
+    calc_fn: Callable[[np.ndarray], float],
+    min_window_size: float,
+    max_window_size: float,
+    *,
+    pad_val: float = np.nan
+  ) -> np.ndarray:
+  """
+  Apply an arbitrary reducer `calc_fn` to ragged backward-looking rolling windows of `x`.
+
+  Args:
+    x: 1-D increasing ndarray (e.g. detection timestamps)
+    calc_fn: Callable that maps ndarray -> scalar
+    min_window_size: Minimum size of the backward-looking window (same units as x)
+    max_window_size: Maximum size of the backward-looking window (same units as x)
+    pad_val: value to emit when window too small
+  Returns:
+    aligned: ndarray (len(x),) result broadcast / merged onto x
+  """
+  x = np.asarray(x, dtype=float)
+  if x.ndim != 1:
+    raise ValueError("x must be 1-D and strictly increasing")
+  if min_window_size < 0 or max_window_size < min_window_size:
+    raise ValueError("0 ≤ min_window_size ≤ max_window_size required")
+  n = x.size
+  # left[i] = first index inside (x[i] - max_window_size, x[i]]
+  left = np.searchsorted(x, x - max_window_size, side="right")
+  # width of each candidate window
+  valid = x >= min_window_size
+  out = np.full(n, pad_val, dtype=float)
+  for i in np.where(valid)[0]:
+    l = left[i]
+    out[i] = calc_fn(x[l : i + 1])
+  return out
