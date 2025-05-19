@@ -23,9 +23,10 @@ sys.path.append('../prpy')
 
 from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.filters import moving_average
-from prpy.numpy.physio import EMethod, EScope, HR_MIN, HR_MAX
+from prpy.numpy.physio import EMethod, EScope, EWindowUnit, HR_MIN, HR_MAX
 from prpy.numpy.physio import estimate_rate_per_minute_from_signal
 from prpy.numpy.physio import estimate_rate_per_minute_from_detections
+from prpy.numpy.physio import estimate_rate_per_minute_from_detection_sequences
 
 import numpy as np
 import pytest
@@ -84,19 +85,23 @@ def test_estimate_rate_per_minute_from_signal_rolling_on_dynamic_signal(syntheti
 def make_dets_static(hr_bpm: float, n_beats: int = 20, f_s: float = 250.):
   """Evenly spaced detection indices for a constant HR."""
   rr = f_s * SECONDS_PER_MINUTE / hr_bpm
-  return (np.arange(n_beats) * rr).astype(int)
+  dets = (np.arange(n_beats) * rr).round().astype(int)
+  t = np.arange(dets[-1] + 1, dtype=float) / f_s
+  return dets, t
 
 def make_dets_dynamic(hr_start: float, hr_end: float, n_beats: int = 30, f_s: float = 250.):
   """Linear HR ramp."""
   rates = np.linspace(hr_start, hr_end, n_beats)
   rr = f_s * SECONDS_PER_MINUTE / rates
-  dets = np.cumsum(np.insert(rr[:-1], 0, 0)).astype(int)
-  return dets
+  dets = np.cumsum(np.insert(rr[:-1], 0, 0)).round().astype(int)
+  t = np.arange(dets[-1] + 1, dtype=float) / f_s
+  return dets, t
 
 @pytest.mark.parametrize("hr", [50, 80, 120])
 def test_estimate_rate_per_minute_from_detections_global_static(hr):
   f_s = 250.
-  dets = make_dets_static(hr_bpm=hr, f_s=f_s)
+  n_beats = 20
+  dets, _ = make_dets_static(hr_bpm=hr, n_beats=n_beats, f_s=f_s)
   est = estimate_rate_per_minute_from_detections(
     dets, f_s=f_s, scope=EScope.GLOBAL
   )
@@ -105,29 +110,180 @@ def test_estimate_rate_per_minute_from_detections_global_static(hr):
 @pytest.mark.parametrize("window", [5, 10])
 def test_estimate_rate_per_minute_from_detections_rolling_static(window):
   f_s = 250.
-  dets = make_dets_static(hr_bpm=75, n_beats=40, f_s=f_s)
+  hr = 75
+  dets, t = make_dets_static(hr_bpm=hr, n_beats=40, f_s=f_s)
   out = estimate_rate_per_minute_from_detections(
     dets,
     f_s=f_s,
+    t=t,
     scope=EScope.ROLLING,
-    window_size=window,
+    window_unit=EWindowUnit.DETECTIONS,
+    min_window_size=window,
+    max_window_size=window,
     overlap=window - 1,
   )
-  assert out.shape == dets.shape
-  good = ~np.isnan(out)
-  assert np.allclose(out[good], 75, atol=0.8)
+  assert out.shape == t.shape
+  finite = np.isfinite(out)
+  assert np.allclose(out[finite], 75, atol=0.8)
 
 def test_estimate_rate_per_minute_from_detections_rolling_dynamic():
   f_s = 250.
-  dets = make_dets_dynamic(hr_start=60, hr_end=90, f_s=f_s)
+  dets, t = make_dets_dynamic(hr_start=60, hr_end=90, n_beats=30, f_s=f_s)
   out = estimate_rate_per_minute_from_detections(
     dets,
     f_s=f_s,
+    t=t,
     scope=EScope.ROLLING,
-    window_size=6,
+    window_unit=EWindowUnit.DETECTIONS,
+    min_window_size=6,
+    max_window_size=6,
     overlap=5,
     interp_skipped=True,
   )
-  assert np.all(~np.isnan(out[5:]))
-  assert np.all(np.diff(out[5:]) >= 0)
-  assert out[-1] - out[5] > 20
+  finite = out[np.isfinite(out)]
+  assert finite.size >= 1
+  assert np.all(np.diff(finite) >= -1e-6)
+  assert finite[-1] - finite[0] > 20
+
+@pytest.mark.parametrize("window_s", [1.0, 2.0])
+def test_estimate_rate_per_minute_from_detections_rolling_static_seconds(window_s):
+  f_s = 250.
+  hr = 75
+  dets, t = make_dets_static(hr_bpm=hr, n_beats=40, f_s=f_s)
+  out = estimate_rate_per_minute_from_detections(
+    dets,
+    f_s=f_s,
+    t=t,
+    scope=EScope.ROLLING,
+    window_unit=EWindowUnit.SECONDS,
+    min_window_size=window_s,
+    max_window_size=window_s,
+  )
+  assert out.shape == t.shape
+  finite = np.isfinite(out)
+  assert finite.sum() > 0
+  assert np.allclose(out[finite], hr, atol=0.8)
+
+def test_estimate_rate_per_minute_from_detections_rolling_dynamic_seconds():
+  f_s = 250.
+  dets, t = make_dets_dynamic(hr_start=60, hr_end=90, n_beats=30, f_s=f_s)
+  out = estimate_rate_per_minute_from_detections(
+    dets,
+    f_s=f_s,
+    t=t,
+    scope=EScope.ROLLING,
+    window_unit=EWindowUnit.SECONDS,
+    min_window_size=3.0,
+    max_window_size=3.0,
+    interp_skipped=True,
+  )
+  assert out.shape == t.shape
+  finite = out[np.isfinite(out)]
+  assert finite.size > 0
+  assert np.all(np.diff(finite) >= -1e-6)
+  assert finite[-1] - finite[0] > 20
+
+def _two_static_runs(hr_bpm: float, gap_s: float = 2.0, *, f_s: float = 250.):
+  """Return two equal-HR detection runs separated by `gap_s` seconds."""
+  rr = f_s * SECONDS_PER_MINUTE / hr_bpm
+  k = 12
+  seq1 = (np.arange(k) * rr).round().astype(int)
+  shift = int(seq1[-1] + gap_s * f_s + rr)
+  seq2 = seq1 + shift
+  dets_all = np.hstack([seq1, seq2])
+  t = np.arange(dets_all[-1] + 1, dtype=float) / f_s
+  return [seq1, seq2], t
+
+def _two_dynamic_runs(hr0: float, hr1: float, *, f_s: float = 250.):
+  """Rising HR split into two runs of equal length."""
+  k = 30
+  dets, t_all = make_dets_dynamic(hr_start=hr0, hr_end=hr1, n_beats=k, f_s=f_s)
+  seq1, seq2 = np.array_split(dets, 2)
+  return [seq1, seq2], t_all
+
+@pytest.mark.parametrize("hr", [55, 90, 130])
+def test_estimate_rate_per_minute_from_detection_sequences_global_static(hr):
+  f_s = 250.
+  seqs, _ = _two_static_runs(hr_bpm=hr, f_s=f_s)
+  est = estimate_rate_per_minute_from_detection_sequences(
+    seqs, f_s=f_s, scope=EScope.GLOBAL
+  )
+  assert pytest.approx(est, rel=0.01) == hr
+
+@pytest.mark.parametrize("window", [5, 8])
+def test_estimate_rate_per_minute_from_detection_sequences_rolling_static_detections(window):
+  f_s = 250.
+  hr = 75
+  seqs, t = _two_static_runs(hr_bpm=hr, f_s=f_s)
+  out = estimate_rate_per_minute_from_detection_sequences(
+    seqs,
+    f_s=f_s,
+    t=t,
+    scope=EScope.ROLLING,
+    window_unit=EWindowUnit.DETECTIONS,
+    min_window_size=window,
+    max_window_size=window,
+    overlap=window - 1,
+  )
+  assert out.shape == t.shape
+  finite = np.isfinite(out)
+  assert finite.sum() > 0
+  np.testing.assert_allclose(out[finite], hr, atol=0.8)
+
+@pytest.mark.parametrize("window_s", [1.0, 2.0])
+def test_estimate_rate_per_minute_from_detection_sequences_rolling_static_seconds(window_s):
+  f_s = 250.
+  hr = 75
+  seqs, t = _two_static_runs(hr_bpm=hr, f_s=f_s)
+  out = estimate_rate_per_minute_from_detection_sequences(
+    seqs,
+    f_s=f_s,
+    t=t,
+    scope=EScope.ROLLING,
+    window_unit=EWindowUnit.SECONDS,
+    min_window_size=window_s,
+    max_window_size=window_s,
+  )
+  assert out.shape == t.shape
+  finite = np.isfinite(out)
+  assert finite.sum() > 0
+  np.testing.assert_allclose(out[finite], hr, atol=0.8)
+
+def test_estimate_rate_per_minute_from_detection_sequences_rolling_dynamic_detections():
+  f_s = 250.
+  seqs, t = _two_dynamic_runs(hr0=60, hr1=90, f_s=f_s)
+  out = estimate_rate_per_minute_from_detection_sequences(
+    seqs,
+    f_s=f_s,
+    t=t,
+    scope=EScope.ROLLING,
+    window_unit=EWindowUnit.DETECTIONS,
+    min_window_size=6,
+    max_window_size=6,
+    overlap=5,
+    interp_skipped=True,
+  )
+  assert out.shape == t.shape
+  finite = out[np.isfinite(out)]
+  assert finite.size > 0
+  assert np.all(np.diff(finite) >= -1e-6)
+  assert finite[-1] - finite[0] > 20
+
+def test_estimate_rate_per_minute_from_detection_sequences_rolling_dynamic_seconds():
+  f_s = 250.
+  seqs, t = _two_dynamic_runs(hr0=60, hr1=90, f_s=f_s)
+  out = estimate_rate_per_minute_from_detection_sequences(
+    seqs,
+    f_s=f_s,
+    t=t,
+    scope=EScope.ROLLING,
+    window_unit=EWindowUnit.SECONDS,
+    min_window_size=10,
+    max_window_size=10,
+    interp_skipped=True,
+  )
+  assert out.shape == t.shape
+  finite = out[np.isfinite(out)]
+  assert finite.size > 0
+  assert np.all(np.diff(finite) >= -1e-6)
+  assert finite[-1] - finite[0] > 15
