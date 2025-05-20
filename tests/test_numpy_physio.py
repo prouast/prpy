@@ -24,18 +24,18 @@ sys.path.append('../prpy')
 from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.filters import moving_average
 from prpy.numpy.physio import EMethod, EScope, EWindowUnit, HR_MIN, HR_MAX
-from prpy.numpy.physio import estimate_rate_per_minute_from_signal
-from prpy.numpy.physio import estimate_rate_per_minute_from_detections
-from prpy.numpy.physio import estimate_rate_per_minute_from_detection_sequences
+from prpy.numpy.physio import estimate_rate_from_signal
+from prpy.numpy.physio import estimate_rate_from_detections
+from prpy.numpy.physio import estimate_rate_from_detection_sequences
 
 import numpy as np
 import pytest
 
 @pytest.mark.parametrize("signal", ["ecg", "ppg"])
 @pytest.mark.parametrize("method", [EMethod.PEAK, EMethod.PERIODOGRAM])
-def test_estimate_rate_per_minute_from_signal_global(synthetic_ecg_static, synthetic_ppg_static, signal, method):
+def test_estimate_rate_from_signal_global(synthetic_ecg_static, synthetic_ppg_static, signal, method):
   s = synthetic_ecg_static if signal == "ecg" else synthetic_ppg_static
-  rate = estimate_rate_per_minute_from_signal(signal=s,
+  rate = estimate_rate_from_signal(signal=s,
                                               f_s=250.,
                                               f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
                                               scope=EScope.GLOBAL,
@@ -48,11 +48,11 @@ def test_estimate_rate_per_minute_from_signal_global(synthetic_ecg_static, synth
 @pytest.mark.parametrize("signal", ["ecg", "ppg"])
 @pytest.mark.parametrize("interp_skipped", [False, True])
 @pytest.mark.parametrize("method", [EMethod.PEAK, EMethod.PERIODOGRAM])
-def test_estimate_rate_per_minute_from_signal_rolling_on_static_signal(synthetic_ecg_static, synthetic_ppg_static, signal, method, interp_skipped):
+def test_estimate_rate_from_signal_rolling_on_static_signal(synthetic_ecg_static, synthetic_ppg_static, signal, method, interp_skipped):
   s = synthetic_ecg_static if signal == "ecg" else synthetic_ppg_static
   if signal == 'ecg' and method == EMethod.PERIODOGRAM:
     s = moving_average(s, size=101)
-  out = estimate_rate_per_minute_from_signal(signal=s,
+  out = estimate_rate_from_signal(signal=s,
                                              f_s=250.,
                                              f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
                                              scope=EScope.ROLLING,
@@ -66,9 +66,9 @@ def test_estimate_rate_per_minute_from_signal_rolling_on_static_signal(synthetic
 
 @pytest.mark.parametrize("signal", ["ecg", "ppg"])
 @pytest.mark.parametrize("method", [EMethod.PEAK, EMethod.PERIODOGRAM])
-def test_estimate_rate_per_minute_from_signal_rolling_on_dynamic_signal(synthetic_ecg_dynamic, synthetic_ppg_dynamic, signal, method):
+def test_estimate_rate_from_signal_rolling_on_dynamic_signal(synthetic_ecg_dynamic, synthetic_ppg_dynamic, signal, method):
   s = synthetic_ecg_dynamic if signal == "ecg" else synthetic_ppg_dynamic
-  out = estimate_rate_per_minute_from_signal(signal=s,
+  out = estimate_rate_from_signal(signal=s,
                                              f_s=250.,
                                              f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
                                              scope=EScope.ROLLING,
@@ -98,21 +98,21 @@ def make_dets_dynamic(hr_start: float, hr_end: float, n_beats: int = 30, f_s: fl
   return dets, t
 
 @pytest.mark.parametrize("hr", [50, 80, 120])
-def test_estimate_rate_per_minute_from_detections_global_static(hr):
+def test_estimate_rate_from_detections_global_static(hr):
   f_s = 250.
   n_beats = 20
   dets, _ = make_dets_static(hr_bpm=hr, n_beats=n_beats, f_s=f_s)
-  est = estimate_rate_per_minute_from_detections(
+  est = estimate_rate_from_detections(
     dets, f_s=f_s, scope=EScope.GLOBAL
   )
   assert pytest.approx(est, rel=0.01) == hr
 
 @pytest.mark.parametrize("window", [5, 10])
-def test_estimate_rate_per_minute_from_detections_rolling_static(window):
+def test_estimate_rate_from_detections_rolling_static(window):
   f_s = 250.
   hr = 75
   dets, t = make_dets_static(hr_bpm=hr, n_beats=40, f_s=f_s)
-  out = estimate_rate_per_minute_from_detections(
+  out = estimate_rate_from_detections(
     dets,
     f_s=f_s,
     t=t,
@@ -126,10 +126,10 @@ def test_estimate_rate_per_minute_from_detections_rolling_static(window):
   finite = np.isfinite(out)
   assert np.allclose(out[finite], 75, atol=0.8)
 
-def test_estimate_rate_per_minute_from_detections_rolling_dynamic():
+def test_estimate_rate_from_detections_rolling_dynamic():
   f_s = 250.
   dets, t = make_dets_dynamic(hr_start=60, hr_end=90, n_beats=30, f_s=f_s)
-  out = estimate_rate_per_minute_from_detections(
+  out = estimate_rate_from_detections(
     dets,
     f_s=f_s,
     t=t,
@@ -146,11 +146,11 @@ def test_estimate_rate_per_minute_from_detections_rolling_dynamic():
   assert finite[-1] - finite[0] > 20
 
 @pytest.mark.parametrize("window_s", [1.0, 2.0])
-def test_estimate_rate_per_minute_from_detections_rolling_static_seconds(window_s):
+def test_estimate_rate_from_detections_rolling_static_seconds(window_s):
   f_s = 250.
   hr = 75
   dets, t = make_dets_static(hr_bpm=hr, n_beats=40, f_s=f_s)
-  out = estimate_rate_per_minute_from_detections(
+  out = estimate_rate_from_detections(
     dets,
     f_s=f_s,
     t=t,
@@ -164,10 +164,10 @@ def test_estimate_rate_per_minute_from_detections_rolling_static_seconds(window_
   assert finite.sum() > 0
   assert np.allclose(out[finite], hr, atol=0.8)
 
-def test_estimate_rate_per_minute_from_detections_rolling_dynamic_seconds():
+def test_estimate_rate_from_detections_rolling_dynamic_seconds():
   f_s = 250.
   dets, t = make_dets_dynamic(hr_start=60, hr_end=90, n_beats=30, f_s=f_s)
-  out = estimate_rate_per_minute_from_detections(
+  out = estimate_rate_from_detections(
     dets,
     f_s=f_s,
     t=t,
@@ -202,20 +202,20 @@ def _two_dynamic_runs(hr0: float, hr1: float, *, f_s: float = 250.):
   return [seq1, seq2], t_all
 
 @pytest.mark.parametrize("hr", [55, 90, 130])
-def test_estimate_rate_per_minute_from_detection_sequences_global_static(hr):
+def test_estimate_rate_from_detection_sequences_global_static(hr):
   f_s = 250.
   seqs, _ = _two_static_runs(hr_bpm=hr, f_s=f_s)
-  est = estimate_rate_per_minute_from_detection_sequences(
+  est = estimate_rate_from_detection_sequences(
     seqs, f_s=f_s, scope=EScope.GLOBAL
   )
   assert pytest.approx(est, rel=0.01) == hr
 
 @pytest.mark.parametrize("window", [5, 8])
-def test_estimate_rate_per_minute_from_detection_sequences_rolling_static_detections(window):
+def test_estimate_rate_from_detection_sequences_rolling_static_detections(window):
   f_s = 250.
   hr = 75
   seqs, t = _two_static_runs(hr_bpm=hr, f_s=f_s)
-  out = estimate_rate_per_minute_from_detection_sequences(
+  out = estimate_rate_from_detection_sequences(
     seqs,
     f_s=f_s,
     t=t,
@@ -231,11 +231,11 @@ def test_estimate_rate_per_minute_from_detection_sequences_rolling_static_detect
   np.testing.assert_allclose(out[finite], hr, atol=0.8)
 
 @pytest.mark.parametrize("window_s", [1.0, 2.0])
-def test_estimate_rate_per_minute_from_detection_sequences_rolling_static_seconds(window_s):
+def test_estimate_rate_from_detection_sequences_rolling_static_seconds(window_s):
   f_s = 250.
   hr = 75
   seqs, t = _two_static_runs(hr_bpm=hr, f_s=f_s)
-  out = estimate_rate_per_minute_from_detection_sequences(
+  out = estimate_rate_from_detection_sequences(
     seqs,
     f_s=f_s,
     t=t,
@@ -249,10 +249,10 @@ def test_estimate_rate_per_minute_from_detection_sequences_rolling_static_second
   assert finite.sum() > 0
   np.testing.assert_allclose(out[finite], hr, atol=0.8)
 
-def test_estimate_rate_per_minute_from_detection_sequences_rolling_dynamic_detections():
+def test_estimate_rate_from_detection_sequences_rolling_dynamic_detections():
   f_s = 250.
   seqs, t = _two_dynamic_runs(hr0=60, hr1=90, f_s=f_s)
-  out = estimate_rate_per_minute_from_detection_sequences(
+  out = estimate_rate_from_detection_sequences(
     seqs,
     f_s=f_s,
     t=t,
@@ -269,10 +269,10 @@ def test_estimate_rate_per_minute_from_detection_sequences_rolling_dynamic_detec
   assert np.all(np.diff(finite) >= -1e-6)
   assert finite[-1] - finite[0] > 20
 
-def test_estimate_rate_per_minute_from_detection_sequences_rolling_dynamic_seconds():
+def test_estimate_rate_from_detection_sequences_rolling_dynamic_seconds():
   f_s = 250.
   seqs, t = _two_dynamic_runs(hr0=60, hr1=90, f_s=f_s)
-  out = estimate_rate_per_minute_from_detection_sequences(
+  out = estimate_rate_from_detection_sequences(
     seqs,
     f_s=f_s,
     t=t,

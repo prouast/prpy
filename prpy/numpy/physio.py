@@ -22,7 +22,8 @@ from enum import IntEnum
 import numpy as np
 from typing import Tuple, Optional, List, Callable
 
-from prpy.constants import SECONDS_PER_MINUTE
+from prpy.constants import SECONDS_PER_MINUTE, MILLIS_PER_SECOND
+from prpy.numpy.detect import detect_valid_peaks
 from prpy.numpy.freq import estimate_freq
 from prpy.numpy.interp import interpolate_skipped
 from prpy.numpy.rolling import rolling_calc, rolling_calc_ragged
@@ -61,7 +62,7 @@ class EWindowUnit(IntEnum):
   DETECTIONS = 0
   SECONDS = 1
 
-def estimate_rate_per_minute_from_signal(
+def estimate_rate_from_signal(
     signal: np.ndarray,
     f_s: float,
     f_range: Tuple[int, int],
@@ -273,7 +274,7 @@ def _calc_from_detection_sequences(
     results_full[mask] = r_seq[mask]
   return results_full
 
-def estimate_rate_per_minute_from_detections(
+def estimate_rate_from_detections(
     det_idxs: np.ndarray,
     *,
     f_s: Optional[float] = None,
@@ -335,7 +336,7 @@ def estimate_rate_per_minute_from_detections(
     pad_val=pad_val
   )
 
-def estimate_rate_per_minute_from_detection_sequences(
+def estimate_rate_from_detection_sequences(
     seqs: List[np.ndarray],
     *,
     f_s: float | None = None,
@@ -429,7 +430,7 @@ def estimate_hr_from_signal(
       - For Scope.GLOBAL: Shape (n_signals,)
       - For Scope.ROLLING: Same shape as `signal`
   """
-  return estimate_rate_per_minute_from_signal(
+  return estimate_rate_from_signal(
     signal=signal,
     f_s=f_s,
     f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
@@ -475,7 +476,7 @@ def estimate_rr_from_signal(
       - For Scope.GLOBAL: Shape (n_signals,)
       - For Scope.ROLLING: Same shape as `signal`
   """
-  return estimate_rate_per_minute_from_signal(
+  return estimate_rate_from_signal(
     signal=signal,
     f_s=f_s,
     f_range=(RR_MIN/SECONDS_PER_MINUTE, RR_MAX/SECONDS_PER_MINUTE),
