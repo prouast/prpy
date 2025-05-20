@@ -189,7 +189,10 @@ def resolve_1d_window_view(
     n = len(x)
     x = np.reshape(np.repeat(x, window_size), (n, window_size))
     vals = reduce_window_view(x, overlap=overlap)
+    if pad_start > 0:
+      # Trim start padding
+      vals = vals[pad_start:]
     if pad_end > 0:
-      # Trim end if it has been padded
+      # Trim end padding
       vals = vals[:-pad_end]
   return vals
