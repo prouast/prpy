@@ -168,8 +168,8 @@ def _calc_from_detections(
     raise ValueError("`min_window_size` and `max_window_size` are required when scope==Scope.ROLLING")
   if overlap is None:
     overlap = min_window_size - 1 if window_unit is EWindowUnit.DETECTIONS else None
-  if overlap is not None and overlap >= min_window_size:
-    raise ValueError("`overlap` must be < `min_window_size`")
+  if overlap is not None and overlap > min_window_size:
+    raise ValueError("`overlap` must be <= `min_window_size`")
   if window_unit is EWindowUnit.DETECTIONS:
     # Count-based window
     result_per_det = rolling_calc(
@@ -182,7 +182,7 @@ def _calc_from_detections(
     )
   else:
     # Duration-based window
-    det_t = (t[det_idxs] if t is not None else det_idxs / f_s).astype(float)
+    det_t = t[det_idxs].astype(float)
     result_per_det = rolling_calc_ragged(
       x=det_t,
       calc_fn=calc_fn_from_ts,
@@ -232,7 +232,6 @@ def _calc_from_detection_sequences(
       - For Scope.GLOBAL: Shape ()
       - For Scope.ROLLING: Shape (n,)
   """
-  seqs = [np.asarray(s, dtype=int) for s in seqs]
   if not seqs:
     raise ValueError("`seqs` must contain at least one sequence")
   if scope is EScope.GLOBAL:
@@ -488,4 +487,204 @@ def estimate_rr_from_signal(
     overlap=overlap,
     interp_skipped=interp_skipped,
     **kw
+  )
+
+def estimate_hrv_sdnn_from_signal(
+    signal: np.ndarray,
+    f_s: float,
+    f_range: Tuple[int, int],
+    min_window_size: float,
+    max_window_size: float,
+    *,
+    scope: EScope = EScope.GLOBAL,
+    overlap: float | None = None,
+    window_unit: EWindowUnit = EWindowUnit.DETECTIONS,
+    interp_skipped: bool = False,
+    min_dets: int = 8,
+    pad_val: float = np.nan,
+    **kw
+  ) -> np.ndarray:
+  """
+  Estimate HRV (SDNN) from raw signal sampled at constant `f_s`.
+  
+  Args:
+    signal: The raw sensor signal. Shape (n,)
+    f_s: Sampling frequency [Hz].
+    f_range: Tuple (min, max) of plausible frequency range [Hz].
+    scope: GLOBAL for scalar hrv or ROLLING for hrv trace shape (n,).
+    min_window_size: Minimum window size for scope.ROLLING in the `window_unit`.
+    max_window_size: Maximum window size for scope.ROLLING in the `window_unit`.
+    overlap: Overlap for scope.ROLLING in the `window_unit`.
+    window_unit: DETECTIONS or SECONDS.
+    interp_skipped: Insert interpolated detection for presumably skipped beats.
+    min_dets: Minimum number of valid dets required for calculation.
+    **kw: Extra args forwarded to the peak detector.
+  Returns:
+    The estimated rate.
+      - For Scope.GLOBAL: Shape ()
+      - For Scope.ROLLING: Same shape as `signal`
+  """
+  if overlap is None and window_unit is EWindowUnit.SECONDS:
+    overlap = max(min_window_size, max_window_size // 2)
+  if overlap is None and window_unit is EWindowUnit.DETECTIONS:
+    overlap = max(min_window_size, max_window_size - 1)
+  # Detect peaks
+  det_idxs = detect_valid_peaks(
+    vals=signal,
+    f_s=f_s,
+    f_range=f_range,
+    window_size=max_window_size,
+    overlap=overlap,
+    **kw
+  )
+  # Continue using the detections
+  return estimate_hrv_sdnn_from_detection_sequences(
+    seqs=det_idxs,
+    f_s=f_s,
+    scope=scope,
+    min_window_size=min_window_size,
+    max_window_size=max_window_size,
+    overlap=overlap,
+    window_unit=window_unit,
+    interp_skipped=interp_skipped,
+    min_dets=min_dets,
+    pad_val=pad_val
+  )
+
+def estimate_hrv_sdnn_from_detections(
+    det_idxs: np.ndarray,
+    *,
+    f_s: float | None = None,
+    t: np.ndarray | None = None,
+    scope: EScope = EScope.GLOBAL,
+    min_window_size: float | None = None,
+    max_window_size: float | None = None,
+    overlap: int | None = None,
+    window_unit: EWindowUnit = EWindowUnit.DETECTIONS,
+    interp_skipped: bool = False,
+    min_dets: int = 8,
+    correct_quantization_error: bool = True,
+    pad_val: float = np.nan,
+  ) -> np.ndarray:
+  """
+  Estimate HRV (SDNN) from detection indices `det_idxs`.
+  
+  Args:
+    det_idxs: The detection indices. Shape (n_dets,)
+    f_s: The sampling rate. Required when `t` is not given.
+    t: The timestamps of the original signal. Required for scope.ROLLING. Shape (n,)
+    scope: GLOBAL for scalar rate or ROLLING for rate trace shape (n,).
+    min_window_size: Minimum window size for scope.ROLLING in the `window_unit`.
+    max_window_size: Maximum window size for scope.ROLLING in the `window_unit`.
+    overlap: Overlap for scope.ROLLING in the `window_unit`.
+    window_unit: DETECTIONS or SECONDS.
+    interp_skipped: Insert interpolated detection for presumably skipped beats.
+    min_dets: Minimum number of valid dets required for calculation.
+    pad_val: Value for padding.
+  Returns:
+    The results.
+      - For Scope.GLOBAL: Shape ()
+      - For Scope.ROLLING: Shape (n,)
+  """
+  if f_s is None: f_s = t.shape[0]/(t[-1]-t[0])
+  def _rate_from_ts(det_t: np.ndarray) -> float:
+    """Convert a 1-D array of detection times to hrv sdnn [ms]"""
+    # TODO: Only use valid idxs (from confidence)
+    diffs = np.diff(det_t)
+    if interp_skipped:
+      diffs = interpolate_skipped(diffs, threshold=0.3)
+    if diffs.size < min_dets or np.any(diffs == 0):
+      return np.nan
+    var_e = 1./(12*f_s**2) if correct_quantization_error else 0
+    hrv_sdnn = np.sqrt(np.nanvar(diffs) - var_e) * MILLIS_PER_SECOND
+    # TODO: Also return conf = min used conf?
+    return hrv_sdnn
+  def _rate_from_dets(dets: np.ndarray) -> float:
+    """Convert a 1-D array of detection indices to hrv sdnn [ms]"""
+    dets = np.asarray(dets)
+    dets = dets[~np.isnan(dets)].astype(int, copy=False)
+    if dets.size < min_dets: return np.nan
+    det_t = (t[dets] if t is not None else dets / f_s).astype(float)
+    return _rate_from_ts(det_t)
+  return _calc_from_detections(
+    det_idxs=det_idxs,
+    calc_fn_from_dets=_rate_from_dets,
+    calc_fn_from_ts=_rate_from_ts,
+    f_s=f_s,
+    t=t,
+    scope=scope,
+    min_window_size=min_window_size,
+    max_window_size=max_window_size,
+    overlap=overlap,
+    window_unit=window_unit,
+    pad_val=pad_val
+  )
+
+def estimate_hrv_sdnn_from_detection_sequences(
+    seqs: List[np.ndarray],
+    *,
+    f_s: float | None = None,
+    t: np.ndarray | None = None,
+    scope: EScope = EScope.GLOBAL,
+    min_window_size: float | None = None,
+    max_window_size: float | None = None,
+    overlap: int | None = None,
+    window_unit: EWindowUnit = EWindowUnit.DETECTIONS,
+    interp_skipped: bool = False,
+    min_dets: int = 8,
+    correct_quantization_error: bool = True,
+    pad_val: float = np.nan,
+  ) -> np.ndarray:
+  """
+  Estimate HRV (SDNN) from to one or many sequences of detections.
+  
+  Args:
+    seqs: List of np.ndarray sequences of detections.
+    f_s: The sampling rate. Required when `t` is not given.
+    t: The timestamps of the original signal. Required for scope.ROLLING. Shape (n,)
+    scope: GLOBAL for scalar rate or ROLLING for rate trace shape (n,).
+    min_window_size: Minimum window size for scope.ROLLING in the `window_unit`.
+    max_window_size: Maximum window size for scope.ROLLING in the `window_unit`.
+    overlap: Overlap for scope.ROLLING in the `window_unit`.
+    window_unit: DETECTIONS or SECONDS.
+    interp_skipped: Insert interpolated detection for presumably skipped beats.
+    min_dets: Minimum number of valid dets required for calculation.
+    pad_val: Value for padding.
+  Returns:
+    The results.
+      - For Scope.GLOBAL: Shape ()
+      - For Scope.ROLLING: Shape (n,)
+  """
+  if f_s is None: f_s = t.shape[0]/(t[-1]-t[0])
+  def _rate_from_ts(det_t: np.ndarray) -> float:
+    """Convert a 1-D array of detection times to hrv sdnn [ms]"""
+    # TODO: Only use valid idxs (from confidence)
+    diffs = np.diff(det_t)
+    if interp_skipped:
+      diffs = interpolate_skipped(diffs, threshold=0.3)
+    if diffs.size < min_dets or np.any(diffs == 0):
+      return np.nan
+    var_e = 1./(12*f_s**2) if correct_quantization_error else 0
+    hrv_sdnn = np.sqrt(np.nanvar(diffs) - var_e) * MILLIS_PER_SECOND
+    # TODO: Also return conf = min used conf?
+    return hrv_sdnn
+  def _rate_from_dets(dets: np.ndarray) -> float:
+    """Convert a 1-D array of detection indices to hrv sdnn [ms]"""
+    dets = np.asarray(dets)
+    dets = dets[~np.isnan(dets)].astype(int, copy=False)
+    if dets.size < min_dets: return np.nan
+    det_t = (t[dets] if t is not None else dets / f_s).astype(float)
+    return _rate_from_ts(det_t)
+  return _calc_from_detection_sequences(
+    seqs=seqs,
+    calc_fn_from_dets=_rate_from_dets,
+    calc_fn_from_ts=_rate_from_ts,
+    f_s=f_s,
+    t=t,
+    scope=scope,
+    min_window_size=min_window_size,
+    max_window_size=max_window_size,
+    overlap=overlap,
+    window_unit=window_unit,
+    pad_val=pad_val
   )

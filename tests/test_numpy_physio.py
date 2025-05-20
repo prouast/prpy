@@ -27,6 +27,8 @@ from prpy.numpy.physio import EMethod, EScope, EWindowUnit, HR_MIN, HR_MAX
 from prpy.numpy.physio import estimate_rate_from_signal
 from prpy.numpy.physio import estimate_rate_from_detections
 from prpy.numpy.physio import estimate_rate_from_detection_sequences
+from prpy.numpy.physio import estimate_hrv_sdnn_from_detections
+from prpy.numpy.physio import estimate_hrv_sdnn_from_detection_sequences
 
 import numpy as np
 import pytest
@@ -287,3 +289,65 @@ def test_estimate_rate_from_detection_sequences_rolling_dynamic_seconds():
   assert finite.size > 0
   assert np.all(np.diff(finite) >= -1e-6)
   assert finite[-1] - finite[0] > 15
+
+def test_estimate_hrv_sdnn_from_detections_global():
+  det_idxs = np.asarray([202, 392, 601, 799, 1201, 1403, 1610, 1839])
+  actual = estimate_hrv_sdnn_from_detections(det_idxs, f_s=30, interp_skipped=True, min_dets=6)
+  np.testing.assert_allclose(378.68, actual, atol=0.1)
+
+@pytest.mark.parametrize("correct_quantization_error", [False, True])
+def test_estimate_hrv_sdnn_from_detection_sequences_global(correct_quantization_error):
+  idxs_list = [[202, 392, 612, 799], [1201, 1403, 1610, 1839]]
+  t = np.linspace(0, 8, 2000)
+  out = estimate_hrv_sdnn_from_detection_sequences(seqs=idxs_list,
+                                                   t=t,
+                                                   correct_quantization_error=correct_quantization_error,
+                                                   scope=EScope.GLOBAL,
+                                                   min_dets=3)
+  if correct_quantization_error:
+    np.testing.assert_allclose(out, 53.0593762, atol=1e-5)
+  else:
+    np.testing.assert_allclose(out, 53.0721198, atol=1e-5)
+
+@pytest.mark.parametrize("correct_quantization_error", [False, True])
+def test_estimate_hrv_sdnn_from_detection_sequences_rolling(correct_quantization_error):
+  idxs_list = [[202, 392, 612, 799], [1201, 1403, 1610, 1839]]
+  t = np.linspace(0, 8, 2000)
+  out = estimate_hrv_sdnn_from_detection_sequences(seqs=idxs_list,
+                                                   t=t,
+                                                   correct_quantization_error=correct_quantization_error,
+                                                   min_window_size=2,
+                                                   max_window_size=4,
+                                                   scope=EScope.ROLLING,
+                                                   overlap=2,
+                                                   min_dets=2)
+  if correct_quantization_error:
+    assert np.isnan(out[0]) # Start
+    assert np.isnan(out[202]) # Seq 1 val 1
+    assert np.isnan(out[392]) # Seq 1 val 2
+    assert np.isnan(out[611]) # Just before seq 1 val 3
+    assert pytest.approx(out[612], abs=0.001) == 59.6173 # Seq 1 val 3
+    assert pytest.approx(out[798], abs=0.001) == 59.6173 # Just before seq 1 val 4
+    assert pytest.approx(out[799], abs=0.001) == 59.6173 # Seq 1 val 4
+    assert pytest.approx(out[985], abs=0.001) == 59.6173 # In gap, but allow expected time after det to be valid
+    assert np.isnan(out[1201]) # Seq 2 val 1
+    assert np.isnan(out[1403]) # Seq 2 val 2
+    assert np.isnan(out[1609]) # Just before seq 2 val 3
+    assert pytest.approx(out[1610], abs=0.001) == 46.9229 # Seq 2 val 3
+    assert pytest.approx(out[1839], abs=0.001) == 46.9229 # Seq 2 val 4
+    assert pytest.approx(out[1999], abs=0.001) == 46.9229 # In gap, but allow expected time after det to be valid
+  else:
+    assert np.isnan(out[0]) # Start
+    assert np.isnan(out[202]) # Seq 1 val 1
+    assert np.isnan(out[392]) # Seq 1 val 2
+    assert np.isnan(out[611]) # Just before seq 1 val 3
+    assert pytest.approx(out[612], abs=0.001) == 59.6284 # Seq 1 val 3
+    assert pytest.approx(out[798], abs=0.001) == 59.6284 # Just before seq 1 val 4
+    assert pytest.approx(out[799], abs=0.001) == 59.6284 # Seq 1 val 4
+    assert pytest.approx(out[985], abs=0.001) == 59.6284 # In gap, but allow expected time after det to be valid
+    assert np.isnan(out[1201]) # Seq 2 val 1
+    assert np.isnan(out[1403]) # Seq 2 val 2
+    assert np.isnan(out[1609]) # Just before seq 2 val 3
+    assert pytest.approx(out[1610], abs=0.001) == 46.9371 # Seq 2 val 3
+    assert pytest.approx(out[1839], abs=0.001) == 46.9371 # Seq 2 val 4
+    assert pytest.approx(out[1999], abs=0.001) == 46.9371 # In gap, but allow expected time after det to be valid
