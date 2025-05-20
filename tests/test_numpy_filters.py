@@ -21,7 +21,8 @@
 import sys
 sys.path.append('../prpy')
 
-from prpy.numpy.filters import moving_average, moving_average_size_for_response, moving_std, detrend
+from prpy.numpy.filters import moving_average, moving_average_size_for_response, moving_std
+from prpy.numpy.filters import detrend, detrend_frequency_response
 
 import numpy as np
 import pytest
@@ -131,3 +132,12 @@ def test_detrend():
               [.12753036, -.01769809, .45650665, -.22174667, -.48305379],
               [-.0582996, .03747831, -.27848467, .31075766, .33470214]]),
     rtol=1e-6)
+
+def test_detrend_frequency_response():
+  # Example from the paper
+  f_s = 4
+  f_expected = 0.043
+  f = detrend_frequency_response(size=800,
+                                 Lambda=300,
+                                 f_s=f_s)
+  np.testing.assert_allclose(f, f_expected, atol=0.01)

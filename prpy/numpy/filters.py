@@ -171,6 +171,42 @@ def detrend(
   # Return
   return proc_z
 
+def detrend_frequency_response(
+    size: int,
+    Lambda: int,
+    f_s: float
+  ) -> float:
+  """
+  Return the estimated frequency response for Tarvainen et al. (2002) in Hz
+  
+  Args:
+    size: The size of the signal
+    Lambda: The Lambda parameter used
+    f_s: The sampling frequency of the signal
+  Returns:
+    The estimated frequency response in Hz
+  """
+  T = size
+  # Identity matrix
+  I = np.identity(T)
+  # Regularization matrix
+  D2 = spdiags(
+    [np.ones(T), -2*np.ones(T), np.ones(T)],
+    [0, 1, 2], (T-2), T).toarray()
+  # Inverse of I+lambda^2*D2’*D2
+  inv = np.linalg.inv(I + (Lambda**2) * np.dot(D2.T, D2))
+  # The time-varying FIR high pass filter
+  L = (I - inv)
+  # Compute the fourier transform of the middle row of L
+  # Take the magnitude of the frequency response
+  L_freq = np.abs(np.fft.fft(L[T//2]))[:T//2]
+  # FFT frequencies in Hz
+  freqs = np.fft.fftfreq(T, d=1/f_s)[0:T//2]
+  # The frequency in Hz
+  freq = freqs[np.argmax(L_freq > 0.64)]
+  # Return
+  return float(freq)
+
 # TODO(prouast): Write tests
 def butter_bandpass(
     x: np.ndarray,

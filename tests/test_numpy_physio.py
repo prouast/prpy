@@ -22,13 +22,16 @@ import sys
 sys.path.append('../prpy')
 
 from prpy.constants import SECONDS_PER_MINUTE
-from prpy.numpy.filters import moving_average
+from prpy.numpy.filters import moving_average, detrend, detrend_frequency_response
+from prpy.numpy.freq import estimate_freq
 from prpy.numpy.physio import EMethod, EScope, EWindowUnit, HR_MIN, HR_MAX
 from prpy.numpy.physio import estimate_rate_from_signal
 from prpy.numpy.physio import estimate_rate_from_detections
 from prpy.numpy.physio import estimate_rate_from_detection_sequences
 from prpy.numpy.physio import estimate_hrv_sdnn_from_detections
 from prpy.numpy.physio import estimate_hrv_sdnn_from_detection_sequences
+from prpy.numpy.physio import moving_average_size_for_hr_response, moving_average_size_for_rr_response
+from prpy.numpy.physio import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 
 import numpy as np
 import pytest
@@ -351,3 +354,70 @@ def test_estimate_hrv_sdnn_from_detection_sequences_rolling(correct_quantization
     assert pytest.approx(out[1610], abs=0.001) == 46.9371 # Seq 2 val 3
     assert pytest.approx(out[1839], abs=0.001) == 46.9371 # Seq 2 val 4
     assert pytest.approx(out[1999], abs=0.001) == 46.9371 # In gap, but allow expected time after det to be valid
+
+def test_moving_average_size_for_hr_response():
+  out = moving_average_size_for_hr_response(30.)
+  assert out > 1 and out < 5
+  assert isinstance(out, int)
+
+def test_moving_average_size_for_rr_response():
+  out = moving_average_size_for_rr_response(30.)
+  assert out > 10 and out < 15
+  assert isinstance(out, int)
+
+def test_detrend_lambda_for_hr_response():
+  out = detrend_lambda_for_hr_response(30.)
+  assert out > 100 and out < 150
+  assert isinstance(out, int)
+
+def test_detrend_lambda_for_rr_response():
+  out = detrend_lambda_for_rr_response(30.)
+  assert out > 6000 and out < 8000
+  assert isinstance(out, int)
+
+@pytest.mark.parametrize("f_s", [30, 125])
+def test_detrend_lambda_for_hr_response(f_s):
+  t = 10
+  f_ppg = 40./60.
+  # Test data
+  num = t * f_s
+  x = np.linspace(0, f_ppg * 2 * np.pi * t, num=num)
+  np.random.seed(0)
+  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=num) + x
+  # Compute detrend lambda
+  Lambda = detrend_lambda_for_hr_response(f_s=f_s)
+  f_theoretical = detrend_frequency_response(size=num, Lambda=Lambda, f_s=f_s)
+  assert f_theoretical < f_ppg
+  assert isinstance(Lambda, int)
+  assert Lambda > 0
+  # Detrend
+  y = detrend(y_, Lambda)
+  # Make sure frequency is preserved
+  np.testing.assert_allclose(
+    estimate_freq(x=y, f_s=f_s, f_res=0.01, f_range=(40./60., 240./60.), method='periodogram'),
+    f_ppg,
+    atol=0.01)
+
+@pytest.mark.parametrize("f_s", [30, 125])
+def test_detrend_lambda_for_rr_response(f_s):
+  t = 20
+  f_resp = 7./60.
+  # Test data
+  num = t * f_s
+  x = np.linspace(0, f_resp * 2 * np.pi * t, num=num)
+  np.random.seed(0)
+  y_ = 100 * np.sin(x) + np.random.normal(scale=8, size=num) + x
+  # Compute detrend lambda
+  Lambda = detrend_lambda_for_rr_response(f_s=f_s)
+  f_theoretical = detrend_frequency_response(size=num, Lambda=Lambda, f_s=f_s)
+  assert f_theoretical < f_resp
+  assert isinstance(Lambda, int)
+  assert Lambda > 0
+  # Detrend
+  y = detrend(y_, Lambda)
+  # Make sure frequency is preserved
+  np.testing.assert_allclose(
+    estimate_freq(x=y, f_s=f_s, f_res=0.01, f_range=(5./60., 100./60.), method='periodogram'),
+    f_resp,
+    atol=0.01)
+  
