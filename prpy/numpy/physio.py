@@ -490,18 +490,21 @@ def estimate_rr_from_signal(
     **kw
   )
 
+# TODO: Test
 def estimate_hrv_sdnn_from_signal(
     signal: np.ndarray,
     f_s: float,
-    f_range: Tuple[int, int],
     min_window_size: float,
     max_window_size: float,
     *,
     scope: EScope = EScope.GLOBAL,
     overlap: float | None = None,
+    confidence: np.ndarray | None = None,
+    confidence_threshold: float = 0.6,
     window_unit: EWindowUnit = EWindowUnit.DETECTIONS,
     interp_skipped: bool = False,
     min_dets: int = 8,
+    min_t: float = 10.,
     pad_val: float = np.nan,
     **kw
   ) -> np.ndarray:
@@ -516,9 +519,12 @@ def estimate_hrv_sdnn_from_signal(
     min_window_size: Minimum window size for scope.ROLLING in the `window_unit`.
     max_window_size: Maximum window size for scope.ROLLING in the `window_unit`.
     overlap: Overlap for scope.ROLLING in the `window_unit`.
+    confidence: Optional confidences for the raw sensor signal. Shape (n,)
+    confidence_threshold: Confidence threshold above which to consider detected peaks
     window_unit: DETECTIONS or SECONDS.
     interp_skipped: Insert interpolated detection for presumably skipped beats.
     min_dets: Minimum number of valid dets required for calculation.
+    min_t: Minimum duration of signal [seconds] required for calculation.
     **kw: Extra args forwarded to the peak detector.
   Returns:
     The estimated rate.
@@ -533,11 +539,22 @@ def estimate_hrv_sdnn_from_signal(
   det_idxs = detect_valid_peaks(
     vals=signal,
     f_s=f_s,
-    f_range=f_range,
+    f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
     window_size=max_window_size,
     overlap=overlap,
     **kw
   )
+  # Confidence
+  def _conf_filter_and_split(seqs, conf, thr):
+    seqs = [np.array(run, dtype=int) for run in seqs]
+    return [sub for seq in seqs for sub in np.split(
+        seq[conf[seq] >= thr],
+        np.where(np.diff(np.where(conf[seq] >= thr)[0]) != 1)[0] + 1
+      ) if sub.size
+    ]
+  if confidence is not None:
+    # Remove low-confidence indices
+    det_idxs = _conf_filter_and_split(det_idxs, confidence, confidence_threshold)
   # Continue using the detections
   return estimate_hrv_sdnn_from_detection_sequences(
     seqs=det_idxs,
@@ -549,6 +566,7 @@ def estimate_hrv_sdnn_from_signal(
     window_unit=window_unit,
     interp_skipped=interp_skipped,
     min_dets=min_dets,
+    min_t=min_t,
     pad_val=pad_val
   )
 
@@ -564,6 +582,7 @@ def estimate_hrv_sdnn_from_detections(
     window_unit: EWindowUnit = EWindowUnit.DETECTIONS,
     interp_skipped: bool = False,
     min_dets: int = 8,
+    min_t: float = 10.,
     correct_quantization_error: bool = True,
     pad_val: float = np.nan,
   ) -> np.ndarray:
@@ -581,6 +600,7 @@ def estimate_hrv_sdnn_from_detections(
     window_unit: DETECTIONS or SECONDS.
     interp_skipped: Insert interpolated detection for presumably skipped beats.
     min_dets: Minimum number of valid dets required for calculation.
+    min_t: Minimum duration of signal [seconds] required for calculation.
     pad_val: Value for padding.
   Returns:
     The results.
@@ -590,21 +610,20 @@ def estimate_hrv_sdnn_from_detections(
   if f_s is None: f_s = t.shape[0]/(t[-1]-t[0])
   def _rate_from_ts(det_t: np.ndarray) -> float:
     """Convert a 1-D array of detection times to hrv sdnn [ms]"""
-    # TODO: Only use valid idxs (from confidence)
     diffs = np.diff(det_t)
     if interp_skipped:
       diffs = interpolate_skipped(diffs, threshold=0.3)
-    if diffs.size < min_dets or np.any(diffs == 0):
+    if diffs.size - 1 < min_dets or det_t[-1] - det_t[0] < min_t or np.any(diffs == 0):
+      # Signal not sufficient for estimation
       return np.nan
     var_e = 1./(12*f_s**2) if correct_quantization_error else 0
     hrv_sdnn = np.sqrt(np.nanvar(diffs) - var_e) * MILLIS_PER_SECOND
-    # TODO: Also return conf = min used conf?
+    if hrv_sdnn > HRV_SDNN_MAX: return HRV_SDNN_MAX # TODO: Zero conf
     return hrv_sdnn
   def _rate_from_dets(dets: np.ndarray) -> float:
     """Convert a 1-D array of detection indices to hrv sdnn [ms]"""
     dets = np.asarray(dets)
     dets = dets[~np.isnan(dets)].astype(int, copy=False)
-    if dets.size < min_dets: return np.nan
     det_t = (t[dets] if t is not None else dets / f_s).astype(float)
     return _rate_from_ts(det_t)
   return _calc_from_detections(
@@ -633,6 +652,7 @@ def estimate_hrv_sdnn_from_detection_sequences(
     window_unit: EWindowUnit = EWindowUnit.DETECTIONS,
     interp_skipped: bool = False,
     min_dets: int = 8,
+    min_t: float = 10.,
     correct_quantization_error: bool = True,
     pad_val: float = np.nan,
   ) -> np.ndarray:
@@ -650,6 +670,7 @@ def estimate_hrv_sdnn_from_detection_sequences(
     window_unit: DETECTIONS or SECONDS.
     interp_skipped: Insert interpolated detection for presumably skipped beats.
     min_dets: Minimum number of valid dets required for calculation.
+    min_t: Minimum duration of signal [seconds] required for calculation.
     pad_val: Value for padding.
   Returns:
     The results.
@@ -659,15 +680,15 @@ def estimate_hrv_sdnn_from_detection_sequences(
   if f_s is None: f_s = t.shape[0]/(t[-1]-t[0])
   def _rate_from_ts(det_t: np.ndarray) -> float:
     """Convert a 1-D array of detection times to hrv sdnn [ms]"""
-    # TODO: Only use valid idxs (from confidence)
     diffs = np.diff(det_t)
     if interp_skipped:
       diffs = interpolate_skipped(diffs, threshold=0.3)
-    if diffs.size < min_dets or np.any(diffs == 0):
+    if diffs.size - 1 < min_dets or det_t[-1] - det_t[0] < min_t or np.any(diffs == 0):
+      # Signal not sufficient for estimation
       return np.nan
     var_e = 1./(12*f_s**2) if correct_quantization_error else 0
     hrv_sdnn = np.sqrt(np.nanvar(diffs) - var_e) * MILLIS_PER_SECOND
-    # TODO: Also return conf = min used conf?
+    if hrv_sdnn > HRV_SDNN_MAX: return HRV_SDNN_MAX # TODO: Zero conf
     return hrv_sdnn
   def _rate_from_dets(dets: np.ndarray) -> float:
     """Convert a 1-D array of detection indices to hrv sdnn [ms]"""

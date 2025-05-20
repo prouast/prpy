@@ -295,8 +295,8 @@ def test_estimate_rate_from_detection_sequences_rolling_dynamic_seconds():
 
 def test_estimate_hrv_sdnn_from_detections_global():
   det_idxs = np.asarray([202, 392, 601, 799, 1201, 1403, 1610, 1839])
-  actual = estimate_hrv_sdnn_from_detections(det_idxs, f_s=30, interp_skipped=True, min_dets=6)
-  np.testing.assert_allclose(378.68, actual, atol=0.1)
+  actual = estimate_hrv_sdnn_from_detections(det_idxs, f_s=30, interp_skipped=True, min_dets=5, min_t=1.)
+  np.testing.assert_allclose(200, actual, atol=0.1)
 
 @pytest.mark.parametrize("correct_quantization_error", [False, True])
 def test_estimate_hrv_sdnn_from_detection_sequences_global(correct_quantization_error):
@@ -306,7 +306,8 @@ def test_estimate_hrv_sdnn_from_detection_sequences_global(correct_quantization_
                                                    t=t,
                                                    correct_quantization_error=correct_quantization_error,
                                                    scope=EScope.GLOBAL,
-                                                   min_dets=3)
+                                                   min_dets=2,
+                                                   min_t=.5)
   if correct_quantization_error:
     np.testing.assert_allclose(out, 53.0593762, atol=1e-5)
   else:
@@ -323,7 +324,8 @@ def test_estimate_hrv_sdnn_from_detection_sequences_rolling(correct_quantization
                                                    max_window_size=4,
                                                    scope=EScope.ROLLING,
                                                    overlap=2,
-                                                   min_dets=2)
+                                                   min_dets=2,
+                                                   min_t=.5)
   if correct_quantization_error:
     assert np.isnan(out[0]) # Start
     assert np.isnan(out[202]) # Seq 1 val 1
