@@ -109,7 +109,7 @@ def moving_std(
   assert len(x.shape) == 1, "Only 1-D arrays supported"
   assert isinstance(size, int)
   assert isinstance(overlap, int)
-  x_view, _, pad_end = window_view(
+  x_view, pad_start, pad_end = window_view(
     x=x,
     min_window_size=size,
     max_window_size=size,
@@ -119,6 +119,7 @@ def moving_std(
     x=y_view,
     window_size=size,
     overlap=overlap,
+    pad_start=pad_start,
     pad_end=pad_end,
     fill_method=fill_method)
   return y

@@ -134,8 +134,9 @@ def resolve_1d_window_view(
     x: np.ndarray,
     window_size: int,
     overlap: int,
-    pad_end: int,
-    fill_method: str,
+    pad_start: int = 0,
+    pad_end: int = 0,
+    fill_method: str = "pad_val",
     pad_val: float = np.nan
   ) -> np.ndarray:
   """
@@ -147,6 +148,7 @@ def resolve_1d_window_view(
     x: The 1-d window view to be resolved
     window_size: The window size used to create the view
     overlap: The overlap used to create the view
+    pad_start: How much padding was applied to the start
     pad_end: How much padding was applied to the end
     fill_method: Method for filling/padding the result.
       - `pad_val`, `mean`, or `start`
@@ -157,13 +159,17 @@ def resolve_1d_window_view(
   assert isinstance(x, np.ndarray) and len(x.shape) == 1
   assert isinstance(window_size, int) and window_size > 0
   assert isinstance(overlap, int) and overlap >= 0 and overlap < window_size
+  assert isinstance(pad_start, int) and pad_start >= 0 and pad_start < window_size
   assert isinstance(pad_end, int) and pad_end >= 0 and pad_end < window_size
   assert isinstance(fill_method, str)
   if overlap == 0:
     # If overlap is zero, we simply need to repeat each value to match window_size
     vals = np.repeat(x, window_size)
+    if pad_start > 0:
+      # Trim start padding
+      vals = vals[pad_start:]
     if pad_end > 0:
-      # Trim end if it has been padded
+      # Trim end padding
       vals = vals[:-pad_end]
   elif overlap == window_size - 1:
     # If overlap is one less than the window size, then values are mostly
