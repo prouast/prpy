@@ -22,7 +22,7 @@ from dataclasses import dataclass
 import logging
 import numpy as np
 from scipy import signal
-from typing import Callable, Tuple, Optional, List
+from typing import Callable, Tuple, Optional, List, Union
 
 from prpy.numpy.freq import estimate_freq_periodogram
 from prpy.numpy.interp import interpolate_data_outliers
@@ -53,7 +53,7 @@ def detect_valid_peaks(
     overlap: Optional[int] = None,
     min_det_for_valid_seq: int = 1,
     t: Optional[np.ndarray] = None,
-    width: Optional[float | Tuple[float, float]] = None,
+    width: Optional[Union[float, Tuple[float, float]]] = None,
     fft_fn: Optional[Callable[[np.ndarray], np.ndarray]] = None,
     f_range: Optional[Tuple[float, float]] = None,
     f_res: Optional[float] = None,
@@ -63,7 +63,7 @@ def detect_valid_peaks(
     refine: Optional[str] = None,
     refine_dist: float = 0.1,
     return_debug: bool = False,
-  ) -> Tuple[List[List[int]], np.ndarray] | Tuple[List[List[int]], np.ndarray, PeakDetectDebug]:
+  ) -> tuple:
   """
   Detect sequences of valid peaks in a periodical signal (e.g., ECG)
   
