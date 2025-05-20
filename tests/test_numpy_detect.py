@@ -27,13 +27,14 @@ from prpy.numpy.filters import moving_average
 
 import numpy as np
 import pytest
+from typing import Optional
 
 def _make_ecg_like(
     fs: int,
     duration: float,
     hr_bpm: float,
     *,
-    missing_beat_at: int | None = None,
+    missing_beat_at: Optional[int] = None,
     noise_std: float = 0.05,
   ) -> np.ndarray:
   n = int(duration * fs)

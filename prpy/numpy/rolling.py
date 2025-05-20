@@ -20,7 +20,7 @@
 
 import logging
 import numpy as np
-from typing import Callable
+from typing import Callable, Optional
 
 from prpy.numpy.stride_tricks import window_view, resolve_1d_window_view
 
@@ -29,8 +29,8 @@ def rolling_calc(
     calc_fn: Callable,
     min_window_size: int,
     max_window_size: int,
-    overlap: int | None = None,
-    transform_fn: Callable | None = None,
+    overlap: Optional[int] = None,
+    transform_fn: Optional[Callable] = None,
     fill_method: str = 'pad_val',
     pad_val: float = np.nan
   ) -> np.ndarray:

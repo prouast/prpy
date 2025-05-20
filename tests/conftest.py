@@ -24,6 +24,7 @@ import os
 import pytest
 import random as rand
 import tempfile
+from typing import Optional, Union
 
 import sys
 sys.path.append('../prpy')
@@ -42,9 +43,9 @@ def _make_synthetic_ecg(
     hr_bpm: float,
     *,
     hr_trend_bpm_per_min: float = 0.0,
-    missing_beat_at: int | None = None,
+    missing_beat_at: Optional[int] = None,
     noise_std: float = 0.05,
-    seed: int | np.random.Generator | None = None,
+    seed: Optional[Union[int, np.random.Generator]] = None,
   ) -> tuple[np.ndarray, np.ndarray]:
   """Synthetic ECG with optional HR drift and reproducible RNG."""
   rng = np.random.default_rng(seed)
@@ -71,9 +72,9 @@ def _make_synthetic_ppg(
     hr_bpm: float,
     *,
     hr_trend_bpm_per_min: float = 0.0,
-    missing_beat_at: int | None = None,
+    missing_beat_at: Optional[int] = None,
     noise_std: float = 0.02,
-    seed: int | np.random.Generator | None = None,
+    seed: Optional[Union[int, np.random.Generator]] = None,
   ) -> tuple[np.ndarray, np.ndarray]:
   """Synthetic PPG with optional HR drift and reproducible RNG."""
   rng = np.random.default_rng(seed)
