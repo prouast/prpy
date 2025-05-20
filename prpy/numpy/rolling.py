@@ -60,10 +60,10 @@ def rolling_calc(
     result = np.full(size, fill_value=pad_val)
   else:
     # Create a rolling window view on x
-    x_view, _, pad_end = window_view(x=x,
-                                     min_window_size=min_window_size,
-                                     max_window_size=max_window_size,
-                                     overlap=overlap)
+    x_view, pad_start, pad_end = window_view(x=x,
+                                             min_window_size=min_window_size,
+                                             max_window_size=max_window_size,
+                                             overlap=overlap)
     if transform_fn is not None:
       # Transform the view
       x_view_trans = transform_fn(x_view)
@@ -80,6 +80,7 @@ def rolling_calc(
     result = resolve_1d_window_view(x=x_calc,
                                     window_size=max_window_size,
                                     overlap=overlap,
+                                    pad_start=pad_start,
                                     pad_end=pad_end,
                                     fill_method=fill_method,
                                     pad_val=pad_val)
