@@ -20,10 +20,11 @@
 
 from enum import IntEnum
 import numpy as np
-from typing import Tuple, Optional, List, Callable
+from typing import Tuple, Optional, List, Callable, Union
 
 from prpy.constants import SECONDS_PER_MINUTE, MILLIS_PER_SECOND
 from prpy.numpy.detect import detect_valid_peaks
+from prpy.numpy.filters import moving_average_size_for_response
 from prpy.numpy.freq import estimate_freq
 from prpy.numpy.interp import interpolate_skipped
 from prpy.numpy.rolling import rolling_calc, rolling_calc_ragged
@@ -688,3 +689,51 @@ def estimate_hrv_sdnn_from_detection_sequences(
     window_unit=window_unit,
     pad_val=pad_val
   )
+
+def moving_average_size_for_hr_response(
+    f_s: Union[float, int]
+  ) -> int:
+  """Get the moving average window size for a signal with HR information sampled at a given frequency
+  
+  Args:
+    f_s: The sampling frequency
+  Returns:
+    The moving average size in number of signal vals
+  """
+  return moving_average_size_for_response(f_s, HR_MAX / SECONDS_PER_MINUTE)
+
+def moving_average_size_for_rr_response(
+    f_s: Union[float, int]
+  ) -> int:
+  """Get the moving average window size for a signal with RR information sampled at a given frequency
+  
+  Args:
+    f_s: The sampling frequency
+  Returns:
+    The moving average size in number of signal vals
+  """
+  return moving_average_size_for_response(f_s, RR_MAX / SECONDS_PER_MINUTE)
+
+def detrend_lambda_for_hr_response(
+    f_s: Union[float, int]
+  ) -> int:
+  """Get the detrending lambda parameter for a signal with HR information sampled at a given frequency
+  
+  Args:
+    f_s: The sampling frequency
+  Returns:
+    The lambda parameter
+  """
+  return int(0.1614*np.power(f_s, 1.9804))
+
+def detrend_lambda_for_rr_response(
+    f_s: Union[float, int]
+  ) -> int:
+  """Get the detrending lambda parameter for a signal with RR information sampled at a given frequency
+  
+  Args:
+    f_s: The sampling frequency
+  Returns:
+    The lambda parameter
+  """
+  return int(4.4248*np.power(f_s, 2.1253))
