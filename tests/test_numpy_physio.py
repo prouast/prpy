@@ -28,6 +28,7 @@ from prpy.numpy.physio import EMethod, EScope, EWindowUnit, HR_MIN, HR_MAX
 from prpy.numpy.physio import estimate_rate_from_signal
 from prpy.numpy.physio import estimate_rate_from_detections
 from prpy.numpy.physio import estimate_rate_from_detection_sequences
+from prpy.numpy.physio import estimate_hrv_sdnn_from_signal
 from prpy.numpy.physio import estimate_hrv_sdnn_from_detections
 from prpy.numpy.physio import estimate_hrv_sdnn_from_detection_sequences
 from prpy.numpy.physio import moving_average_size_for_hr_response, moving_average_size_for_rr_response
@@ -324,7 +325,7 @@ def test_estimate_hrv_sdnn_from_detection_sequences_rolling(correct_quantization
                                                    max_window_size=4,
                                                    scope=EScope.ROLLING,
                                                    overlap=2,
-                                                   min_dets=2,
+                                                   min_dets=3,
                                                    min_t=.5)
   if correct_quantization_error:
     assert np.isnan(out[0]) # Start
@@ -423,3 +424,24 @@ def test_detrend_lambda_for_rr_response(f_s):
     f_resp,
     atol=0.01)
   
+@pytest.mark.parametrize("scenario", [([.01, .03, .2,  .6,  .4,  .001, .02, .01, .8, .09, .03, .06, .99, .03, .1, .06, .11, .7, .31, .12, .03, .79, .1, .05, .01, .94, 0.1],
+                                       [1.,  1.,  .99, .95, .96, 1.,   1.,  1.,  1., 1.,  1.,  1.,  1.,  1.,  1., 1.,  .81, .5, .9,  1.,  1.,  1.,  1.,  1., 1.,  1., 1.],
+                                       4., .6, 93.17, .95)])
+def test_estimate_hrv_sdnn_from_signal_with_confidence(scenario):
+  signal, conf, f_s, conf_threshold, expected, exp_conf = scenario
+  signal = np.asarray(signal)
+  conf = np.asarray(conf)
+  actual, conf = estimate_hrv_sdnn_from_signal(
+    signal=signal,
+    f_s=f_s,
+    min_window_size=27,
+    max_window_size=27,
+    overlap=0,
+    scope=EScope.GLOBAL,
+    confidence=conf,
+    confidence_threshold=conf_threshold,
+    min_t=.5,
+    min_dets=4
+  )
+  np.testing.assert_allclose(actual, expected, atol=1e-2)
+  np.testing.assert_allclose(conf, exp_conf)

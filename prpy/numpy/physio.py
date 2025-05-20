@@ -239,6 +239,32 @@ def _calc_from_detection_sequences(
     if t is None and f_s is None: raise ValueError("Provide either `t` or `f_s`.")
   else:
     if t is None: raise ValueError("Provide `t`.")
+  if scope is EScope.GLOBAL and t is None:
+    def _stitch(seqs: List[np.ndarray]) -> np.ndarray:
+      """Merge runs, dropping the first index of each later run and
+      left-shifting the remainder so that diffs are preserved."""
+      _seqs = [np.asarray(s, dtype=int) for s in seqs if s.size]
+      _seqs.sort(key=lambda a: a[0])
+      merged = _seqs[0].copy()
+      for s in _seqs[1:]:
+        if s.size < 2:
+          continue
+        gap = s[0] - merged[-1]
+        if gap <= 0:
+          raise ValueError("Sequences overlap or are not strictly ascending")
+        merged = np.concatenate([merged, s[1:] - gap])
+      return merged
+    merged_idxs = _stitch(seqs)
+    return _calc_from_detections(
+      det_idxs=merged_idxs,
+      calc_fn_from_dets=calc_fn_from_dets,
+      calc_fn_from_ts=calc_fn_from_ts,
+      f_s=f_s,
+      t=None,
+      scope=EScope.GLOBAL,
+      pad_val=pad_val,
+      **kw,
+    )
   if scope is EScope.GLOBAL:
     results, weights = [], []
     for s in seqs:
@@ -490,7 +516,6 @@ def estimate_rr_from_signal(
     **kw
   )
 
-# TODO: Test
 def estimate_hrv_sdnn_from_signal(
     signal: np.ndarray,
     f_s: float,
@@ -507,7 +532,7 @@ def estimate_hrv_sdnn_from_signal(
     min_t: float = 10.,
     pad_val: float = np.nan,
     **kw
-  ) -> np.ndarray:
+  ) -> Tuple[np.ndarray, float]:
   """
   Estimate HRV (SDNN) from raw signal sampled at constant `f_s`.
   
@@ -536,7 +561,7 @@ def estimate_hrv_sdnn_from_signal(
   if overlap is None and window_unit is EWindowUnit.DETECTIONS:
     overlap = max(min_window_size, max_window_size - 1)
   # Detect peaks
-  det_idxs = detect_valid_peaks(
+  det_idxs, _ = detect_valid_peaks(
     vals=signal,
     f_s=f_s,
     f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
@@ -552,11 +577,17 @@ def estimate_hrv_sdnn_from_signal(
         np.where(np.diff(np.where(conf[seq] >= thr)[0]) != 1)[0] + 1
       ) if sub.size
     ]
+  def _lowest_kept_conf(seqs, conf, thr):
+    if conf is None: return 0.0
+    kept = np.concatenate(_conf_filter_and_split(seqs, conf, thr)) \
+          if seqs else np.empty(0, int)
+    return float(np.nanmin(conf[kept])) if kept.size else 0.0
   if confidence is not None:
     # Remove low-confidence indices
     det_idxs = _conf_filter_and_split(det_idxs, confidence, confidence_threshold)
+    sdnn_conf = _lowest_kept_conf(det_idxs, confidence, confidence_threshold)
   # Continue using the detections
-  return estimate_hrv_sdnn_from_detection_sequences(
+  sdnn = estimate_hrv_sdnn_from_detection_sequences(
     seqs=det_idxs,
     f_s=f_s,
     scope=scope,
@@ -569,6 +600,7 @@ def estimate_hrv_sdnn_from_signal(
     min_t=min_t,
     pad_val=pad_val
   )
+  return sdnn, sdnn_conf
 
 def estimate_hrv_sdnn_from_detections(
     det_idxs: np.ndarray,
@@ -683,7 +715,7 @@ def estimate_hrv_sdnn_from_detection_sequences(
     diffs = np.diff(det_t)
     if interp_skipped:
       diffs = interpolate_skipped(diffs, threshold=0.3)
-    if diffs.size - 1 < min_dets or det_t[-1] - det_t[0] < min_t or np.any(diffs == 0):
+    if diffs.size + 1 < min_dets or det_t[-1] - det_t[0] < min_t or np.any(diffs == 0):
       # Signal not sufficient for estimation
       return np.nan
     var_e = 1./(12*f_s**2) if correct_quantization_error else 0
