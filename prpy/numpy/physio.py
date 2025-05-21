@@ -29,24 +29,31 @@ from prpy.numpy.freq import estimate_freq
 from prpy.numpy.interp import interpolate_skipped
 from prpy.numpy.rolling import rolling_calc, rolling_calc_ragged
 
-BP_SYS_MIN = 40      # mmHg
-BP_SYS_MAX = 240     # mmHg
-BP_DIA_MIN = 20      # mmHg
-BP_DIA_MAX = 160     # mmHg
-HR_MIN = 40          # 1/min
-HR_MAX = 240         # 1/min
-HRV_SDNN_MIN = 1     # ms
-HRV_SDNN_MAX = 200   # ms
-PTT_MIN = 100        # ms
-PTT_MAX = 400        # ms
-IDX_MIN = 0.         
-IDX_MAX = 1.
-PWV_MIN = 0.2        # cm/ms
-PWV_MAX = 0.6        # cm/ms
-RR_MIN = 1           # 1/min
-RR_MAX = 60          # 1/min
-SPO2_MIN = 70        # %
-SPO2_MAX = 100       # %
+BP_SYS_MIN = 40           # mmHg
+BP_SYS_MAX = 240          # mmHg
+BP_DIA_MIN = 20           # mmHg
+BP_DIA_MAX = 160          # mmHg
+HR_MIN = 40               # 1/min
+HR_MAX = 240              # 1/min
+HRV_SDNN_MIN = 1          # ms
+HRV_SDNN_MAX = 200        # ms
+PTT_MIN = 100             # ms
+PTT_MAX = 400             # ms
+IDX_MIN = 0.              # unitless
+IDX_MAX = 1.              # unitless
+PWV_MIN = 0.2             # cm/ms
+PWV_MAX = 0.6             # cm/ms
+RR_MIN = 1                # 1/min
+RR_MAX = 60               # 1/min
+SPO2_MIN = 70             # %
+SPO2_MAX = 100            # %
+
+CALC_HR_MIN_T = 5         # seconds
+CALC_HR_MAX_T = 10        # seconds
+CALC_HRV_SDNN_MIN_T = 10  # seconds
+CALC_HRV_SDNN_MAX_T = 60  # seconds
+CALC_RR_MIN_T = 10        # seconds
+CALC_RR_MAX_T = 30        # seconds
 
 class EScope(IntEnum):
   """How the metric is computed along the signal timeline."""
@@ -586,6 +593,9 @@ def estimate_hrv_sdnn_from_signal(
     # Remove low-confidence indices
     det_idxs = _conf_filter_and_split(det_idxs, confidence, confidence_threshold)
     sdnn_conf = _lowest_kept_conf(det_idxs, confidence, confidence_threshold)
+  if len(det_idxs) == 0:
+     sdnn = np.nan if scope is EScope.GLOBAL else np.full(signal.shape, np.nan)
+     return sdnn, 0.
   # Continue using the detections
   sdnn = estimate_hrv_sdnn_from_detection_sequences(
     seqs=det_idxs,
@@ -650,7 +660,7 @@ def estimate_hrv_sdnn_from_detections(
       return np.nan
     var_e = 1./(12*f_s**2) if correct_quantization_error else 0
     hrv_sdnn = np.sqrt(np.nanvar(diffs) - var_e) * MILLIS_PER_SECOND
-    if hrv_sdnn > HRV_SDNN_MAX: return HRV_SDNN_MAX # TODO: Zero conf
+    if hrv_sdnn > HRV_SDNN_MAX: return HRV_SDNN_MAX
     return hrv_sdnn
   def _rate_from_dets(dets: np.ndarray) -> float:
     """Convert a 1-D array of detection indices to hrv sdnn [ms]"""
@@ -720,7 +730,7 @@ def estimate_hrv_sdnn_from_detection_sequences(
       return np.nan
     var_e = 1./(12*f_s**2) if correct_quantization_error else 0
     hrv_sdnn = np.sqrt(np.nanvar(diffs) - var_e) * MILLIS_PER_SECOND
-    if hrv_sdnn > HRV_SDNN_MAX: return HRV_SDNN_MAX # TODO: Zero conf
+    if hrv_sdnn > HRV_SDNN_MAX: return HRV_SDNN_MAX
     return hrv_sdnn
   def _rate_from_dets(dets: np.ndarray) -> float:
     """Convert a 1-D array of detection indices to hrv sdnn [ms]"""
