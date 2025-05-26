@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Philipp Rouast
+# Copyright (c) 2025 Philipp Rouast
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,15 @@ import numpy as np
 from scipy import signal
 from typing import Union
 
-def mag2db(mag: Union[np.ndarray, np.float64]) -> np.ndarray:
+def _masked_sum(x, mask, axis, *, keepdims=False):
+  return np.where(mask, x, 0.0).sum(axis=axis, keepdims=keepdims)
+
+def _safe_mean(x, mask, axis):
+  n_valid = mask.sum(axis=axis, keepdims=True)
+  n_safe  = np.where(n_valid == 0, 1, n_valid)
+  return _masked_sum(x, mask, axis, keepdims=True) / n_safe
+
+def _mag2db(mag: Union[np.ndarray, np.float64]) -> np.ndarray:
   """
   Magnitude to decibels element-wise.
 
@@ -37,7 +45,9 @@ def mag2db(mag: Union[np.ndarray, np.float64]) -> np.ndarray:
 def mae(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    axis: Union[int, None] = -1
+    axis: Union[int, None] = -1,
+    *,
+    ignore_nan: bool = False
   ) -> np.ndarray:
   """
   Mean absolute error
@@ -46,6 +56,7 @@ def mae(
     y_true: True values. Shape (..., dim_n, dim_axis)
     y_pred: Predicted values. Shape (..., dim_n, dim_axis)
     axis: Axis along which the means are computed
+    ignore_nan: If true, metric is computed on non-NaN elements only.
   Returns:
     mae: The mean absolute error. Shape (..., dim_n)
   """
@@ -53,15 +64,23 @@ def mae(
   y_true = np.asarray(y_true)
   y_pred = np.asarray(y_pred)
   assert y_true.shape == y_pred.shape
-  if np.all(np.isfinite(y_true)) and np.all(np.isfinite(y_pred)):
-    return np.mean(np.abs(y_true - y_pred), axis=axis)
-  else:
-    return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
+  if not ignore_nan:
+    if np.all(np.isfinite(y_true)) and np.all(np.isfinite(y_pred)):
+      return np.mean(np.abs(y_true - y_pred), axis=axis)
+    else:
+      return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
+  mask = np.isfinite(y_true) & np.isfinite(y_pred)
+  err  = np.abs(y_true - y_pred)
+  n_valid = mask.sum(axis=axis)
+  err_sum = _masked_sum(err, mask, axis)
+  return np.where(n_valid > 0, err_sum / n_valid, np.nan)
 
 def mse(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    axis: Union[int, None] = -1
+    axis: Union[int, None] = -1,
+    *,
+    ignore_nan: bool = False
   ) -> np.ndarray:
   """
   Mean squared error
@@ -70,6 +89,7 @@ def mse(
     y_true: True values. Shape (..., dim_n, dim_axis)
     y_pred: Predicted values. Shape (..., dim_n, dim_axis)
     axis: Axis along which the means are computed
+    ignore_nan: If true, metric is computed on non-NaN elements only.
   Returns:
     mse: The mean squared error. Shape (..., dim_n)
   """
@@ -77,15 +97,23 @@ def mse(
   y_true = np.asarray(y_true)
   y_pred = np.asarray(y_pred)
   assert y_true.shape == y_pred.shape
-  if np.all(np.isfinite(y_true)) and np.all(np.isfinite(y_pred)):
-    return np.mean(np.square(y_true - y_pred), axis=axis)
-  else:
-    return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
+  if not ignore_nan:
+    if np.all(np.isfinite(y_true)) and np.all(np.isfinite(y_pred)):
+      return np.mean(np.square(y_true - y_pred), axis=axis)
+    else:
+      return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
+  mask = np.isfinite(y_true) & np.isfinite(y_pred)
+  sq = (y_true - y_pred) ** 2
+  n_valid = mask.sum(axis=axis)
+  sq_sum = _masked_sum(sq, mask, axis)
+  return np.where(n_valid > 0, sq_sum / n_valid, np.nan)
 
 def rmse(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    axis: Union[int, None] = -1
+    axis: Union[int, None] = -1,
+    *,
+    ignore_nan: bool = False
   ) -> np.ndarray:
   """
   Root mean squared error
@@ -94,22 +122,18 @@ def rmse(
     y_true: True values. Shape (..., dim_n, dim_axis)
     y_pred: Predicted values. Shape (..., dim_n, dim_axis)
     axis: Axis along which the means are computed
+    ignore_nan: If true, metric is computed on non-NaN elements only.
   Returns:
     rmse: The root mean squared error. Shape (..., dim_n)
   """
-  assert axis is None or isinstance(axis, int)
-  y_true = np.asarray(y_true)
-  y_pred = np.asarray(y_pred)
-  assert y_true.shape == y_pred.shape
-  if np.all(np.isfinite(y_true)) and np.all(np.isfinite(y_pred)):
-    return np.sqrt(np.mean(np.square(y_true - y_pred), axis=axis))
-  else:
-    return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
+  return np.sqrt(mse(y_true, y_pred, axis=axis, ignore_nan=ignore_nan))
 
 def cor(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    axis: Union[int, None] = -1
+    axis: Union[int, None] = -1,
+    *,
+    ignore_nan: bool = False,
   ) -> np.ndarray:
   """
   Pearson's correlation coefficient
@@ -118,6 +142,7 @@ def cor(
     y_true: True values. Shape (..., dim_n, dim_axis)
     y_pred: Predicted values. Shape (..., dim_n, dim_axis)
     axis: Axis along which correlations are computed
+    ignore_nan: If true, metric is computed on non-NaN elements only.
   Returns:
     cor: The correlation coefficients. Shape (..., dim_n)
   """
@@ -125,17 +150,29 @@ def cor(
   y_true = np.asarray(y_true)
   y_pred = np.asarray(y_pred)
   assert y_true.shape == y_pred.shape
-  if np.all(np.isfinite(y_true)) and np.all(np.isfinite(y_pred)):
-    res_true = y_true - np.mean(y_true, axis=axis, keepdims=True)
-    res_pred = y_pred - np.mean(y_pred, axis=axis, keepdims=True)
-    cov = np.mean(res_true * res_pred, axis=axis)
-    var_true = np.mean(res_true**2, axis=axis)
-    var_pred = np.mean(res_pred**2, axis=axis)
-    sigma_true = np.sqrt(var_true)
-    sigma_pred = np.sqrt(var_pred)
-    return cov / (sigma_true * sigma_pred)
-  else:
-    return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
+  if not ignore_nan:
+    if np.all(np.isfinite(y_true)) and np.all(np.isfinite(y_pred)):
+      res_true = y_true - np.mean(y_true, axis=axis, keepdims=True)
+      res_pred = y_pred - np.mean(y_pred, axis=axis, keepdims=True)
+      cov = np.mean(res_true * res_pred, axis=axis)
+      var_true = np.mean(res_true**2, axis=axis)
+      var_pred = np.mean(res_pred**2, axis=axis)
+      sigma_true = np.sqrt(var_true)
+      sigma_pred = np.sqrt(var_pred)
+      return cov / (sigma_true * sigma_pred)
+    else:
+      return np.full(y_true.shape[:axis], fill_value=np.nan, dtype=y_true.dtype)
+  mask = np.isfinite(y_true) & np.isfinite(y_pred)
+  mean_t = _safe_mean(y_true, mask, axis)
+  mean_p = _safe_mean(y_pred, mask, axis)
+  r_true = np.where(mask, y_true - mean_t, 0.0)
+  r_pred = np.where(mask, y_pred - mean_p, 0.0)
+  n_valid = mask.sum(axis=axis)
+  cov = (r_true * r_pred).sum(axis=axis) / np.where(n_valid == 0, 1, n_valid)
+  var_t = (r_true ** 2).sum(axis=axis) / np.where(n_valid == 0, 1, n_valid)
+  var_p = (r_pred ** 2).sum(axis=axis) / np.where(n_valid == 0, 1, n_valid)
+  corr = cov / (np.sqrt(var_t) * np.sqrt(var_p))
+  return np.where(n_valid > 0, corr, np.nan)
 
 def snr(
     f_true: np.ndarray,
@@ -186,7 +223,7 @@ def snr(
     s_power = np.sum(pxx * gt_mask, axis=-1)
     f_mask = (f >= f_min) & (f <= f_max)
     all_power = np.sum(pxx * f_mask, axis=-1)
-    snr = mag2db(s_power / (all_power - s_power))
+    snr = _mag2db(s_power / (all_power - s_power))
     return np.squeeze(snr)
   else:
     return np.full(y_pred.shape[:-1], fill_value=np.nan, dtype=y_pred.dtype)
