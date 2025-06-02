@@ -22,7 +22,6 @@ import imghdr
 import math
 import numpy as np
 import os
-from PIL import Image
 import logging
 from typing import Union, Tuple
 
@@ -244,6 +243,7 @@ def probe_image_inputs(
         # Image
         if not allow_image:
           raise ValueError(f"allow_image={allow_image}, but received a path to an image file.")
+        from PIL import Image
         with Image.open(inputs) as img:
           width, height = img.size
           channels = len(img.getbands())
@@ -363,6 +363,7 @@ def parse_image_inputs(
         if not allow_image:
           raise ValueError(f"allow_image={allow_image}, but received a path to an image file.")
         try:
+          from PIL import Image
           inputs = np.asarray(Image.open(open(inputs, 'rb')))
         except Exception as e:
           raise ValueError(f"Problem reading image from {inputs}: {e}")
