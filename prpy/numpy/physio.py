@@ -20,6 +20,7 @@
 
 from enum import IntEnum
 import numpy as np
+from scipy.signal import welch
 from typing import Tuple, Optional, List, Callable, Union
 
 from prpy.constants import SECONDS_PER_MINUTE, MILLIS_PER_SECOND
@@ -37,6 +38,14 @@ HR_MIN = 40               # 1/min
 HR_MAX = 240              # 1/min
 HRV_SDNN_MIN = 1          # ms
 HRV_SDNN_MAX = 200        # ms
+HRV_RMSSD_MIN = 1         # ms
+HRV_RMSSD_MAX = 200       # ms
+HRV_LF_MIN = 0            # ms^2
+HRV_LF_MAX = 5000         # ms^2
+HRV_HF_MIN = 0            # ms^2
+HRV_HF_MAX = 5000         # ms^2
+HRV_LF_HF_MIN = 0         # unitless
+HRV_LF_HF_MAX = 10        # unitless
 PTT_MIN = 100             # ms
 PTT_MAX = 400             # ms
 IDX_MIN = 0.              # unitless
@@ -50,8 +59,12 @@ SPO2_MAX = 100            # %
 
 CALC_HR_MIN_T = 5         # seconds
 CALC_HR_MAX_T = 10        # seconds
-CALC_HRV_SDNN_MIN_T = 10  # seconds
+CALC_HRV_SDNN_MIN_T = 20  # seconds
 CALC_HRV_SDNN_MAX_T = 60  # seconds
+CALC_HRV_RMSSD_MIN_T = 20 # seconds
+CALC_HRV_RMSSD_MAX_T = 60 # seconds
+CALC_HRV_LF_HF_MIN_T = 55 # seconds
+CALC_HRV_LF_HF_MAX_T = 60 # seconds
 CALC_RR_MIN_T = 10        # seconds
 CALC_RR_MAX_T = 30        # seconds
 
@@ -69,6 +82,14 @@ class EWindowUnit(IntEnum):
   """Unit for rolling window."""
   DETECTIONS = 0
   SECONDS = 1
+
+class HRVMetric(IntEnum):
+  """Metric for heart rate variability."""
+  SDNN = 0
+  RMSSD = 1
+  LF = 2
+  HF = 3
+  LF_HF = 4
 
 def estimate_rate_from_signal(
     signal: np.ndarray,
@@ -523,8 +544,56 @@ def estimate_rr_from_signal(
     **kw
   )
 
-def estimate_hrv_sdnn_from_signal(
+def _get_hrv_function(
+    metric: HRVMetric,
+    f_s: float,
+    correct_quant_error: bool = False
+  ) -> Callable:
+  var_e = 1. / (12 * f_s**2) if correct_quant_error else 0.0
+  # SDNN implementation
+  def _sdnn_core(diffs: np.ndarray) -> float:
+    sd = np.sqrt(np.nanvar(diffs) - var_e) * MILLIS_PER_SECOND
+    sd = np.clip(sd, HRV_SDNN_MIN, HRV_SDNN_MAX)
+    return sd
+  # RMSSD implementation
+  def _rmssd_core(diffs: np.ndarray) -> float:
+    deltas = np.diff(diffs)
+    rmssd = np.sqrt(np.nanmean(deltas**2) - 2*var_e) * MILLIS_PER_SECOND
+    rmssd = np.clip(rmssd, HRV_RMSSD_MIN, HRV_RMSSD_MAX)
+    return rmssd
+  # LF/HF implementation
+  def _lf_hf_core(diffs: np.ndarray) -> float:
+    t = np.cumsum(diffs, dtype=np.float64)
+    t_u = np.arange(0, t[-1], 1 / f_s)
+    rr_u = np.interp(t_u, t, diffs)
+    freqs, psd = welch(rr_u - rr_u.mean(), fs=f_s, nperseg=256, detrend='linear')
+    lf_mask = (freqs >= 0.04) & (freqs < 0.15)
+    lf = np.trapz(psd[lf_mask], freqs[lf_mask])
+    lf = np.clip(lf, HRV_LF_MIN, HRV_LF_MAX)
+    hf_mask = (freqs >= 0.15) & (freqs <= 0.40)
+    hf = np.trapz(psd[hf_mask], freqs[hf_mask])
+    hf = np.clip(hf, HRV_HF_MIN, HRV_HF_MAX)
+    return lf, hf
+
+  if metric == HRVMetric.SDNN:
+    return _sdnn_core
+  elif metric == HRVMetric.RMSSD:
+    return _rmssd_core
+  elif metric == HRVMetric.LF:
+    return lambda diffs: _lf_hf_core(diffs)[0]
+  elif metric == HRVMetric.HF:
+    return lambda diffs: _lf_hf_core(diffs)[1]
+  elif metric == HRVMetric.LF_HF:
+    def _lf_hf_ratio(diffs: np.ndarray) -> float:
+      lf, hf = _lf_hf_core(diffs)
+      if hf == 0 or np.isnan(hf):
+        return np.nan
+      return np.clip(lf / hf, HRV_LF_HF_MIN, HRV_LF_HF_MAX)
+    return _lf_hf_ratio
+
+def estimate_hrv_from_signal(
     signal: np.ndarray,
+    metric: HRVMetric,
     f_s: float,
     min_window_size: float,
     max_window_size: float,
@@ -545,6 +614,7 @@ def estimate_hrv_sdnn_from_signal(
   
   Args:
     signal: The raw sensor signal. Shape (n,)
+    metric: The `HRVMetric` to use.
     f_s: Sampling frequency [Hz].
     f_range: Tuple (min, max) of plausible frequency range [Hz].
     scope: GLOBAL for scalar hrv or ROLLING for hrv trace shape (n,).
@@ -597,8 +667,9 @@ def estimate_hrv_sdnn_from_signal(
      sdnn = np.nan if scope is EScope.GLOBAL else np.full(signal.shape, np.nan)
      return sdnn, 0.
   # Continue using the detections
-  sdnn = estimate_hrv_sdnn_from_detection_sequences(
+  sdnn = estimate_hrv_from_detection_sequences(
     seqs=det_idxs,
+    metric=metric,
     f_s=f_s,
     scope=scope,
     min_window_size=min_window_size,
@@ -612,8 +683,9 @@ def estimate_hrv_sdnn_from_signal(
   )
   return sdnn, sdnn_conf
 
-def estimate_hrv_sdnn_from_detections(
+def estimate_hrv_from_detections(
     det_idxs: np.ndarray,
+    metric: HRVMetric,
     *,
     f_s: Optional[float] = None,
     t: Optional[np.ndarray] = None,
@@ -633,6 +705,7 @@ def estimate_hrv_sdnn_from_detections(
   
   Args:
     det_idxs: The detection indices. Shape (n_dets,)
+    metric: The `HRVMetric` to use.
     f_s: The sampling rate. Required when `t` is not given.
     t: The timestamps of the original signal. Required for scope.ROLLING. Shape (n,)
     scope: GLOBAL for scalar rate or ROLLING for rate trace shape (n,).
@@ -650,6 +723,7 @@ def estimate_hrv_sdnn_from_detections(
       - For Scope.ROLLING: Shape (n,)
   """
   if f_s is None: f_s = t.shape[0]/(t[-1]-t[0])
+  hrv_fn = _get_hrv_function(metric=metric, f_s=f_s, correct_quant_error=correct_quantization_error)
   def _rate_from_ts(det_t: np.ndarray) -> float:
     """Convert a 1-D array of detection times to hrv sdnn [ms]"""
     diffs = np.diff(det_t)
@@ -658,10 +732,7 @@ def estimate_hrv_sdnn_from_detections(
     if diffs.size - 1 < min_dets or det_t[-1] - det_t[0] < min_t or np.any(diffs == 0):
       # Signal not sufficient for estimation
       return np.nan
-    var_e = 1./(12*f_s**2) if correct_quantization_error else 0
-    hrv_sdnn = np.sqrt(np.nanvar(diffs) - var_e) * MILLIS_PER_SECOND
-    if hrv_sdnn > HRV_SDNN_MAX: return HRV_SDNN_MAX
-    return hrv_sdnn
+    return hrv_fn(diffs)
   def _rate_from_dets(dets: np.ndarray) -> float:
     """Convert a 1-D array of detection indices to hrv sdnn [ms]"""
     dets = np.asarray(dets)
@@ -682,8 +753,9 @@ def estimate_hrv_sdnn_from_detections(
     pad_val=pad_val
   )
 
-def estimate_hrv_sdnn_from_detection_sequences(
+def estimate_hrv_from_detection_sequences(
     seqs: List[np.ndarray],
+    metric: HRVMetric,
     *,
     f_s: Optional[float] = None,
     t: Optional[np.ndarray] = None,
@@ -703,6 +775,7 @@ def estimate_hrv_sdnn_from_detection_sequences(
   
   Args:
     seqs: List of np.ndarray sequences of detections.
+    metric: The `HRVMetric` to use.
     f_s: The sampling rate. Required when `t` is not given.
     t: The timestamps of the original signal. Required for scope.ROLLING. Shape (n,)
     scope: GLOBAL for scalar rate or ROLLING for rate trace shape (n,).
@@ -720,6 +793,7 @@ def estimate_hrv_sdnn_from_detection_sequences(
       - For Scope.ROLLING: Shape (n,)
   """
   if f_s is None: f_s = t.shape[0]/(t[-1]-t[0])
+  hrv_fn = _get_hrv_function(metric=metric, f_s=f_s, correct_quant_error=correct_quantization_error)
   def _rate_from_ts(det_t: np.ndarray) -> float:
     """Convert a 1-D array of detection times to hrv sdnn [ms]"""
     diffs = np.diff(det_t)
@@ -728,10 +802,7 @@ def estimate_hrv_sdnn_from_detection_sequences(
     if diffs.size + 1 < min_dets or det_t[-1] - det_t[0] < min_t or np.any(diffs == 0):
       # Signal not sufficient for estimation
       return np.nan
-    var_e = 1./(12*f_s**2) if correct_quantization_error else 0
-    hrv_sdnn = np.sqrt(np.nanvar(diffs) - var_e) * MILLIS_PER_SECOND
-    if hrv_sdnn > HRV_SDNN_MAX: return HRV_SDNN_MAX
-    return hrv_sdnn
+    return hrv_fn(diffs)
   def _rate_from_dets(dets: np.ndarray) -> float:
     """Convert a 1-D array of detection indices to hrv sdnn [ms]"""
     dets = np.asarray(dets)

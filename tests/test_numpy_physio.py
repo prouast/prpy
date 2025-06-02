@@ -24,13 +24,13 @@ sys.path.append('../prpy')
 from prpy.constants import SECONDS_PER_MINUTE
 from prpy.numpy.filters import moving_average, detrend, detrend_frequency_response
 from prpy.numpy.freq import estimate_freq
-from prpy.numpy.physio import EMethod, EScope, EWindowUnit, HR_MIN, HR_MAX
+from prpy.numpy.physio import EMethod, EScope, EWindowUnit, HR_MIN, HR_MAX, HRVMetric
 from prpy.numpy.physio import estimate_rate_from_signal
 from prpy.numpy.physio import estimate_rate_from_detections
 from prpy.numpy.physio import estimate_rate_from_detection_sequences
-from prpy.numpy.physio import estimate_hrv_sdnn_from_signal
-from prpy.numpy.physio import estimate_hrv_sdnn_from_detections
-from prpy.numpy.physio import estimate_hrv_sdnn_from_detection_sequences
+from prpy.numpy.physio import estimate_hrv_from_signal
+from prpy.numpy.physio import estimate_hrv_from_detections
+from prpy.numpy.physio import estimate_hrv_from_detection_sequences
 from prpy.numpy.physio import moving_average_size_for_hr_response, moving_average_size_for_rr_response
 from prpy.numpy.physio import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 
@@ -296,15 +296,16 @@ def test_estimate_rate_from_detection_sequences_rolling_dynamic_seconds():
 
 def test_estimate_hrv_sdnn_from_detections_global():
   det_idxs = np.asarray([202, 392, 601, 799, 1201, 1403, 1610, 1839])
-  actual = estimate_hrv_sdnn_from_detections(det_idxs, f_s=30, interp_skipped=True, min_dets=5, min_t=1.)
+  actual = estimate_hrv_from_detections(det_idxs, metric=HRVMetric.SDNN, f_s=30, interp_skipped=True, min_dets=5, min_t=1.)
   np.testing.assert_allclose(200, actual, atol=0.1)
 
 @pytest.mark.parametrize("correct_quantization_error", [False, True])
 def test_estimate_hrv_sdnn_from_detection_sequences_global(correct_quantization_error):
   idxs_list = [[202, 392, 612, 799], [1201, 1403, 1610, 1839]]
   t = np.linspace(0, 8, 2000)
-  out = estimate_hrv_sdnn_from_detection_sequences(seqs=idxs_list,
+  out = estimate_hrv_from_detection_sequences(seqs=idxs_list,
                                                    t=t,
+                                                   metric=HRVMetric.SDNN,
                                                    correct_quantization_error=correct_quantization_error,
                                                    scope=EScope.GLOBAL,
                                                    min_dets=2,
@@ -318,8 +319,9 @@ def test_estimate_hrv_sdnn_from_detection_sequences_global(correct_quantization_
 def test_estimate_hrv_sdnn_from_detection_sequences_rolling(correct_quantization_error):
   idxs_list = [[202, 392, 612, 799], [1201, 1403, 1610, 1839]]
   t = np.linspace(0, 8, 2000)
-  out = estimate_hrv_sdnn_from_detection_sequences(seqs=idxs_list,
+  out = estimate_hrv_from_detection_sequences(seqs=idxs_list,
                                                    t=t,
+                                                   metric=HRVMetric.SDNN,
                                                    correct_quantization_error=correct_quantization_error,
                                                    min_window_size=2,
                                                    max_window_size=4,
@@ -431,8 +433,9 @@ def test_estimate_hrv_sdnn_from_signal_with_confidence(scenario):
   signal, conf, f_s, conf_threshold, expected, exp_conf = scenario
   signal = np.asarray(signal)
   conf = np.asarray(conf)
-  actual, conf = estimate_hrv_sdnn_from_signal(
+  actual, conf = estimate_hrv_from_signal(
     signal=signal,
+    metric=HRVMetric.SDNN,
     f_s=f_s,
     min_window_size=27,
     max_window_size=27,
