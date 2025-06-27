@@ -24,7 +24,7 @@ import numpy as np
 from scipy import signal
 from typing import Callable, Union
 
-MAX_SHIFT_FIX = 23 # samples
+MAX_SHIFT_FIX = 20 # samples
 
 def _to_np(x: Union[np.ndarray, float, int, object]) -> np.ndarray:
   if isinstance(x, np.ndarray):
@@ -240,7 +240,7 @@ def make_shift_pooled_metric(
     base_metric: Callable[[np.ndarray, np.ndarray, np.ndarray, float, float], np.ndarray],
     *,
     maximise: bool = False,
-    max_shift_t: float = 0.15,
+    max_shift_t: float = 0.3,
     max_shift_fix: int = MAX_SHIFT_FIX,
   ) -> Callable[[np.ndarray, np.ndarray, np.ndarray, float, float], np.ndarray]:
   """Create a shift-pooled variant of any batch metric.

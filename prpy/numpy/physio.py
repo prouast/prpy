@@ -570,11 +570,11 @@ def _get_hrv_function(
     nper = min(len(rr_u), 256)
     nfft = 2 ** int(np.ceil(np.log2(max(nper, fs_r / 0.01))))
     freqs, psd = welch(rr_u - rr_u.mean(), fs=fs_r, nperseg=nper, nfft=nfft, detrend='linear')
-    lf_mask = (freqs >= 0.04) & (freqs < 0.15)
+    lf_mask = np.logical_and(freqs >= 0.04, freqs < 0.15)
     lf = np.trapz(psd[lf_mask], freqs[lf_mask]) * 1e6 # ms²
     lf = np.clip(lf, HRV_LF_MIN, HRV_LF_MAX)
-    hf_mask = (freqs >= 0.15) & (freqs <= 0.40) * 1e6 # ms²
-    hf = np.trapz(psd[hf_mask], freqs[hf_mask])
+    hf_mask = np.logical_and(freqs >= 0.15, freqs <= 0.40)
+    hf = np.trapz(psd[hf_mask], freqs[hf_mask]) * 1e6 # ms²
     hf = np.clip(hf, HRV_HF_MIN, HRV_HF_MAX)
     return lf, hf
 
