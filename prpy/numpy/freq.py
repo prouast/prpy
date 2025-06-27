@@ -37,6 +37,7 @@ def estimate_freq(
     method: str = 'fft',
     interp_skipped: bool = False,
     axis: int = -1,
+    keepdims: bool = False,
     **kw: Any
   ) -> np.ndarray:
   """
@@ -51,17 +52,19 @@ def estimate_freq(
     method: The method to be used [fft, peak, or periodogram]
     interp_skipped: Insert interpolated detection for presumably skipped events
     axis: The axis along which to estimate frequencies
+    keepdims: Keep squeezable first dim in x
     **kw: Extra args forwarded to the underlying frequency estimator.
   Returns:
     f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
   assert isinstance(method, str)
   if method == 'fft':
-    return estimate_freq_fft(x, f_s=f_s, f_range=f_range, axis=axis)
+    return estimate_freq_fft(x, f_s=f_s, f_range=f_range, axis=axis, keepdims=keepdims)
   elif method == 'peak':
-    return estimate_freq_peak(x, f_s=f_s, f_range=f_range, interp_skipped=interp_skipped, axis=axis, **kw)
+    kw.update(f_res=f_res)
+    return estimate_freq_peak(x, f_s=f_s, f_range=f_range, interp_skipped=interp_skipped, axis=axis, keepdims=keepdims, **kw)
   elif method == 'periodogram':
-    return estimate_freq_periodogram(x, f_s=f_s, f_range=f_range, f_res=f_res, axis=axis)
+    return estimate_freq_periodogram(x, f_s=f_s, f_range=f_range, f_res=f_res, axis=axis, keepdims=keepdims)
   else:
     return ValueError(f"method should be 'peak', 'fft', or 'periodogram' but was {method}")
 
@@ -69,7 +72,8 @@ def estimate_freq_fft(
     x: np.ndarray,
     f_s: Union[float, int],
     f_range: Union[tuple, None] = None,
-    axis: int = -1
+    axis: int = -1,
+    keepdims: bool = False,
   ) -> np.ndarray:
   """
   Use a fourier transform to determine maximum frequencies.
@@ -79,6 +83,7 @@ def estimate_freq_fft(
     f_s: The sampling frequency [Hz]
     f_range: Optional expected range of freqs [Hz] - (min, max)
     axis: The axis along which to estimate frequencies
+    keepdims: Keep squeezable first dim in x
   Returns:
     f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
@@ -86,8 +91,9 @@ def estimate_freq_fft(
   assert f_range is None or (isinstance(f_range, tuple) and len(f_range) == 2 and all(isinstance(i, (int, float)) for i in f_range))
   assert isinstance(axis, int) and (axis == 0 or axis == 1 or axis == -1)
   x = np.asarray(x)
+  onedim_input = len(x.shape) == 1
   # Change to 2-dim array if necessary
-  if len(x.shape) == 1:
+  if onedim_input:
     x = np.expand_dims(x, axis=0)
   # Run the fourier transform
   w = fft.rfft(x, axis=axis)
@@ -103,7 +109,8 @@ def estimate_freq_fft(
   # Derive frequency in Hz
   f_out = abs(f[idx])
   # Squeeze if necessary
-  f_out = np.squeeze(f_out)
+  if onedim_input or not keepdims:
+    f_out = np.squeeze(f_out)
   # Return
   return f_out
 
@@ -113,6 +120,7 @@ def estimate_freq_peak(
     f_range: Union[tuple, None] = None,
     interp_skipped: bool = False,
     axis: int = -1,
+    keepdims: bool = False,
     **kw: Any
   ) -> np.ndarray:
   """
@@ -124,6 +132,7 @@ def estimate_freq_peak(
     f_range: Optional expected range of freqs [Hz] - (min, max)
     interp_skipped: Insert interpolated detection for presumably skipped events
     axis: The axis along which to estimate frequencies,
+    keepdims: Keep squeezable first dim in x
     **detect_kwargs: Extra args forwarded to `detect_valid_peaks`.
   Returns:
     f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
@@ -133,8 +142,9 @@ def estimate_freq_peak(
   assert f_range is None or (isinstance(f_range, tuple) and len(f_range) == 2 and all(isinstance(i, (int, float)) for i in f_range))
   assert isinstance(axis, int) and (axis == 0 or axis == 1 or axis == -1)
   x = np.asarray(x)
+  onedim_input = len(x.shape) == 1
   # Change to 2-dim array if necessary
-  if len(x.shape) == 1:
+  if onedim_input:
     x = np.expand_dims(x, axis=0)
   # Helper for a single 1-D trace
   def _freq_1d(trace: np.ndarray):
@@ -145,8 +155,11 @@ def estimate_freq_peak(
       f_range=f_range,
       **kw
     )
-    diffs = np.concatenate([np.diff(seq) for seq in seqs if len(seq) > 1])
-    if interp_skipped:
+    if not seqs: return np.nan  
+    diffs_list = [np.diff(seq) for seq in seqs if len(seq) > 1]
+    if not diffs_list: return np.nan
+    diffs = np.concatenate(diffs_list)
+    if interp_skipped and diffs.size:
       diffs = interpolate_skipped(diffs, threshold=0.3)
     if diffs.size == 0:
       # Not enough peaks
@@ -156,7 +169,8 @@ def estimate_freq_peak(
   # Apply function
   f_out = np.apply_along_axis(_freq_1d, axis=axis, arr=x)
   # Squeeze if necessary
-  f_out = np.squeeze(f_out)
+  if onedim_input or not keepdims:
+    f_out = np.squeeze(f_out)
   # Return
   return f_out
 
@@ -165,7 +179,8 @@ def estimate_freq_periodogram(
     f_s: Union[float, int],
     f_range: Union[tuple, None] = None,
     f_res: Union[float, None] = None,
-    axis: int = -1
+    axis: int = -1,
+    keepdims: bool = False
   ) -> np.ndarray:
   """
   Use a periodigram to estimate maximum frequencies at f_res.
@@ -179,6 +194,7 @@ def estimate_freq_periodogram(
     f_range: Optional expected range of freqs [Hz] - (min, max)
     f_res: Optional frequency resolution for analysis [Hz]
     axis: The axis along which to estimate frequencies
+    keepdims: Keep squeezable first dim in x
   Returns:
     f_out: The maximum frequencies [Hz]. Shape: (n_sig,)
   """
@@ -187,8 +203,9 @@ def estimate_freq_periodogram(
   assert f_res is None or (isinstance(f_res, (float, int)) and f_res > 0)
   assert isinstance(axis, int) and (axis == 0 or axis == 1 or axis == -1)
   x = np.asarray(x)
+  onedim_input = len(x.shape) == 1
   # Change to 2-dim array if necessary
-  if len(x.shape) == 1:
+  if onedim_input:
     x = np.expand_dims(x, axis=0)
   # Determine the length of the fft if f_res specified
   # Large nfft > x.length leads to zero padding of x before fft (like interpolating frequency domain)
@@ -206,7 +223,8 @@ def estimate_freq_periodogram(
   # Maximum frequency in Hz
   f_out = f[idx]
   # Squeeze if necessary
-  f_out = np.squeeze(f_out)
+  if onedim_input or not keepdims:
+    f_out = np.squeeze(f_out)
   # Return
   return f_out
 

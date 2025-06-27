@@ -42,13 +42,13 @@ import pytest
 def test_estimate_rate_from_signal_global(synthetic_ecg_static, synthetic_ppg_static, signal, method):
   s = synthetic_ecg_static if signal == "ecg" else synthetic_ppg_static
   rate = estimate_rate_from_signal(signal=s,
-                                              f_s=250.,
-                                              f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
-                                              scope=EScope.GLOBAL,
-                                              method=method,
-                                              window_size=2000,
-                                              interp_skipped=False,
-                                              height=1. if signal == 'ecg' and method == EMethod.PEAK else 0.)
+                                   f_s=250.,
+                                   f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
+                                   scope=EScope.GLOBAL,
+                                   method=method,
+                                   window_size=2000,
+                                   interp_skipped=False,
+                                   height=1. if signal == 'ecg' and method == EMethod.PEAK else 0.)
   assert rate == 60.
 
 @pytest.mark.parametrize("signal", ["ecg", "ppg"])
@@ -59,14 +59,14 @@ def test_estimate_rate_from_signal_rolling_on_static_signal(synthetic_ecg_static
   if signal == 'ecg' and method == EMethod.PERIODOGRAM:
     s = moving_average(s, size=101)
   out = estimate_rate_from_signal(signal=s,
-                                             f_s=250.,
-                                             f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
-                                             scope=EScope.ROLLING,
-                                             method=method,
-                                             window_size=2500,
-                                             overlap=2000,
-                                             interp_skipped=interp_skipped,
-                                             height=1. if signal == 'ecg' and method == EMethod.PEAK else 0.)
+                                  f_s=250.,
+                                  f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
+                                  scope=EScope.ROLLING,
+                                  method=method,
+                                  window_size=2500,
+                                  overlap=2000,
+                                  interp_skipped=interp_skipped,
+                                  height=1. if signal == 'ecg' and method == EMethod.PEAK else 0.)
   assert out.shape == s.shape
   np.testing.assert_allclose(out, 60., atol=1.)
 
@@ -75,14 +75,14 @@ def test_estimate_rate_from_signal_rolling_on_static_signal(synthetic_ecg_static
 def test_estimate_rate_from_signal_rolling_on_dynamic_signal(synthetic_ecg_dynamic, synthetic_ppg_dynamic, signal, method):
   s = synthetic_ecg_dynamic if signal == "ecg" else synthetic_ppg_dynamic
   out = estimate_rate_from_signal(signal=s,
-                                             f_s=250.,
-                                             f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
-                                             scope=EScope.ROLLING,
-                                             method=method,
-                                             window_size=2500,
-                                             overlap=2000,
-                                             interp_skipped=True,
-                                             height=1. if signal == 'ecg' and method == EMethod.PEAK else 0.)
+                                  f_s=250.,
+                                  f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
+                                  scope=EScope.ROLLING,
+                                  method=method,
+                                  window_size=2500,
+                                  overlap=2000,
+                                  interp_skipped=True,
+                                  height=1. if signal == 'ecg' and method == EMethod.PEAK else 0.)
   assert out.shape == s.shape
   np.testing.assert_allclose(out, 66., atol=8.)
   assert np.all(np.diff(out) >= 0)
