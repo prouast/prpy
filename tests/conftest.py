@@ -44,7 +44,7 @@ def _make_synthetic_ecg(
     *,
     hr_trend_bpm_per_min: float = 0.0,
     missing_beat_at: Optional[int] = None,
-    noise_std: float = 0.05,
+    noise_std: float = 0.02,
     seed: Optional[Union[int, np.random.Generator]] = None,
   ) -> tuple[np.ndarray, np.ndarray]:
   """Synthetic ECG with optional HR drift and reproducible RNG."""
@@ -62,7 +62,7 @@ def _make_synthetic_ecg(
   sig = np.exp(-((t[:, None] - beats[None, :]) ** 2) / (2 * 0.015**2)).sum(axis=1)
   f = np.fft.rfftfreq(n, 1 / fs)
   pink = np.fft.irfft(rng.standard_normal(f.size) / np.maximum(f, 1e-6))
-  sig += 0.05 * standardize(pink)
+  sig += 0.02 * standardize(pink)
   sig = standardize(sig) + rng.normal(0, noise_std, n)
   return t, sig
 

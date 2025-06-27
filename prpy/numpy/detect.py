@@ -107,7 +107,7 @@ def detect_valid_peaks(
   vals_raw = vals.copy()
   period_rel_tol_shorter, period_rel_tol_longer = period_rel_tol
   # Sliding reference freq
-  window_size = min(window_size, size - 1)
+  window_size = min(window_size, size)
   if overlap is None: overlap = window_size // 2
   freqs = rolling_calc(
     x=vals,
@@ -116,8 +116,9 @@ def detect_valid_peaks(
       f_s=f_s,
       f_range=f_range,
       f_res=f_res,
-      axis=1
-    ), 
+      axis=1,
+      keepdims=True
+    ),
     min_window_size=window_size,
     max_window_size=window_size,
     overlap=overlap,
@@ -125,6 +126,7 @@ def detect_valid_peaks(
     fill_method='start',
     rolling_pad_mode='reflect'
   )
+  assert freqs.shape == vals.shape
   # Preprocess
   if interp_vals_outliers_z is not None:
     vals = interpolate_data_outliers(vals, z_score=interp_vals_outliers_z)
