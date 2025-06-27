@@ -122,7 +122,8 @@ def detect_valid_peaks(
     max_window_size=window_size,
     overlap=overlap,
     transform_fn=fft_fn,
-    fill_method='start'
+    fill_method='start',
+    rolling_pad_mode='reflect'
   )
   # Preprocess
   if interp_vals_outliers_z is not None:

@@ -32,7 +32,8 @@ def rolling_calc(
     overlap: Optional[int] = None,
     transform_fn: Optional[Callable] = None,
     fill_method: str = 'pad_val',
-    pad_val: float = np.nan
+    pad_val: float = np.nan,
+    rolling_pad_mode: str = 'constant'
   ) -> np.ndarray:
   """
   Apply `calc_fn` to `x` using rolling window along its first dim.
@@ -49,6 +50,7 @@ def rolling_calc(
     fill_method: Method for filling/padding the result.
       - `pad_val`, `mean`, or `start`
     pad_val: Value to use for filling/padding when fill_method is pad_val
+    rolling_pad_mode: Intermediate pad mode to use for end of rolling window view
   Returns:
     The result of `calc_fn` applied to the time diffs. Shape (n,)
   """
@@ -63,7 +65,8 @@ def rolling_calc(
     x_view, pad_start, pad_end = window_view(x=x,
                                              min_window_size=min_window_size,
                                              max_window_size=max_window_size,
-                                             overlap=overlap)
+                                             overlap=overlap,
+                                             pad_mode=rolling_pad_mode)
     if transform_fn is not None:
       # Transform the view
       x_view_trans = transform_fn(x_view)
