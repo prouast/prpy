@@ -24,7 +24,7 @@ import numpy as np
 from scipy import signal
 from typing import Callable, Union
 
-MAX_SHIFT_FIX = 20 # samples
+MAX_SHIFT_FIX = 30 # samples
 
 def _to_np(x: Union[np.ndarray, float, int, object]) -> np.ndarray:
   if isinstance(x, np.ndarray):
