@@ -31,6 +31,20 @@ from .image_ops import resample_bilinear_op, resample_box_op, reduce_roi_op
 
 VIDEO_PARSE_ERROR = "Unable to parse input video. There may be an issue with the video file."
 
+def _clip_roi(roi, h, w):
+  """
+  Clip an [x0, y0, x1, y1] ROI to the image rectangle [0, 0, w-1, h-1].
+
+  Args:
+    roi: Iterable with 4 coords.
+    h, w: Image height and width.
+  """
+  roi = np.asarray(roi, dtype=float)
+  # x coords -> [0, w], y coords -> [0, h]
+  roi[[0, 2]] = np.clip(roi[[0, 2]], 0, w)
+  roi[[1, 3]] = np.clip(roi[[1, 3]], 0, h)
+  return roi.astype(int).tolist()
+
 def crop_slice_resize(
     inputs: np.ndarray,
     target_size: Union[int, tuple, list], 
@@ -69,6 +83,10 @@ def crop_slice_resize(
   unpack_target_size = lambda x: (x[0], x[1]) if isinstance(x, (list, tuple)) else (x, x)
   target_height, target_width = unpack_target_size(target_size)
   inputs_shape = inputs.shape
+  if roi is not None:
+    h_img, w_img = inputs_shape[-3], inputs_shape[-2]
+    roi = _clip_roi(roi=roi, h=h_img, w=w_img)
+  # TODO: What if no target height but roi given?
   # Add temporal dim if necessary
   if len(inputs_shape) == 3: inputs = inputs[np.newaxis,:,:,:]
   # Apply target_idxs and roi
@@ -403,6 +421,9 @@ def parse_image_inputs(
       raise ValueError(f"No file found at {inputs}")
   elif isinstance(inputs, np.ndarray):
     shape_in = inputs.shape
+    if roi is not None:
+      h_img, w_img = shape_in[-3], shape_in[-2]
+      roi = _clip_roi(roi=roi, h=h_img, w=w_img)
     if len(shape_in) == 3:
       # Image
       if not allow_image:
