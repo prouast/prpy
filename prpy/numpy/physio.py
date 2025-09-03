@@ -44,8 +44,8 @@ HRV_LF_MIN = 0            # ms^2
 HRV_LF_MAX = 5000         # ms^2
 HRV_HF_MIN = 0            # ms^2
 HRV_HF_MAX = 5000         # ms^2
-HRV_LF_HF_MIN = 0         # unitless
-HRV_LF_HF_MAX = 10        # unitless
+HRV_LFHF_MIN = 0          # unitless
+HRV_LFHF_MAX = 10         # unitless
 PTT_MIN = 100             # ms
 PTT_MAX = 400             # ms
 IDX_MIN = 0.              # unitless
@@ -63,8 +63,8 @@ CALC_HRV_SDNN_MIN_T = 20  # seconds
 CALC_HRV_SDNN_MAX_T = 60  # seconds
 CALC_HRV_RMSSD_MIN_T = 20 # seconds
 CALC_HRV_RMSSD_MAX_T = 60 # seconds
-CALC_HRV_LF_HF_MIN_T = 55 # seconds
-CALC_HRV_LF_HF_MAX_T = 60 # seconds
+CALC_HRV_LFHF_MIN_T = 55  # seconds
+CALC_HRV_LFHF_MAX_T = 60  # seconds
 CALC_RR_MIN_T = 10        # seconds
 CALC_RR_MAX_T = 30        # seconds
 
@@ -89,7 +89,7 @@ class HRVMetric(IntEnum):
   RMSSD = 1
   LF = 2
   HF = 3
-  LF_HF = 4
+  LFHF = 4
 
 def estimate_rate_from_signal(
     signal: np.ndarray,
@@ -562,7 +562,7 @@ def _get_hrv_function(
     rmssd = np.clip(rmssd, HRV_RMSSD_MIN, HRV_RMSSD_MAX)
     return rmssd
   # LF/HF implementation
-  def _lf_hf_core(diffs: np.ndarray) -> float:
+  def _lfhf_core(diffs: np.ndarray) -> float:
     fs_r = 4.0
     t = np.cumsum(diffs, dtype=np.float64)
     t_u = np.arange(0, t[-1], 1 / fs_r)
@@ -583,16 +583,16 @@ def _get_hrv_function(
   elif metric == HRVMetric.RMSSD:
     return _rmssd_core
   elif metric == HRVMetric.LF:
-    return lambda diffs: _lf_hf_core(diffs)[0]
+    return lambda diffs: _lfhf_core(diffs)[0]
   elif metric == HRVMetric.HF:
-    return lambda diffs: _lf_hf_core(diffs)[1]
-  elif metric == HRVMetric.LF_HF:
-    def _lf_hf_ratio(diffs: np.ndarray) -> float:
-      lf, hf = _lf_hf_core(diffs)
+    return lambda diffs: _lfhf_core(diffs)[1]
+  elif metric == HRVMetric.LFHF:
+    def _lfhf_ratio(diffs: np.ndarray) -> float:
+      lf, hf = _lfhf_core(diffs)
       if hf == 0 or np.isnan(hf):
         return np.nan
-      return np.clip(lf / hf, HRV_LF_HF_MIN, HRV_LF_HF_MAX)
-    return _lf_hf_ratio
+      return np.clip(lf / hf, HRV_LFHF_MIN, HRV_LFHF_MAX)
+    return _lfhf_ratio
 
 def estimate_hrv_from_signal(
     signal: np.ndarray,
