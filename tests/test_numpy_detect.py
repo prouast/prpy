@@ -22,7 +22,7 @@ import sys
 sys.path.append('../prpy')
 
 from prpy.numpy.core import standardize
-from prpy.numpy.detect import detect_valid_peaks
+from prpy.numpy.detect import detect_valid_peaks, _refine_raw_foot
 from prpy.numpy.filters import moving_average
 
 import numpy as np
@@ -114,3 +114,15 @@ def test_detect_valid_peaks_outlier_interp():
   )
   # artefact should not split the main valid sequence
   assert len(seqs) == 1
+
+def test_refine_raw_foot_edge_case():
+  vals = np.array([10, 8, 2, 0, 5, 6, 7])
+  det_idxs = np.array([1])
+  window_samples = 6
+  expected_refined_idx = 3
+  refined_idxs = _refine_raw_foot(
+    vals=vals,
+    det_idxs=det_idxs,
+    window_samples=window_samples
+  )
+  assert refined_idxs[0] == expected_refined_idx

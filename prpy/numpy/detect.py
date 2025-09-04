@@ -22,7 +22,7 @@ from dataclasses import dataclass
 import logging
 import numpy as np
 from scipy import signal
-from typing import Callable, Tuple, Optional, List, Union
+from typing import Callable, Tuple, Optional, Union
 
 from prpy.numpy.freq import estimate_freq_periodogram
 from prpy.numpy.interp import interpolate_data_outliers
@@ -261,7 +261,7 @@ def _refine_raw_foot(
   # extract and mask out‑of‑bounds
   mask = (idx_matrix < 0) | (idx_matrix >= vals.shape[0])
   windows = vals[idx_clipped]
-  windows = np.where(mask, -np.inf, windows)
+  windows = np.where(mask, np.inf, windows)
   
   # find local max per row
   local_off = np.argmin(windows, axis=1)
