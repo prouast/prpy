@@ -48,14 +48,24 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
     return NULL;
   }
 
-  // Get pointers to the data
-  unsigned char* input_data = (unsigned char*)PyArray_DATA(input_array);
-
   // Get the dimensions of the input array
   npy_intp* dims = PyArray_DIMS(input_array);
   int n_frames = (int)dims[0];
   int height = (int)dims[1];
   int width = (int)dims[2];
+
+  // Handle empty input arrays gracefully
+  if (n_frames == 0 || height == 0 || width == 0) {
+    npy_intp output_dims[4] = {n_frames, new_height, new_width, 3};
+    // If input height is 0, output height should be 0, etc.
+    if (height == 0) output_dims[1] = 0;
+    if (width == 0) output_dims[2] = 0;
+    PyArrayObject* empty_array = (PyArrayObject*)PyArray_EMPTY(4, output_dims, NPY_UINT8, 0);
+    return PyArray_Return(empty_array);
+  }
+
+  // Get pointers to the data
+  unsigned char* input_data = (unsigned char*)PyArray_DATA(input_array);
 
   // Get the strides
   npy_intp* input_strides = PyArray_STRIDES(input_array);
@@ -73,26 +83,30 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
   // Precompute the positions and weights
   for (int y = 0; y < new_height; ++y) {
     for (int x = 0; x < new_width; ++x) {
-      // Determine the position of the current pixel in the input image
-      float src_x = (x * (width - 1)) / (float)(new_width - 1);
-      float src_y = (y * (height - 1)) / (float)(new_height - 1);
-      // The four neighboring pixels
+      // Determine position of the current pixes in the input image using the half-pixel centers formula
+      float src_x = ((x + 0.5f) * width / new_width) - 0.5f;
+      float src_y = ((y + 0.5f) * height / new_height) - 0.5f;
+      // Clamp source coordinates to the image border to handle edges correctly
+      if (src_x < 0.0f) src_x = 0.0f;
+      if (src_y < 0.0f) src_y = 0.0f;
+      if (src_x > width - 1) src_x = width - 1;
+      if (src_y > height - 1) src_y = height - 1;
+      // Get the integer and fractional parts for interpolation
       int x0 = (int)src_x;
       int y0 = (int)src_y;
-      // Calculate the weights for each pixel
       float dx = src_x - x0;
       float dy = src_y - y0;
       float dx1 = 1.0f - dx;
       float dy1 = 1.0f - dy;
-      // Store the positions
-      int flat_idx = (x * new_height + y) * 2; 
-      pos_flat[flat_idx + 0] = x0;
-      pos_flat[flat_idx + 1] = y0;
-      // Store the weights
-      weights_flat[(flat_idx + 0) * 2 + 0] = dx1 * dy1 * 256.0f;
-      weights_flat[(flat_idx + 0) * 2 + 1] = dx  * dy1 * 256.0f;
-      weights_flat[(flat_idx + 1) * 2 + 0] = dx1 * dy  * 256.0f;
-      weights_flat[(flat_idx + 1) * 2 + 1] = dx  * dy  * 256.0f;
+      // Store the positions and weights
+      int pos_base_idx = (y * new_width + x) * 2;
+      int weights_base_idx = (y * new_width + x) * 4;
+      pos_flat[pos_base_idx + 0] = x0;
+      pos_flat[pos_base_idx + 1] = y0;
+      weights_flat[weights_base_idx + 0] = dx1 * dy1 * 256.0f;
+      weights_flat[weights_base_idx + 1] = dx  * dy1 * 256.0f;
+      weights_flat[weights_base_idx + 2] = dx1 * dy  * 256.0f;
+      weights_flat[weights_base_idx + 3] = dx  * dy  * 256.0f;
     }
   }
 
@@ -116,34 +130,27 @@ resample_bilinear_op(PyObject* self, PyObject* args) {
     for (int y = 0; y < new_height; ++y) {
       for (int x = 0; x < new_width; ++x) {
         // Get position coordinates
-        int pos_idx = (x * new_height + y) * 2;
+        int pos_idx = (y * new_width + x) * 2;
         int x0 = pos_flat[pos_idx + 0];
         int y0 = pos_flat[pos_idx + 1];
         
         // Get weights
-        int weights_idx = ((x * new_height + y) * 2) * 2;
+        int weights_idx = ((y * new_width + x) * 2) * 2;
         float w00 = weights_flat[weights_idx + 0];
         float w01 = weights_flat[weights_idx + 1];
         float w10 = weights_flat[weights_idx + 2];
         float w11 = weights_flat[weights_idx + 3];
 
-        // Access pixels
-        unsigned char* p1 = current_frame + y0 * input_strides[1] + x0 * input_strides[2];
-        unsigned char* p2 = p1 + input_strides[2];
-        unsigned char* p3 = p1 + input_strides[1];
-        unsigned char* p4 = p3 + input_strides[2];
+        // Define the four neighboring pixel coordinates, clamping to image boundaries
+        int x1 = (x0 < width - 1) ? x0 + 1 : x0;
+        int y1 = (y0 < height - 1) ? y0 + 1 : y0;
 
-        // Make sure that p2 and p4 are within bounds
-        if (x0 + 1 >= width) {
-          p2 = p1;
-          p4 = p3;
-        }
-        // Make sure that p3 and p4 are within bounds
-        if (y0 + 1 >= height) {
-          p3 = p1;
-          p4 = p2;
-        }
-        
+        // Access the four pixels using the safe coordinates, calculating each from the frame start
+        unsigned char* p1 = current_frame + y0 * input_strides[1] + x0 * input_strides[2]; // Top-left
+        unsigned char* p2 = current_frame + y0 * input_strides[1] + x1 * input_strides[2]; // Top-right
+        unsigned char* p3 = current_frame + y1 * input_strides[1] + x0 * input_strides[2]; // Bottom-left
+        unsigned char* p4 = current_frame + y1 * input_strides[1] + x1 * input_strides[2]; // Bottom-right
+
         // Calculate the weighted sum of pixels (for each color channel)
         int outr = p1[0] * w00 + p2[0] * w01 + p3[0] * w10 + p4[0] * w11;
         int outg = p1[1] * w00 + p2[1] * w01 + p3[1] * w10 + p4[1] * w11;
@@ -187,14 +194,24 @@ resample_box_op(PyObject* self, PyObject* args) {
     return NULL;
   }
 
-  // Get pointers to the data
-  unsigned char* input_data = (unsigned char*)PyArray_DATA(input_array);
-
   // Get the dimensions of the input array
   npy_intp* dims = PyArray_DIMS(input_array);
   int n_frames = (int)dims[0];
   int height = (int)dims[1];
   int width = (int)dims[2];
+
+  // Handle empty input arrays gracefully
+  if (n_frames == 0 || height == 0 || width == 0) {
+    npy_intp output_dims[4] = {n_frames, new_height, new_width, 3};
+    // If input height is 0, output height should be 0, etc.
+    if (height == 0) output_dims[1] = 0;
+    if (width == 0) output_dims[2] = 0;
+    PyArrayObject* empty_array = (PyArrayObject*)PyArray_EMPTY(4, output_dims, NPY_UINT8, 0);
+    return PyArray_Return(empty_array);
+  }
+
+  // Get pointers to the data
+  unsigned char* input_data = (unsigned char*)PyArray_DATA(input_array);
 
   // Make sure that we are downsampling
   if (height / new_height < 2 || width / new_width < 2) {
@@ -337,7 +354,7 @@ reduce_roi_op(PyObject* self, PyObject* args) {
   for (int i = 0; i < n_frames; ++i) {
     // Extract the current frame
     unsigned char* current_frame_video = video_data + i * video_strides[0];
-    npy_int64* current_frame_roi = roi_data + i * 4; // TODO: Why doesn't roi_strides[0] work?
+    npy_int64* current_frame_roi = roi_data + i * 4;
     // Compute the mean of pixels within the ROI
     int sum_r = 0, sum_g = 0, sum_b = 0;
     int x0 = current_frame_roi[0];
