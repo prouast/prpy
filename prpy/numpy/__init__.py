@@ -1,3 +1,4 @@
+# flake8: noqa: F401, F403
 # Copyright (c) 2025 Philipp Rouast
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy

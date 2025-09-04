@@ -24,10 +24,6 @@ from typing import Union, Any
 
 from prpy.numpy.core import div0
 from prpy.numpy.interp import interpolate_skipped
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-  from prpy.numpy.detect import detect_valid_peaks
 
 def estimate_freq(
     x: np.ndarray,
