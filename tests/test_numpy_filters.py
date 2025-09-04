@@ -22,7 +22,7 @@ import sys
 sys.path.append('../prpy')
 
 from prpy.numpy.filters import moving_average, moving_average_size_for_response, moving_std
-from prpy.numpy.filters import detrend, detrend_frequency_response
+from prpy.numpy.filters import detrend, detrend_frequency_response, butter_bandpass
 
 import numpy as np
 import pytest
@@ -141,3 +141,48 @@ def test_detrend_frequency_response():
                                  Lambda=300,
                                  f_s=f_s)
   np.testing.assert_allclose(f, f_expected, atol=0.01)
+
+def test_butter_bandpass_is_zero_phase():
+  fs = 100 # Sampling frequency
+  n = 501 # Number of samples (odd to have a perfect center)
+  # Create a signal with a single spike exactly in the middle
+  signal_in = np.zeros(n)
+  center_index = n // 2
+  signal_in[center_index] = 1.0
+  # Apply the bandpass filter
+  signal_out = butter_bandpass(
+    x=signal_in, 
+    lowcut=5, 
+    highcut=20, 
+    fs=fs, 
+    order=4
+  )
+  # Find the location of the peak energy in the output
+  peak_index_out = np.argmax(np.abs(signal_out))
+  # Assert that the peak has not shifted
+  # A causal filter like lfilter would fail this test.
+  assert center_index == peak_index_out
+
+def test_butter_bandpass_attenuates_and_passes_correctly():
+  fs = 500.0       # Sampling frequency
+  lowcut = 40.0    # Lower cutoff
+  highcut = 60.0   # Upper cutoff
+  duration = 2.0   # seconds
+  t = np.linspace(0., duration, int(fs * duration), endpoint=False)
+  # Create three signals: below, within, and above the passband
+  signal_low = np.sin(2 * np.pi * (lowcut / 4) * t)  # 10 Hz
+  signal_in_band = np.sin(2 * np.pi * ((lowcut + highcut) / 2) * t) # 50 Hz
+  signal_high = np.sin(2 * np.pi * (highcut * 4) * t) # 240 Hz
+  power_in_band_original = np.std(signal_in_band)
+  signal_in = signal_low + signal_in_band + signal_high
+  # Filter the combined signal
+  signal_out = butter_bandpass(
+    x=signal_in, 
+    lowcut=lowcut, 
+    highcut=highcut, 
+    fs=fs, 
+    order=6
+  )
+  # Analyze the output
+  power_out = np.std(signal_out)
+  np.testing.assert_allclose(power_out, power_in_band_original, rtol=1e-2)

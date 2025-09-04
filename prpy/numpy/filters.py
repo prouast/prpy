@@ -208,7 +208,6 @@ def detrend_frequency_response(
   # Return
   return float(freq)
 
-# TODO(prouast): Write tests
 def butter_bandpass(
     x: np.ndarray,
     lowcut: Union[int, float],
@@ -246,8 +245,7 @@ def butter_bandpass(
     return signal.butter(order, [low, high], btype='band')
   b, a = butter_bandpass_filter(
     lowcut=lowcut, highcut=highcut, fs=fs, order=order)
-  y = signal.lfilter(
-    b=b, a=a, x=x, axis=axis)
+  y = signal.filtfilt(b=b, a=a, x=x, axis=axis)
   return y
 
 # TODO(prouast): Write tests
