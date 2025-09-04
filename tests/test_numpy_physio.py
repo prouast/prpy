@@ -381,7 +381,7 @@ def test_detrend_lambda_for_rr_response():
   assert isinstance(out, int)
 
 @pytest.mark.parametrize("f_s", [30, 125])
-def test_detrend_lambda_for_hr_response(f_s):
+def test_detrend_lambda_for_hr_response_preserves_frequency(f_s):
   t = 10
   f_ppg = 40./60.
   # Test data
@@ -404,7 +404,7 @@ def test_detrend_lambda_for_hr_response(f_s):
     atol=0.01)
 
 @pytest.mark.parametrize("f_s", [30, 125])
-def test_detrend_lambda_for_rr_response(f_s):
+def test_detrend_lambda_for_rr_response_preserves_frequency(f_s):
   t = 20
   f_resp = 7./60.
   # Test data

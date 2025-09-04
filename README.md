@@ -34,7 +34,7 @@ It is possible to customize the install of the dependencies by only listing the 
 To lint and run tests:
 
 ```
-flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+flake8 . --count --select=F,E9 --show-source --statistics
 pytest
 ```
 
