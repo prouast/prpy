@@ -89,16 +89,61 @@ def test_crop_slice_resize_retinaface():
   assert images_out.shape == (1, 224, 224, 3)
   np.testing.assert_equal(images_in, images_in_copy)
 
-@pytest.mark.parametrize("n_frames", [1, 3])
-@pytest.mark.parametrize("size", [4, 12, (12, 16)])
-def test_resample_bilinear(n_frames, size):
-  # Note: Only tests for correct shape, not for correct pixel vals
-  im = np.random.uniform(size=(n_frames, 8, 12, 3), low=0, high=255).astype(np.uint8)
-  im_copy = im.copy()
-  out = resample_bilinear(im=im, size=size)
-  if isinstance(size, int): size = (size, size)
-  assert out.shape == (n_frames, size[0], size[1], 3)
-  np.testing.assert_equal(im, im_copy)
+def test_resample_bilinear_non_square_target_against_reference():
+  height, width = 10, 20
+  gradient = np.linspace(0, 255, width, dtype=np.uint8)
+  broadcastable_gradient = gradient[np.newaxis, np.newaxis, :, np.newaxis]
+  image_in = np.ascontiguousarray(np.broadcast_to(broadcastable_gradient, (1, height, width, 3)))
+  image_in_copy = image_in.copy()
+  target_size = (4, 8)
+  actual_result = np.squeeze(resample_bilinear(im=image_in, size=target_size))
+  expected_result = crop_slice_resize(
+    inputs=image_in,
+    target_size=target_size,
+    library='PIL',
+    scale_algorithm='bilinear'
+  )
+  expected_result = np.squeeze(expected_result, axis=0)
+  np.testing.assert_allclose(actual_result, expected_result, atol=5)
+  np.testing.assert_equal(image_in, image_in_copy)
+
+def test_resample_bilinear_upsampling_correctness():
+  # Create a 2x2 image with distinct corners
+  im_in = np.array([
+    [[255,   0,   0], [  0, 255,   0]],
+    [[  0,   0, 255], [255, 255,   0]]
+  ], dtype=np.uint8)
+  im_in = im_in[np.newaxis, :, :, :] # Add batch dimension
+  # Upsample to 3x3
+  im_out = resample_bilinear(im=im_in, size=(3, 3))
+  im_out = np.squeeze(im_out, axis=0)
+  # Corners are now extrapolated values
+  np.testing.assert_allclose(im_out[0, 0], [255, 0, 0], atol=1)
+  np.testing.assert_allclose(im_out[0, 2], [0, 255, 0], atol=1)
+  np.testing.assert_allclose(im_out[2, 0], [0, 0, 255], atol=1)
+  np.testing.assert_allclose(im_out[2, 2], [255, 255, 0], atol=1)
+  # Interpolated value between Red and Green
+  np.testing.assert_allclose(im_out[0, 1], [127, 127,   0], atol=1)
+  # The very center should be an equal mix of all four corners
+  np.testing.assert_allclose(im_out[1, 1], [127, 127, 63], atol=1)
+
+def test_resample_bilinear_downsampling_correctness():
+  """
+  Tests if downsampling a simple 4x1 gradient produces the correct middle value.
+  """
+  # Create a simple 4-pixel wide gradient
+  im_in = np.array([[
+    [0, 0, 0], [85, 85, 85], [170, 170, 170], [255, 255, 255]
+  ]], dtype=np.uint8)
+  im_in = im_in[np.newaxis, :, :, :] # Add batch dimension
+  # Downsample to 2x1
+  im_out = resample_bilinear(im=im_in, size=(1, 2))
+  im_out = np.squeeze(im_out) # Remove all single dimensions
+  # Expected result for 'half-pixel centers' resampling
+  expected_result = np.array([
+    [42, 42, 42], [212, 212, 212]
+  ], dtype=np.uint8)
+  np.testing.assert_allclose(im_out, expected_result, atol=1)
 
 def test_resample_bilinear_segfault_memleak():
   test_video_ndarray = np.random.randint(0, 256, size=(138, 720, 1080, 3), dtype=np.uint8)
@@ -109,17 +154,6 @@ def test_resample_bilinear_segfault_memleak():
     _ = resample_bilinear(test_video_ndarray, 200)
     mem_1 = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
     assert mem_1 - mem_0 < 1
-
-@pytest.mark.parametrize("n_frames", [1, 3])
-@pytest.mark.parametrize("size", [4, (2, 3)])
-def test_resample_box(n_frames, size):
-  # Note: Only tests for correct shape, not for correct pixel vals
-  im = np.random.uniform(size=(n_frames, 8, 12, 3), low=0, high=255).astype(np.uint8)
-  im_copy = im.copy()
-  out = resample_box(im=im, size=size)
-  if isinstance(size, int): size = (size, size)
-  assert out.shape == (n_frames, size[0], size[1], 3)
-  np.testing.assert_equal(im, im_copy)
 
 def test_resample_box_segfault_memleak():
   test_video_ndarray = np.random.randint(0, 256, size=(138, 720, 1080, 3), dtype=np.uint8)
@@ -138,6 +172,77 @@ def test_resample_box_only_downsampling():
     _ = resample_box(im=im, size=5)
   np.testing.assert_equal(im, im_copy)
 
+def test_resample_box_perfect_averaging():
+  """
+  Tests box resampling where the target size is a perfect divisor of the source.
+  """
+  # Create a 4x4 image with four distinct 2x2 quadrants
+  im_in = np.zeros((4, 4, 3), dtype=np.uint8)
+  im_in[0:2, 0:2, :] = [10, 20, 30]
+  im_in[0:2, 2:4, :] = [40, 50, 60]
+  im_in[2:4, 0:2, :] = [70, 80, 90]
+  im_in[2:4, 2:4, :] = [100, 110, 120]
+  im_in = im_in[np.newaxis, :, :, :]
+  # Downsample to 2x2
+  im_out = resample_box(im=im_in, size=(2, 2))
+  im_out = np.squeeze(im_out, axis=0)
+  # Expected result: each output pixel is the exact average of its 2x2 block
+  expected_result = np.array([
+    [[10, 20, 30], [40, 50, 60]],
+    [[70, 80, 90], [100, 110, 120]]
+  ], dtype=np.uint8)
+  np.testing.assert_array_equal(im_out, expected_result)
+
+def test_resample_box_non_integer_ratio():
+  # Create a 10x10 image
+  im_in = np.arange(100, dtype=np.uint8).reshape(10, 10)
+  # Make it a 3-channel image for the function
+  im_in = np.stack([im_in, im_in, im_in], axis=-1)
+  im_in = im_in[np.newaxis, :, :, :] # Add batch dimension
+  # Manually calculate the expected value for the top-left (0,0) output pixel.
+  # For a 10->3 resize, the first block covers indices [0,1,2] in both x and y.
+  # Source box is im_in[0, 0:3, 0:3, 0]
+  expected_top_left_pixel_val = np.mean(im_in[0, 0:3, 0:3, 0])
+  # Downsample to 3x3
+  im_out = resample_box(im=im_in, size=(3, 3))
+  # Check the shape and the calculated pixel
+  assert im_out.shape == (1, 3, 3, 3)
+  np.testing.assert_allclose(im_out[0, 0, 0], expected_top_left_pixel_val, atol=1)
+
+@pytest.mark.parametrize("resample_func", [resample_bilinear, resample_box])
+def test_resampling_with_non_contiguous_input(resample_func):
+  base_array = np.random.randint(0, 256, (1, 20, 20, 3), dtype=np.uint8)
+  # Create a non-contiguous view by skipping every other pixel
+  im_non_contiguous = base_array[:, ::2, ::2, :]
+  assert im_non_contiguous.flags['C_CONTIGUOUS'] is False
+  assert im_non_contiguous.shape == (1, 10, 10, 3)
+  # Create a contiguous version for comparison
+  im_contiguous = im_non_contiguous.copy()
+  assert im_contiguous.flags['C_CONTIGUOUS'] is True
+  # Resample both versions
+  result_from_non_contiguous = resample_func(im=im_non_contiguous, size=(5, 5))
+  result_from_contiguous = resample_func(im=im_contiguous, size=(5, 5))
+  # The results should be identical
+  np.testing.assert_array_equal(result_from_non_contiguous, result_from_contiguous)
+
+@pytest.mark.parametrize("resample_func", [resample_bilinear, resample_box])
+@pytest.mark.parametrize("shape", [(0, 10, 10, 3), (1, 0, 10, 3), (1, 10, 0, 3)])
+def test_resampling_with_empty_input(resample_func, shape):
+  im_in = np.zeros(shape, dtype=np.uint8)
+  target_size = (5, 5)
+  im_out = resample_func(im=im_in, size=target_size)
+  expected_h = 0 if shape[1] == 0 else target_size[0]
+  expected_w = 0 if shape[2] == 0 else target_size[1]
+  expected_shape = (shape[0], expected_h, expected_w, shape[3])
+  assert im_out.shape == expected_shape
+  assert im_out.size == 0
+
+@pytest.mark.parametrize("resample_func", [resample_bilinear, resample_box])
+def test_resampling_invalid_dtype_raises_error(resample_func):
+  im_in_float = np.zeros((1, 10, 10, 3), dtype=np.float32)
+  with pytest.raises(ValueError, match="Input array must be .* and of type uint8"):
+    resample_func(im=im_in_float, size=(5, 5))
+
 @pytest.mark.parametrize("scenario", [(1, [[2, 3, 4, 7]]),
                                       (3, [[3, 4, 7, 12], [3, 5, 7, 12], [3, 5, 6, 10]])])
 @pytest.mark.parametrize("dtype", [np.int32, np.int64])
@@ -154,6 +259,25 @@ def test_reduce_roi(scenario, dtype):
     exp,
     atol=1e-4, rtol=1e-4)
   np.testing.assert_equal(video, video_copy)
+
+def test_reduce_roi_non_contiguous_input():
+  video = np.arange(2 * 10 * 10 * 3, dtype=np.uint8).reshape((2, 10, 10, 3))
+  # Create a larger ROI array and then slice it to make it non-contiguous
+  all_rois = np.array([
+      [1, 1, 3, 3], # Corresponds to video frame 0
+      [9, 9, 9, 9], # Dummy row
+      [2, 2, 4, 4], # Corresponds to video frame 1
+      [9, 9, 9, 9]  # Dummy row
+  ], dtype=np.int64)
+  roi_sliced = all_rois[::2] # This creates a non-contiguous view
+  assert not roi_sliced.flags['C_CONTIGUOUS']
+  # Calculate result with our implementation
+  out = reduce_roi(video=video, roi=roi_sliced)
+  # Calculate expected result using numpy
+  exp_0 = np.mean(video[0, 1:3, 1:3, :], axis=(0, 1))
+  exp_1 = np.mean(video[1, 2:4, 2:4, :], axis=(0, 1))
+  exp = np.vstack([exp_0, exp_1])
+  np.testing.assert_allclose(out, exp, rtol=1e-5, atol=1e-5)
 
 @pytest.mark.parametrize("in_mode", ["np", "str"])
 @pytest.mark.parametrize("in_type", ["image", "video"])
