@@ -334,7 +334,6 @@ reduce_roi_op(PyObject* self, PyObject* args) {
 
   // Get the strides
   npy_intp* video_strides = PyArray_STRIDES(input_array_video);
-  // npy_intp* roi_strides = PyArray_STRIDES(input_array_roi);
 
   // Get the dimensions of the input video array
   npy_intp* video_dims = PyArray_DIMS(input_array_video);
@@ -361,6 +360,12 @@ reduce_roi_op(PyObject* self, PyObject* args) {
     int y0 = current_frame_roi[1];
     int x1 = current_frame_roi[2];
     int y1 = current_frame_roi[3];
+    // Check that roi is nonempty
+    if (x1 <= x0 || y1 <= y0) {
+      PyErr_SetString(PyExc_ValueError, "ROI must have a positive area (x1 > x0 and y1 > y0).");
+      Py_DECREF(output_array_np);
+      return NULL;
+    }
     for (int src_y = y0; src_y < y1; ++src_y) {
       for (int src_x = x0; src_x < x1; ++src_x) {
         unsigned char* pixel = current_frame_video + src_y * video_strides[1] + src_x * video_strides[2];
