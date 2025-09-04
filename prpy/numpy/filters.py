@@ -159,11 +159,12 @@ def detrend(
     [np.ones(T), -2*np.ones(T), np.ones(T)],
     [0, 1, 2], (T-2), T).toarray()
   # Inverse of I+lambda^2*D2’*D2
-  inv = np.linalg.inv(I + (Lambda**2) * np.dot(D2.T, D2))
+  A = I + (Lambda**2) * np.dot(D2.T, D2)
   # Compute the detrending operation (vectorized)
   if axis == 0:
     z = np.transpose(z)
-  proc_z = np.matmul((I - inv), z.T)
+  z_trend = np.linalg.solve(A, z.T)
+  proc_z = (z.T - z_trend)
   if axis == 1:
     proc_z = np.transpose(proc_z)
   # Squeeze if necessary
