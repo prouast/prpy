@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Philipp Rouast
+# Copyright (c) 2025 Philipp Rouast
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -92,6 +92,7 @@ def get_face_roi_from_det(
   
   Args:
     det: The face detection [0, H/W] in form (x0, y0, x1, y1)
+    force_even_dims: Force to return even height and width roi.
   Returns:
     out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
@@ -110,6 +111,7 @@ def get_forehead_roi_from_det(
   
   Args:
     det: The face detection [0, H/W] in form (x0, y0, x1, y1)
+    force_even_dims: Force to return even height and width roi.
   Returns:
     out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
@@ -122,7 +124,8 @@ def get_upper_body_roi_from_det(
     clip_dims: tuple,
     cropped: bool = False,
     v: int = 1,
-    force_even_dims: bool = False
+    force_even_dims: bool = False,
+    detector: str = 'retinaface'
   ) -> tuple:
   """
   Convert face detection into upper body roi and clip to frame constraints.
@@ -132,6 +135,8 @@ def get_upper_body_roi_from_det(
     clip_dims: constraints (frame_w, frame_h) to clip the result to
     cropped: Create cropped variant?
     v: Version of ROI definition (0, 1, 2, or 3)
+    force_even_dims: Force to return even height and width roi.
+    detector: The detector used
   Returns:
     out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
@@ -157,8 +162,9 @@ def get_upper_body_roi_from_det(
                                clip_dims=clip_dims,
                                force_even_dims=force_even_dims)
     else:
+      rel_change = (.19, .1455, .19, .2769) if detector == 'ultralight-rfb' else (.175, .15, .175, .3)
       return _get_roi_from_det(det=det,
-                               rel_change=(.175, .15, .175, .3), 
+                               rel_change=rel_change,
                                clip_dims=clip_dims,
                                force_even_dims=force_even_dims)
   elif v == 2:
@@ -199,6 +205,7 @@ def get_meta_roi_from_det(
   Args:
     det: The face detection [0, H/W] in form (x0, y0, x1, y1)
     clip_dims: constraints (frame_w, frame_h) to clip the result to
+    force_even_dims: Force to return even height and width roi.
   Returns:
     out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
@@ -211,7 +218,8 @@ def get_roi_from_det(
     det: tuple,
     roi_method: Union[str, None],
     clip_dims: Union[tuple, None] = None,
-    force_even_dims: bool = False
+    force_even_dims: bool = False,
+    detector: str = 'retinaface'
   ) -> tuple:
   """
   Convert face detection into specified roi.
@@ -221,6 +229,8 @@ def get_roi_from_det(
     roi_method: Which roi method to use. Either 'forehead', 'face',
       'upper_body', 'upper_body_cropped', 'meta', None (directly use det)
     clip_dims: Constraints (frame_w, frame_h) to clip the result to (optional).
+    force_even_dims: Force to return even height and width roi.
+    detector: The detector used
   Returns:
     out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
@@ -242,7 +252,8 @@ def get_roi_from_det(
     return get_upper_body_roi_from_det(det,
                                        clip_dims=clip_dims,
                                        cropped=True,
-                                       force_even_dims=force_even_dims)
+                                       force_even_dims=force_even_dims,
+                                       detector=detector)
   elif roi_method == 'meta':
     assert clip_dims is not None
     return get_meta_roi_from_det(det,
@@ -260,7 +271,8 @@ def crop_resize_from_det(
     roi_method: str,
     library: str,
     scale_algorithm: str,
-    force_even_dims: bool = False
+    force_even_dims: bool = False,
+    detector: str = 'retinaface'
   ) -> np.ndarray:
   """
   Crop and resize a video according to a single face detection.
@@ -276,6 +288,8 @@ def crop_resize_from_det(
     library: The library used for resize (PIL, cv2, or tf - returns tf.Tensor)
     scale_algorithm: The algorithm used for scaling. Supports: bicubic,
       bilinear, area (not for PIL!), lanczos
+    force_even_dims: Force to return even height and width roi.
+    detector: The detector used
   Returns:
     result: Cropped and resized video. Shape [n_frames, size[0], size[1], c]
   """
@@ -284,7 +298,8 @@ def crop_resize_from_det(
   roi = get_roi_from_det(det,
                          roi_method=roi_method,
                          clip_dims=(width, height),
-                         force_even_dims=force_even_dims)
+                         force_even_dims=force_even_dims,
+                         detector=detector)
   return crop_slice_resize(
     inputs=video, target_size=size, roi=roi, library=library,
     preserve_aspect_ratio=False, scale_algorithm=scale_algorithm)
