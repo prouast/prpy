@@ -103,6 +103,7 @@ def estimate_rate_from_signal(
     overlap: Optional[int] = None,
     interp_skipped: bool = False,
     pad_val: float = np.nan,
+    rolling_pad_mode: str = 'reflect',
     **kw
   ) -> np.ndarray:
   """
@@ -117,7 +118,9 @@ def estimate_rate_from_signal(
     axis: Time axis of `signal`.
     window_size: Window size in number of signal data points required for scope.ROLLING
     overlap: Overlap in number of signal data points for scope.ROLLING.
-    interp_skipped: Insert interpolated detection for presumably skipped beats.
+    interp_skipped: Insert interpolated detection for presumably skipped events.
+    pad_val: Value for padding.
+    rolling_pad_mode: Intermediate pad mode to use for end of rolling window view
     **kw: Extra args forwarded to the underlying frequency estimator.
   Returns:
     The estimated rate.
@@ -150,7 +153,8 @@ def estimate_rate_from_signal(
                         min_window_size=window_size,
                         max_window_size=window_size,
                         overlap=overlap,
-                        pad_val=pad_val) * SECONDS_PER_MINUTE
+                        pad_val=pad_val,
+                        rolling_pad_mode=rolling_pad_mode) * SECONDS_PER_MINUTE
 
 def _calc_from_detections(
     det_idxs: np.ndarray,
@@ -463,6 +467,7 @@ def estimate_hr_from_signal(
     window_size: Optional[int] = None,
     overlap: Optional[int] = None,
     interp_skipped: bool = False,
+    rolling_pad_mode: str = 'reflect',
     **kw
   ) -> np.ndarray:
   """
@@ -478,6 +483,7 @@ def estimate_hr_from_signal(
     window_size: Window size in number of signal data points required for scope.ROLLING
     overlap: Overlap in number of signal data points for scope.ROLLING.
     interp_skipped: Insert interpolated detection for presumably skipped beats
+    rolling_pad_mode: Intermediate pad mode to use for end of rolling window view
     **kw: Extra args forwarded to the underlying frequency estimator.
   Returns:
     The estimated heart rate.
@@ -495,6 +501,7 @@ def estimate_hr_from_signal(
     window_size=window_size,
     overlap=overlap,
     interp_skipped=interp_skipped,
+    rolling_pad_mode=rolling_pad_mode,
     **kw
   )
 
@@ -509,6 +516,7 @@ def estimate_rr_from_signal(
     window_size: Optional[int] = None,
     overlap: Optional[int] = None,
     interp_skipped: bool = False,
+    rolling_pad_mode: str = 'reflect',
     **kw
   ) -> np.ndarray:
   """
@@ -524,6 +532,7 @@ def estimate_rr_from_signal(
     window_size: Window size in number of signal data points required for scope.ROLLING
     overlap: Overlap in number of signal data points for scope.ROLLING.
     interp_skipped: Insert interpolated detection for presumably skipped breaths
+    rolling_pad_mode: Intermediate pad mode to use for end of rolling window view
     **kw: Extra args forwarded to the underlying frequency estimator.
   Returns:
     The estimated respiratory rate.
@@ -541,6 +550,7 @@ def estimate_rr_from_signal(
     window_size=window_size,
     overlap=overlap,
     interp_skipped=interp_skipped,
+    rolling_pad_mode=rolling_pad_mode,
     **kw
   )
 
@@ -813,6 +823,13 @@ def estimate_hrv_from_detection_sequences(
     if dets.size < min_dets: return np.nan
     det_t = (t[dets] if t is not None else dets / f_s).astype(float)
     return _rate_from_ts(det_t)
+  if scope == EScope.ROLLING and t is None:
+    # Infer required t from f_s if not provided
+    if not seqs or not any(s.size > 0 for s in seqs):
+      raise ValueError("Cannot infer `t` for ROLLING scope with empty detection sequences.")
+    last_detection_index = max(s[-1] for s in seqs if s.size > 0)
+    num_samples = int(last_detection_index) + 1
+    t = np.arange(num_samples) / f_s
   return _calc_from_detection_sequences(
     seqs=seqs,
     calc_fn_from_dets=_rate_from_dets,

@@ -18,7 +18,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import logging
 import numpy as np
 from typing import Callable, Optional
 
@@ -76,8 +75,6 @@ def rolling_calc(
     # Apply the calculation
     x_calc = calc_fn(x_view)
     if x_calc.ndim != 1 or x_calc.shape[0] != x_view.shape[0]:
-      logging.warning(f"x_calc: {x_calc.shape}")
-      logging.warning(f"x_view: {x_view.shape}")
       raise ValueError("calc_fn must reduce all but the first dimension")
     # Resolve the view
     result = resolve_1d_window_view(x=x_calc,
