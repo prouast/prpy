@@ -25,8 +25,6 @@ import os
 import logging
 from typing import Union, Tuple
 
-from prpy.ffmpeg.probe import probe_video
-from prpy.ffmpeg.readwrite import read_video_from_path
 from .image_ops import resample_bilinear_op, resample_box_op, reduce_roi_op
 
 VIDEO_PARSE_ERROR = "Unable to parse input video. There may be an issue with the video file."
@@ -271,6 +269,7 @@ def probe_image_inputs(
         if not (fps is None or isinstance(fps, (int, float))):
           raise ValueError(f"fps should be a number, but got {type(fps)}")
         try:
+          from prpy.ffmpeg.probe import probe_video
           fps_, n, w_, h_, _, _, r, i = probe_video(inputs)
           if fps is None: fps = fps_
           if abs(r) == 90: h = w_; w = h_
@@ -391,6 +390,8 @@ def parse_image_inputs(
       else:
         # Video file
         try:
+          from prpy.ffmpeg.probe import probe_video
+          from prpy.ffmpeg.readwrite import read_video_from_path
           fps_, n, w_, h_, c, _, r, i = probe_video(inputs)
           if fps is None: fps = fps_
           if roi is not None: roi = (int(roi[0]), int(roi[1]), int(roi[2]), int(roi[3]))
