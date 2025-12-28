@@ -691,7 +691,7 @@ def estimate_hrv_from_signal(
     window_unit=window_unit,
     interp_skipped=interp_skipped,
     min_dets=min_dets,
-    min_t=min_t,
+    min_t=min_t-1.5, # Allow less time to account for gap before first and after last detection
     pad_val=pad_val
   )
   return sdnn, sdnn_conf
