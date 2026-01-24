@@ -433,6 +433,7 @@ def read_video_from_path(
     scale_algorithm: str = 'bicubic',
     order: str = 'scale_crf',
     dim_deltas: tuple = (40, 0, 0),
+    known_metadata: dict = None,
     quiet: bool = True
   ) -> Tuple[np.ndarray, int]:
   """Read a video from path into a numpy array.
@@ -454,6 +455,7 @@ def read_video_from_path(
       Supported: bicubic, bilinear, area, lanczos. Default: bicubic
     order: scale_crf or crf_scale - specifies order of application
     dim_deltas: Allowed deviation from target (n_frames, height, width)
+    known_metadata: Known video metadata to avoid unnecessary probe
     quiet: Whether to suppress ffmpeg output
   Returns:
     Tuple of
@@ -465,7 +467,14 @@ def read_video_from_path(
   if not os.path.exists(path):
     raise FileNotFoundError(f"File {path} does not exist")
   # Get metadata of original video
-  fps, n, w, h, _, _, r, _ = probe_video(path=path)
+  if known_metadata:
+    fps = known_metadata['fps']
+    n = known_metadata['n']
+    w = known_metadata['w']
+    h = known_metadata['h']
+    r = 0
+  else:
+    fps, n, w, h, _, _, r, _ = probe_video(path=path)
   # Input
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
