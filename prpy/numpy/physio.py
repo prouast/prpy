@@ -68,6 +68,8 @@ CALC_HRV_LFHF_MIN_T = 55  # seconds
 CALC_HRV_LFHF_MAX_T = 60  # seconds
 CALC_RR_MIN_T = 10        # seconds
 CALC_RR_MAX_T = 30        # seconds
+CALC_SPO2_MAX_T = 10      # seconds
+CALC_BP_MAX_T = 10        # seconds
 
 class EScope(IntEnum):
   """How the metric is computed along the signal timeline."""
@@ -615,10 +617,10 @@ def estimate_hrv_from_signal(
     scope: EScope = EScope.GLOBAL,
     overlap: Optional[float] = None,
     confidence: Optional[np.ndarray] = None,
-    confidence_threshold: float = 0.6,
+    confidence_threshold: float = 0.5,
     window_unit: EWindowUnit = EWindowUnit.DETECTIONS,
     interp_skipped: bool = False,
-    min_dets: int = 8,
+    min_dets: int = 10,
     min_t: float = 10.,
     pad_val: float = np.nan,
     **kw
@@ -892,3 +894,129 @@ def detrend_lambda_for_rr_response(
     The lambda parameter
   """
   return int(4.4248*np.power(f_s, 2.1253))
+
+def _std_calc_hr(sig, fs, conf, **kwargs):
+  return estimate_hr_from_signal(
+    signal=sig, f_s=fs, confidence=conf,
+    method=EMethod.PERIODOGRAM, **kwargs
+  )
+
+def _std_calc_rr(sig, fs, conf, **kwargs):
+  return estimate_rr_from_signal(
+    signal=sig, f_s=fs, confidence=conf,
+    method=EMethod.PERIODOGRAM, **kwargs
+  )
+
+def _std_calc_hrv(sig, fs, conf, metric, min_t, **kwargs):
+  return estimate_hrv_from_signal(
+    signal=sig, metric=metric, f_s=fs,
+    confidence=conf,
+    confidence_threshold=0.5,
+    min_window_size=int(fs * 4),
+    max_window_size=int(fs * 8),
+    overlap=int(fs * 4),
+    height=0, prominence=0.2, period_rel_tol=(0.5, 1.3),
+    interp_skipped=True, min_t=min_t,
+    **kwargs
+  )
+
+VITAL_REGISTRY = {
+  # Provided
+  'ppg_waveform': {
+    'type': 'provided',
+    'unit': 'unitless',
+    'display_name': 'PPG Waveform',
+    'aggregation': None
+  },
+  'respiratory_waveform': {
+    'type': 'provided',
+    'unit': 'unitless',
+    'display_name': 'Respiratory Waveform',
+    'aggregation': None
+  },
+  'sbp': {
+    'type': 'provided',
+    'unit': 'mmHg',
+    'display_name': 'Systolic Blood Pressure',
+    'aggregation': 'mean',
+    'max_t': CALC_BP_MAX_T
+  },
+  'dbp': {
+    'type': 'provided',
+    'unit': 'mmHg',
+    'display_name': 'Diastolic Blood Pressure',
+    'aggregation': 'mean',
+    'max_t': CALC_BP_MAX_T,
+  },
+  'spo2': {
+    'type': 'provided',
+    'unit': '%',
+    'display_name': 'Blood Oxygen (SpO2)',
+    'aggregation': 'mean',
+    'max_t': CALC_SPO2_MAX_T
+  },
+  # Derived
+  'heart_rate': {
+    'type': 'derived',
+    'unit': 'bpm',
+    'display_name': 'Heart Rate',
+    'source_signal': 'ppg_waveform',
+    'min_t': CALC_HR_MIN_T,
+    'max_t': CALC_HR_MAX_T,
+    'aggregation': 'mean',
+    'func': _std_calc_hr
+  },
+  'respiratory_rate': {
+    'type': 'derived',
+    'unit': 'bpm',
+    'display_name': 'Respiratory Rate',
+    'source_signal': 'respiratory_waveform',
+    'min_t': CALC_RR_MIN_T,
+    'max_t': CALC_RR_MAX_T,
+    'aggregation': 'mean',
+    'func': _std_calc_rr
+  },
+  'hrv_sdnn': {
+    'type': 'derived',
+    'unit': 'ms',
+    'display_name': 'Heart Rate Variability (SDNN)',
+    'source_signal': 'ppg_waveform',
+    'min_t': CALC_HRV_SDNN_MIN_T,
+    'max_t': CALC_HRV_SDNN_MAX_T,
+    'aggregation': 'min',
+    'func': lambda s, f, c, **kw: _std_calc_hrv(s, f, c, HRVMetric.SDNN, CALC_HRV_SDNN_MIN_T, **kw)
+  },
+  'hrv_rmssd': {
+    'type': 'derived',
+    'unit': 'ms',
+    'display_name': 'Heart Rate Variability (RMSSD)',
+    'source_signal': 'ppg_waveform',
+    'min_t': CALC_HRV_RMSSD_MIN_T,
+    'max_t': CALC_HRV_RMSSD_MAX_T,
+    'aggregation': 'min',
+    'func': lambda s, f, c, **kw: _std_calc_hrv(s, f, c, HRVMetric.RMSSD, CALC_HRV_RMSSD_MIN_T, **kw)
+  },
+  'hrv_lfhf': {
+    'type': 'derived',
+    'unit': 'unitless',
+    'display_name': 'Heart Rate Variability (LF/HF)',
+    'source_signal': 'ppg_waveform',
+    'min_t': CALC_HRV_LFHF_MIN_T,
+    'max_t': CALC_HRV_LFHF_MAX_T,
+    'aggregation': 'min',
+    'func': lambda s, f, c, **kw: _std_calc_hrv(s, f, c, HRVMetric.LFHF, CALC_HRV_LFHF_MIN_T, **kw)
+  },
+}
+
+VITAL_ALIAS_MAP = {
+  'hr': 'heart_rate',
+  'rr': 'respiratory_rate',
+  'ppg': 'ppg_waveform',
+  'resp': 'respiratory_waveform',
+  'hrv_sdnn': 'hrv_sdnn',
+  'hrv_rmssd': 'hrv_rmssd',
+  'hrv_lfhf': 'hrv_lfhf',
+  'sbp': 'blood_pressure_systolic',
+  'dbp': 'blood_pressure_diastolic',
+  'spo2': 'spo2',
+}
