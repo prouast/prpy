@@ -23,6 +23,7 @@ sys.path.append('../prpy')
 
 from prpy.numpy.filters import moving_average, moving_average_size_for_response, moving_std
 from prpy.numpy.filters import detrend, detrend_frequency_response, butter_bandpass
+from prpy.numpy.filters import detrend_lambda_for_cutoff, windowed_standardize
 
 import numpy as np
 import pytest
@@ -186,3 +187,39 @@ def test_butter_bandpass_attenuates_and_passes_correctly():
   # Analyze the output
   power_out = np.std(signal_out)
   np.testing.assert_allclose(power_out, power_in_band_original, rtol=1e-2)
+
+def test_detrend_lambda_for_cutoff():
+  f_s_values = [15, 30, 60]
+  # 1. Test HR approximation
+  cutoff_hr = 40.0 / 60.0 
+  for fs in f_s_values:
+    val_new = detrend_lambda_for_cutoff(fs, cutoff_hr)
+    val_old = int(0.1614 * np.power(fs, 1.9804))
+    np.testing.assert_allclose(val_new, val_old, rtol=0.15, 
+      err_msg=f"HR Mismatch at fs={fs}: New={val_new}, Old={val_old}")
+  # 2. Test RR approximation
+  cutoff_rr = 6.3 / 60.0
+  for fs in f_s_values:
+    val_new = detrend_lambda_for_cutoff(fs, cutoff_rr)
+    val_old = int(4.4248 * np.power(fs, 2.1253))
+    np.testing.assert_allclose(val_new, val_old, rtol=0.15,
+       err_msg=f"RR Mismatch at fs={fs}: New={val_new}, Old={val_old}")
+
+def test_windowed_standardize():
+  x = np.concatenate([
+    np.random.normal(loc=10, scale=1, size=50),
+    np.random.normal(loc=100, scale=10, size=50)
+  ])
+  # Standardize with window
+  std_x = windowed_standardize(x, window_size=20)
+  # Check stats in the stable regions (ignoring the transition point)
+  # First regime (indices 10-40)
+  assert np.abs(np.mean(std_x[10:40])) < 0.5  # Mean close to 0
+  assert np.abs(np.std(std_x[10:40]) - 1.0) < 0.5 # Std close to 1
+  # Second regime (indices 60-90)
+  assert np.abs(np.mean(std_x[60:90])) < 0.5  # Mean close to 0
+  assert np.abs(np.std(std_x[60:90]) - 1.0) < 0.5 # Std close to 1
+  # Ensure it is NOT the same as global standardization
+  # (Global standardization would fail to normalize the second half correctly due to the massive mean shift)
+  global_std_x = (x - np.mean(x)) / np.std(x)
+  assert not np.allclose(std_x, global_std_x, atol=0.1)
