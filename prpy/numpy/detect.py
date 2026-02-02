@@ -75,8 +75,8 @@ def detect_valid_peaks(
     period_rel_tol: (shorter, longer)
       - Allowed *relative* deviation of each peak-to-peak interval from the reference interval:
         valid if  (1-shorter)·T_ref  <  T  <  (1+longer)·T_ref
-    window_size: The size of the reference frequency calculation window in number of data points
-    overlap: The overlap of consecutive reference frequency calculation windows in number of data points
+    window_size: The size of the reference frequency calculation window in samples
+    overlap: The overlap of consecutive reference frequency calculation windows in samples
     min_det_for_valid_seq: Minimum consecutive valid detections to keep a sequence.
     t: The timestamps of the signal values (n,). If omitted, derived from `f_s`.
     width: Required width of peaks in seconds (either scalar as minimum or tuple for (min, max))
@@ -109,6 +109,7 @@ def detect_valid_peaks(
   # Sliding reference freq
   window_size = min(window_size, size)
   if overlap is None: overlap = window_size // 2
+  overlap = min(overlap, window_size - 1)
   freqs = rolling_calc(
     x=vals,
     calc_fn=lambda x: estimate_freq_periodogram(
