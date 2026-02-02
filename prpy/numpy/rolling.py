@@ -41,8 +41,8 @@ def rolling_calc(
     x: The values to be processed. Shape (n, ...) -> m dims in total
     calc_fn: The function which should be applied to a window of values.
       - Must accept (m+1)-dim array and reduce all but the first dim.
-    min_window_size: The minimum size of the calculation window in number of values.
-    max_window_size: The maximum size of the calculation window in number of values.
+    min_window_size: The minimum size of the calculation window in number of samples.
+    max_window_size: The maximum size of the calculation window in number of samples.
     overlap: The overlap of the rolling windows (default: max_window_size-1)
     transform_fn: Optional function that is applied before `calc_fn` to the rolling view.
       - Must preserve the view's shape.

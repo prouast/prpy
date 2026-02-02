@@ -31,6 +31,7 @@ from prpy.numpy.physio import estimate_rate_from_detection_sequences
 from prpy.numpy.physio import estimate_hrv_from_signal
 from prpy.numpy.physio import estimate_hrv_from_detections
 from prpy.numpy.physio import estimate_hrv_from_detection_sequences
+from prpy.numpy.physio import derive_confidence_from_detection_sequences
 from prpy.numpy.physio import moving_average_size_for_hr_response, moving_average_size_for_rr_response
 from prpy.numpy.physio import detrend_lambda_for_hr_response, detrend_lambda_for_rr_response
 
@@ -303,13 +304,15 @@ def test_estimate_hrv_sdnn_from_detections_global():
 def test_estimate_hrv_sdnn_from_detection_sequences_global(correct_quantization_error):
   idxs_list = [[202, 392, 612, 799], [1201, 1403, 1610, 1839]]
   t = np.linspace(0, 8, 2000)
-  out = estimate_hrv_from_detection_sequences(seqs=idxs_list,
-                                                   t=t,
-                                                   metric=HRVMetric.SDNN,
-                                                   correct_quantization_error=correct_quantization_error,
-                                                   scope=EScope.GLOBAL,
-                                                   min_dets=2,
-                                                   min_t=.5)
+  out = estimate_hrv_from_detection_sequences(
+    seqs=idxs_list,
+    t=t,
+    metric=HRVMetric.SDNN,
+    correct_quantization_error=correct_quantization_error,
+    scope=EScope.GLOBAL,
+    min_dets=2,
+    min_t=.5
+  )
   if correct_quantization_error:
     np.testing.assert_allclose(out, 53.0593762, atol=1e-5)
   else:
@@ -319,16 +322,18 @@ def test_estimate_hrv_sdnn_from_detection_sequences_global(correct_quantization_
 def test_estimate_hrv_sdnn_from_detection_sequences_rolling(correct_quantization_error):
   idxs_list = [[202, 392, 612, 799], [1201, 1403, 1610, 1839]]
   t = np.linspace(0, 8, 2000)
-  out = estimate_hrv_from_detection_sequences(seqs=idxs_list,
-                                                   t=t,
-                                                   metric=HRVMetric.SDNN,
-                                                   correct_quantization_error=correct_quantization_error,
-                                                   min_window_size=2,
-                                                   max_window_size=4,
-                                                   scope=EScope.ROLLING,
-                                                   overlap=2,
-                                                   min_dets=3,
-                                                   min_t=.5)
+  out = estimate_hrv_from_detection_sequences(
+    seqs=idxs_list,
+    t=t,
+    metric=HRVMetric.SDNN,
+    correct_quantization_error=correct_quantization_error,
+    min_window_size=2,
+    max_window_size=4,
+    scope=EScope.ROLLING,
+    overlap=2,
+    min_dets=3,
+    min_t=.5
+  )
   if correct_quantization_error:
     assert np.isnan(out[0]) # Start
     assert np.isnan(out[202]) # Seq 1 val 1
@@ -425,7 +430,7 @@ def test_detrend_lambda_for_rr_response_preserves_frequency(f_s):
     estimate_freq(x=y, f_s=f_s, f_res=0.01, f_range=(5./60., 100./60.), method='periodogram'),
     f_resp,
     atol=0.01)
-  
+
 @pytest.mark.parametrize("scenario", [([.01, .03, .2,  .6,  .4,  .001, .02, .01, .8, .09, .03, .06, .99, .03, .1, .06, .11, .7, .31, .12, .03, .79, .1, .05, .01, .94, 0.1],
                                        [1.,  1.,  .99, .95, .96, 1.,   1.,  1.,  1., 1.,  1.,  1.,  1.,  1.,  1., 1.,  .81, .5, .9,  1.,  1.,  1.,  1.,  1., 1.,  1., 1.],
                                        4., .6, 93.17, .95)])
@@ -447,4 +452,53 @@ def test_estimate_hrv_sdnn_from_signal_with_confidence(scenario):
     min_dets=4
   )
   np.testing.assert_allclose(actual, expected, atol=1e-2)
+  assert np.isscalar(conf)
   np.testing.assert_allclose(conf, exp_conf)
+
+@pytest.mark.parametrize("scenario", [([.01, .03, .2,  .6,  .4,  .001, .02, .01, .8, .09, .03, .06, .99, .03, .1, .06, .11, .7, .31, .12, .03, .79, .1, .05, .01, .94, 0.1],
+                                       [1.,  1.,  .99, .95, .96, 1.,   1.,  1.,  1., 1.,  1.,  1.,  1.,  1.,  1., 1.,  .81, .95, .9,  1.,  1.,  1.,  1.,  1., 1.,  1., 1.],
+                                       4., .6, 93.17, .95)])
+def test_estimate_hrv_sdnn_from_signal_with_confidence_rolling(scenario):
+  signal, conf, f_s, conf_threshold, expected, exp_conf = scenario
+  signal = np.asarray(signal)
+  conf = np.asarray(conf)
+  window_size = len(signal)
+  vals, confs = estimate_hrv_from_signal(
+    signal=signal,
+    metric=HRVMetric.SDNN,
+    f_s=f_s,
+    min_window_size=4,
+    max_window_size=4,
+    window_unit=EWindowUnit.DETECTIONS,
+    period_rel_tol=(0.2, 0.9),
+    overlap=3,
+    scope=EScope.ROLLING,
+    confidence=conf,
+    confidence_threshold=conf_threshold,
+    min_t=.5,
+    min_dets=3
+  )
+  assert vals.shape == signal.shape
+  assert confs.shape == signal.shape
+  np.testing.assert_allclose(vals[-1], expected, atol=1e-2)
+  np.testing.assert_allclose(confs[-1], exp_conf, atol=1e-5)
+
+def test_derive_confidence_from_detection_sequences_global():
+  confidence = np.array([0.5, 0.9, 0.8, 0.2, 1.0])
+  seqs = [np.array([1, 2, 4])] 
+  out = derive_confidence_from_detection_sequences(seqs, confidence, f_s=1.0, scope=EScope.GLOBAL)
+  assert pytest.approx(out) == 0.8
+
+def test_derive_confidence_from_detection_sequences_rolling():
+  confidence = np.linspace(1.0, 0.1, 10) 
+  seqs = [np.arange(10)]
+  out = derive_confidence_from_detection_sequences(
+    seqs, confidence, f_s=1.0, t=np.arange(10),
+    scope=EScope.ROLLING, window_unit=EWindowUnit.DETECTIONS,
+    min_window_size=3, max_window_size=3, overlap=2, pad_val=np.nan
+  )
+  assert len(out) == 10
+  assert np.isnan(out[0])
+  assert np.isnan(out[1])
+  assert pytest.approx(out[2]) == 0.8
+  assert pytest.approx(out[9]) == 0.1
