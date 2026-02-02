@@ -462,7 +462,6 @@ def test_estimate_hrv_sdnn_from_signal_with_confidence_rolling(scenario):
   signal, conf, f_s, conf_threshold, expected, exp_conf = scenario
   signal = np.asarray(signal)
   conf = np.asarray(conf)
-  window_size = len(signal)
   vals, confs = estimate_hrv_from_signal(
     signal=signal,
     metric=HRVMetric.SDNN,
