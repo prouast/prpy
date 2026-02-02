@@ -208,6 +208,26 @@ def detrend_frequency_response(
   # Return
   return float(freq)
 
+def detrend_lambda_for_cutoff(
+    f_s: Union[float, int],
+    cutoff: float
+  ) -> int:
+  """Get the detrending lambda parameter for a specific cutoff frequency (Hz).
+
+  Generalizes the empirical fits:
+    Lambda_hr = 0.1614 * fs^1.98  (approx cutoff 0.67 Hz)
+    Lambda_rr = 4.4248 * fs^2.12  (approx cutoff 0.13 Hz)
+
+  Args:
+    f_s: The sampling frequency
+    cutoff: The desired high-pass cutoff frequency in Hz
+  Returns:
+    The lambda parameter
+  """
+  if cutoff <= 0:
+    return 0
+  return int(0.075 * (f_s / cutoff)**2)
+
 def butter_bandpass(
     x: np.ndarray,
     lowcut: Union[int, float],
@@ -248,7 +268,6 @@ def butter_bandpass(
   y = signal.filtfilt(b=b, a=a, x=x, axis=axis)
   return y
 
-# TODO(prouast): Write tests
 def windowed_standardize(
     x: np.ndarray,
     window_size: int,
