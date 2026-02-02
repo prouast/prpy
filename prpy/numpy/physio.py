@@ -85,6 +85,7 @@ class EWindowUnit(IntEnum):
   """Unit for rolling window."""
   DETECTIONS = 0
   SECONDS = 1
+  SAMPLES = 2
 
 class HRVMetric(IntEnum):
   """Metric for heart rate variability."""
@@ -93,6 +94,34 @@ class HRVMetric(IntEnum):
   LF = 2
   HF = 3
   LFHF = 4
+
+def _convert_window_val(
+    val: float,
+    from_unit: EWindowUnit,
+    to_unit: EWindowUnit,
+    f_s: float,
+    avg_hr_bpm: float = 60.0
+  ) -> int:
+  """Helper to convert window values between units."""
+  if val is None: return None
+  if from_unit == to_unit:
+    return val
+  val_seconds = 0.0
+  if from_unit == EWindowUnit.SECONDS:
+    val_seconds = val
+  elif from_unit == EWindowUnit.SAMPLES:
+    val_seconds = val / f_s
+  elif from_unit == EWindowUnit.DETECTIONS:
+    avg_rr_s = SECONDS_PER_MINUTE / avg_hr_bpm
+    val_seconds = val * avg_rr_s
+  if to_unit == EWindowUnit.SECONDS:
+    return int(val_seconds)
+  elif to_unit == EWindowUnit.SAMPLES:
+    return int(val_seconds * f_s)
+  elif to_unit == EWindowUnit.DETECTIONS:
+    avg_rr_s = SECONDS_PER_MINUTE / avg_hr_bpm
+    return int(val_seconds / avg_rr_s)
+  return val
 
 def estimate_rate_from_signal(
     signal: np.ndarray,
@@ -119,8 +148,8 @@ def estimate_rate_from_signal(
     scope: GLOBAL for scalar rate or ROLLING for rate trace shape (n,).
     method: PEAK, PERIODOGRAM, or FFT. 
     axis: Time axis of `signal`.
-    window_size: Window size in number of signal data points required for scope.ROLLING
-    overlap: Overlap in number of signal data points for scope.ROLLING.
+    window_size: Window size in number of samples required for scope.ROLLING
+    overlap: Overlap in number of samples for scope.ROLLING.
     interp_skipped: Insert interpolated detection for presumably skipped events.
     pad_val: Value for padding.
     rolling_pad_mode: Intermediate pad mode to use for end of rolling window view
@@ -186,6 +215,7 @@ def _calc_from_detections(
     min_window_size: Minimum window size for scope.ROLLING in the `window_unit`.
     max_window_size: Maximum window size for scope.ROLLING in the `window_unit`.
     overlap: Overlap for scope.ROLLING in the `window_unit`.
+    window_unit: The unit of the given window sizes and overlap.
     pad_val: Value for padding.
   Returns:
     The results.
@@ -206,17 +236,7 @@ def _calc_from_detections(
     overlap = min_window_size - 1 if window_unit is EWindowUnit.DETECTIONS else None
   if overlap is not None and overlap > min_window_size:
     raise ValueError("`overlap` must be <= `min_window_size`")
-  if window_unit is EWindowUnit.DETECTIONS:
-    # Count-based window
-    result_per_det = rolling_calc(
-      x=det_idxs,
-      calc_fn=lambda v: np.apply_along_axis(calc_fn_from_dets, 1, v),
-      min_window_size=int(min_window_size),
-      max_window_size=int(max_window_size),
-      overlap=int(overlap),
-      pad_val=pad_val
-    )
-  else:
+  if window_unit is EWindowUnit.SECONDS:
     # Duration-based window
     det_t = t[det_idxs].astype(float)
     result_per_det = rolling_calc_ragged(
@@ -225,6 +245,21 @@ def _calc_from_detections(
       min_window_size=min_window_size,
       max_window_size=max_window_size,
       pad_val=pad_val,
+    )
+  else:
+    if window_unit is EWindowUnit.SAMPLES:
+      if f_s is None:
+        f_s = t.shape[0]/(t[-1]-t[0])
+      min_window_size = _convert_window_val(min_window_size, window_unit, EWindowUnit.DETECTIONS, f_s)
+      max_window_size = _convert_window_val(max_window_size, window_unit, EWindowUnit.DETECTIONS, f_s)
+      overlap = min(min_window_size, _convert_window_val(overlap, window_unit, EWindowUnit.DETECTIONS, f_s))
+    result_per_det = rolling_calc(
+      x=det_idxs,
+      calc_fn=lambda v: np.apply_along_axis(calc_fn_from_dets, 1, v),
+      min_window_size=int(min_window_size),
+      max_window_size=int(max_window_size),
+      overlap=int(overlap),
+      pad_val=pad_val
     )
   # Up-sample “step” trace
   t_full = t.astype(float)
@@ -359,7 +394,7 @@ def estimate_rate_from_detections(
     min_window_size: Minimum window size for scope.ROLLING in the `window_unit`.
     max_window_size: Maximum window size for scope.ROLLING in the `window_unit`.
     overlap: Overlap for scope.ROLLING in the `window_unit`.
-    window_unit: DETECTIONS or SECONDS.
+    window_unit: The unit of the given window sizes and overlap.
     interp_skipped: Insert interpolated detection for presumably skipped beats.
     pad_val: Value for padding.
   Returns:
@@ -421,7 +456,7 @@ def estimate_rate_from_detection_sequences(
     min_window_size: Minimum window size for scope.ROLLING in the `window_unit`.
     max_window_size: Maximum window size for scope.ROLLING in the `window_unit`.
     overlap: Overlap for scope.ROLLING in the `window_unit`.
-    window_unit: DETECTIONS or SECONDS.
+    window_unit: The unit of the given window sizes and overlap.
     interp_skipped: Insert interpolated detection for presumably skipped beats.
     pad_val: Value for padding.
   Returns:
@@ -483,8 +518,8 @@ def estimate_hr_from_signal(
     method: PEAK, PERIODOGRAM, or FFT. 
     axis: Time axis of `signal`.
     confidence: Optional per-sample confidence mask. Same shape as `signal`.
-    window_size: Window size in number of signal data points required for scope.ROLLING
-    overlap: Overlap in number of signal data points for scope.ROLLING.
+    window_size: Window size in number of samples required for scope.ROLLING
+    overlap: Overlap in number of samples for scope.ROLLING.
     interp_skipped: Insert interpolated detection for presumably skipped beats
     rolling_pad_mode: Intermediate pad mode to use for end of rolling window view
     **kw: Extra args forwarded to the underlying frequency estimator.
@@ -532,8 +567,8 @@ def estimate_rr_from_signal(
     method: PEAK, PERIODOGRAM, or FFT. 
     axis: Time axis of `signal`.
     confidence: Optional per-sample confidence mask. Same shape as `signal`.
-    window_size: Window size in number of signal data points required for scope.ROLLING
-    overlap: Overlap in number of signal data points for scope.ROLLING.
+    window_size: Window size in number of samples required for scope.ROLLING
+    overlap: Overlap in number of samples for scope.ROLLING.
     interp_skipped: Insert interpolated detection for presumably skipped breaths
     rolling_pad_mode: Intermediate pad mode to use for end of rolling window view
     **kw: Extra args forwarded to the underlying frequency estimator.
@@ -639,30 +674,37 @@ def estimate_hrv_from_signal(
     overlap: Overlap for scope.ROLLING in the `window_unit`.
     confidence: Optional confidences for the raw sensor signal. Shape (n,)
     confidence_threshold: Confidence threshold above which to consider detected peaks
-    window_unit: DETECTIONS or SECONDS.
+    window_unit: The unit of the given window sizes and overlap.
     interp_skipped: Insert interpolated detection for presumably skipped beats.
     min_dets: Minimum number of valid dets required for calculation.
     min_t: Minimum duration of signal [seconds] required for calculation.
     **kw: Extra args forwarded to the peak detector.
   Returns:
-    The estimated rate.
-      - For Scope.GLOBAL: Shape ()
-      - For Scope.ROLLING: Same shape as `signal`
+    Tuple of
+      - hrv: The estimated HRV metric.
+        - For Scope.GLOBAL: Shape ()
+        - For Scope.ROLLING: Shape (n,)
+      - conf: The estimation confidence.
+        - For Scope.GLOBAL: Shape ()
+        - For Scope.ROLLING: Shape (n,)
   """
-  if overlap is None and window_unit is EWindowUnit.SECONDS:
-    overlap = max(min_window_size, max_window_size // 2)
-  if overlap is None and window_unit is EWindowUnit.DETECTIONS:
-    overlap = max(min_window_size, max_window_size - 1)
+  if overlap is None:
+    if window_unit is EWindowUnit.SECONDS:
+      overlap = max_window_size // 2
+    elif window_unit in [EWindowUnit.DETECTIONS, EWindowUnit.SAMPLES]:
+      overlap = max_window_size - 1
   # Detect peaks
+  det_window_size = _convert_window_val(max_window_size, window_unit, EWindowUnit.SAMPLES, f_s)
+  det_overlap = min(det_window_size - 1, _convert_window_val(overlap, window_unit, EWindowUnit.SAMPLES, f_s))
   det_idxs, _ = detect_valid_peaks(
     vals=signal,
     f_s=f_s,
     f_range=(HR_MIN/SECONDS_PER_MINUTE, HR_MAX/SECONDS_PER_MINUTE),
-    window_size=max_window_size,
-    overlap=overlap,
+    window_size=det_window_size, 
+    overlap=det_overlap,
     **kw
   )
-  # Confidence
+  # Confidence filtering
   def _conf_filter_and_split(seqs, conf, thr):
     seqs = [np.array(run, dtype=int) for run in seqs]
     return [sub for seq in seqs for sub in np.split(
@@ -670,23 +712,22 @@ def estimate_hrv_from_signal(
         np.where(np.diff(np.where(conf[seq] >= thr)[0]) != 1)[0] + 1
       ) if sub.size
     ]
-  def _lowest_kept_conf(seqs, conf, thr):
-    if conf is None: return 0.0
-    kept = np.concatenate(_conf_filter_and_split(seqs, conf, thr)) \
-          if seqs else np.empty(0, int)
-    return float(np.nanmin(conf[kept])) if kept.size else 0.0
   if confidence is not None:
-    # Remove low-confidence indices
     det_idxs = _conf_filter_and_split(det_idxs, confidence, confidence_threshold)
-    sdnn_conf = _lowest_kept_conf(det_idxs, confidence, confidence_threshold)
+  # Handle empty case
   if len(det_idxs) == 0:
-     sdnn = np.nan if scope is EScope.GLOBAL else np.full(signal.shape, np.nan)
-     return sdnn, 0.
-  # Continue using the detections
+    empty_res = np.nan if scope is EScope.GLOBAL else np.full(signal.shape, np.nan)
+    return empty_res, (0.0 if scope is EScope.GLOBAL else np.zeros_like(signal))
+  # Construct time array for rolling calculations
+  t = None
+  if scope is EScope.ROLLING:
+    t = np.arange(signal.shape[0]) / f_s
+  # Calculate metric using the detections
   sdnn = estimate_hrv_from_detection_sequences(
     seqs=det_idxs,
     metric=metric,
     f_s=f_s,
+    t=t,
     scope=scope,
     min_window_size=min_window_size,
     max_window_size=max_window_size,
@@ -697,7 +738,100 @@ def estimate_hrv_from_signal(
     min_t=min_t-1.5, # Allow less time to account for gap before first and after last detection
     pad_val=pad_val
   )
+  # Derive confidence (scalar or rolling)
+  if confidence is None:
+    sdnn_conf = 0.0 if scope is EScope.GLOBAL else np.zeros_like(sdnn)
+  else:
+    # We derive confidence using the same window logic
+    sdnn_conf = derive_confidence_from_detection_sequences(
+      seqs=det_idxs,
+      confidence=confidence,
+      f_s=f_s,
+      t=t,
+      scope=scope,
+      min_window_size=min_window_size,
+      max_window_size=max_window_size,
+      overlap=overlap,
+      window_unit=window_unit,
+      pad_val=0.0
+    )
   return sdnn, sdnn_conf
+
+def derive_confidence_from_detection_sequences(
+    seqs: List[np.ndarray],
+    confidence: np.ndarray,
+    *,
+    f_s: Optional[float] = None,
+    t: Optional[np.ndarray] = None,
+    scope: EScope = EScope.GLOBAL,
+    min_window_size: Optional[float] = None,
+    max_window_size: Optional[float] = None,
+    overlap: Optional[int] = None,
+    window_unit: EWindowUnit = EWindowUnit.DETECTIONS,
+    pad_val: float = 0.0,
+  ) -> np.ndarray:
+  """
+  Estimate rolling confidence from detection sequences.
+  Calculates the minimum confidence of detections within each window.
+
+  Args:
+    seqs: List of np.ndarray sequences of detections.
+    confidence: The confidence signal corresponding to the detections. Shape (n_detections,)
+    f_s: The sampling rate. Required when `t` is not given.
+    t: The timestamps of the original signal. Required for scope.ROLLING. Shape (n,)
+    scope: GLOBAL for scalar confidence or ROLLING for confidence trace shape (n,).
+    min_window_size: Minimum window size for scope.ROLLING in the `window_unit`.
+    max_window_size: Maximum window size for scope.ROLLING in the `window_unit`.
+    overlap: Overlap for scope.ROLLING in the `window_unit`.
+    window_unit: The unit of the given window sizes and overlap.
+    pad_val: Value for padding.
+  Returns:
+    The estimated confidence.
+      - For Scope.GLOBAL: Shape ()
+      - For Scope.ROLLING: Shape (n,)
+  """
+  if scope == EScope.GLOBAL:
+    all_dets = np.concatenate(seqs) if seqs else np.array([], dtype=int)
+    valid = all_dets[~np.isnan(all_dets)].astype(int, copy=False)
+    if valid.size == 0: return 0.0
+    return np.min(confidence[valid])
+  if f_s is None and t is not None: f_s = t.shape[0]/(t[-1]-t[0])
+  if scope == EScope.ROLLING and t is None:
+    # Infer required t from f_s if not provided
+    if not seqs or not any(s.size > 0 for s in seqs):
+      raise ValueError("Cannot infer `t` for ROLLING scope with empty detection sequences.")
+    last_detection_index = max(s[-1] for s in seqs if s.size > 0)
+    num_samples = int(last_detection_index) + 1
+    t = np.arange(num_samples) / f_s
+  # Flatten seqs and get confidence signal
+  all_dets = np.concatenate(seqs)
+  all_dets_conf = confidence[all_dets]
+  def _conf_from_dets(dets: np.ndarray) -> float:
+    dets = np.asarray(dets)
+    valid = dets[~np.isnan(dets)].astype(int, copy=False)
+    if valid.size == 0: return 0.0
+    return np.min(confidence[valid])
+  ref_det_t = (t[all_dets] if t is not None else all_dets / f_s).astype(float)
+  def _conf_from_ts(det_t: np.ndarray) -> float:
+    if det_t.size == 0: return 0.0
+    start_val = det_t[0]
+    idx = np.searchsorted(ref_det_t, start_val)
+    if idx >= len(all_dets_conf): return 0.0
+    end_idx = idx + det_t.size
+    return np.min(all_dets_conf[idx:end_idx])
+  return _calc_from_detection_sequences(
+    seqs=seqs,
+    calc_fn_from_dets=_conf_from_dets,
+    calc_fn_from_ts=_conf_from_ts,
+    f_s=f_s,
+    t=t,
+    scope=scope,
+    min_window_size=min_window_size,
+    max_window_size=max_window_size,
+    overlap=overlap,
+    window_unit=window_unit,
+    pad_val=pad_val
+  )
 
 def estimate_hrv_from_detections(
     det_idxs: np.ndarray,
