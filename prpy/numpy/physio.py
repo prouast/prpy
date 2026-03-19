@@ -206,7 +206,7 @@ def _calc_from_detections(
   Apply reducer `calc_fn_from_dets` / `calc_fn_from_ts` to detections `det_idxs`.
   
   Args:
-    det_idxs: The detection indices. Shape (n_dets,)
+    det_idxs: The detection indices. Only use non-int if t is None. Shape (n_dets,)
     calc_fn_from_dets: The function to be applied to dets. Must accept 1-D input and reduce to 0-D.
     calc_fn_from_ts: The function to be applied to ts. Must accept 1-D input and reduce to 0-D.
     f_s: The sampling rate. Required when `t` is not given.
@@ -414,6 +414,7 @@ def estimate_rate_from_detections(
   def _rate_from_dets(dets: np.ndarray) -> float:
     """Convert a 1-D array of detection indices to rate [1/min]"""
     dets = np.asarray(dets)
+    # TODO: Why are we making ints? Ruins accuracy?
     dets = dets[~np.isnan(dets)].astype(int, copy=False)
     if dets.size < 2: return np.nan
     det_t = (t[dets] if t is not None else dets / f_s).astype(float)
@@ -1007,7 +1008,7 @@ def moving_average_size_for_rr_response(
 
 def detrend_lambda_for_hr_response(
     f_s: Union[float, int]
-  ) -> int:
+  ) -> float:
   """Get the detrending lambda parameter for a signal with HR information sampled at a given frequency
   
   Args:
@@ -1015,7 +1016,7 @@ def detrend_lambda_for_hr_response(
   Returns:
     The lambda parameter
   """
-  return int(0.1614*np.power(f_s, 1.9804))
+  return 0.1614*np.power(f_s, 1.9804)
 
 def detrend_lambda_for_rr_response(
     f_s: Union[float, int]

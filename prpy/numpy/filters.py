@@ -126,7 +126,7 @@ def moving_std(
 
 def detrend(
     z: np.ndarray,
-    Lambda: int,
+    Lambda: float,
     axis: int = -1
   ) -> np.ndarray:
   """Detrend signal(s)
@@ -141,7 +141,6 @@ def detrend(
   Returns:
     proc_z: The detrended signal
   """
-  assert isinstance(Lambda, int)
   assert isinstance(axis, int) and (axis == 0 or axis == 1 or axis == -1)
   axis = 1 if axis == -1 else axis
   z = np.asarray(z) # Make sure z is np array

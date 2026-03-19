@@ -378,12 +378,10 @@ def test_moving_average_size_for_rr_response():
 def test_detrend_lambda_for_hr_response():
   out = detrend_lambda_for_hr_response(30.)
   assert out > 100 and out < 150
-  assert isinstance(out, int)
 
 def test_detrend_lambda_for_rr_response():
   out = detrend_lambda_for_rr_response(30.)
   assert out > 6000 and out < 8000
-  assert isinstance(out, int)
 
 @pytest.mark.parametrize("f_s", [30, 125])
 def test_detrend_lambda_for_hr_response_preserves_frequency(f_s):
@@ -398,7 +396,6 @@ def test_detrend_lambda_for_hr_response_preserves_frequency(f_s):
   Lambda = detrend_lambda_for_hr_response(f_s=f_s)
   f_theoretical = detrend_frequency_response(size=num, Lambda=Lambda, f_s=f_s)
   assert f_theoretical < f_ppg
-  assert isinstance(Lambda, int)
   assert Lambda > 0
   # Detrend
   y = detrend(y_, Lambda)
