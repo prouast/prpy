@@ -18,6 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# TODO: File is deprecated and to be removed.
+
 from enum import IntEnum
 import numpy as np
 _trapz = getattr(np, 'trapezoid', getattr(np, 'trapz', None))
