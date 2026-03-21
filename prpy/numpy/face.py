@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Philipp Rouast
+# Copyright (c) 2026 Philipp Rouast
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -21,103 +21,25 @@
 import numpy as np
 from prpy.numpy.image import crop_slice_resize
 from typing import Union
-
-def _force_even_dims(roi: tuple) -> tuple:
-  """
-  Force even dimensions
-  
-  Args:
-    roi: The region of interest with potentially uneven dimensions
-  Returns:
-    roi: The region of interest with forced even dimensions
-  """
-  roi_w = roi[2] - roi[0]
-  roi_h = roi[3] - roi[1]
-  if roi_w % 2 != 0:
-    assert roi[2] > 2
-    roi = (roi[0], roi[1], roi[2]-1, roi[3])
-  if roi_h % 2 != 0:
-    assert roi[3] > 2
-    roi = (roi[0], roi[1], roi[2], roi[3]-1)
-  return roi
-
-def _get_roi_from_det(
-    det: Union[tuple, np.ndarray],
-    rel_change: tuple,
-    clip_dims: Union[tuple, None] = None,
-    force_even_dims: bool = False
-  ) -> tuple:
-  """
-  Convert face detection to roi by relative add/reduce.
-
-  Args:
-    det: The face detection [0, H/W] in format (x0, y0, x1, y1).
-    rel_change: The relative change to make in format (left, top, right, bottom).
-    clip_dims: tuple (frame_w, frame_h) to clip the result to (optional).
-    force_even_dims: Force to return even height and width roi.
-  Returns:
-    out: The roi [0, H/W] in format (x0, y0, x1, y1)
-  """
-  assert isinstance(det, (tuple, np.ndarray)) and len(det) == 4 and all(isinstance(i, (int, np.int64, np.int32)) for i in det)
-  assert det[2] > det[0]
-  assert det[3] > det[1]
-  assert isinstance(rel_change, tuple) and len(rel_change) == 4 and all(isinstance(i, float) for i in rel_change)
-  assert clip_dims is None or (isinstance(clip_dims, tuple) and len(clip_dims) == 2 and all(isinstance(i, int) for i in clip_dims))
-  def _clip_dims(val, min_dim, max_dim):
-    return min(max(val, min_dim), max_dim)
-  det_w = det[2]-det[0]
-  det_h = det[3]-det[1]
-  rel_ch_l, rel_ch_t, rel_ch_r, rel_ch_b = rel_change
-  abs_ch_l = int(rel_ch_l * det_w)
-  abs_ch_t = int(rel_ch_t * det_h)
-  abs_ch_r = int(rel_ch_r * det_w)
-  abs_ch_b = int(rel_ch_b * det_h)
-  if clip_dims is not None:
-    out = (_clip_dims(det[0] - abs_ch_l, 0, clip_dims[0]),
-           _clip_dims(det[1] - abs_ch_t, 0, clip_dims[1]),
-           _clip_dims(det[2] + abs_ch_r, 0, clip_dims[0]),
-           _clip_dims(det[3] + abs_ch_b, 0, clip_dims[1]))
-  else:
-    out = (det[0]-abs_ch_l, det[1]-abs_ch_t, det[2]+abs_ch_r, det[3]+abs_ch_b)
-  return _force_even_dims(out) if force_even_dims else out
+import vitallens_core as vc
 
 def get_face_roi_from_det(
     det: tuple,
     force_even_dims: bool = False
   ) -> tuple:
   """
-  Convert face detection into face roi. 
-  
-  - Reduces width to 60% and height to 80%. 
-  
-  Args:
-    det: The face detection [0, H/W] in form (x0, y0, x1, y1)
-    force_even_dims: Force to return even height and width roi.
-  Returns:
-    out: The roi [0, H/W] in form (x0, y0, x1, y1)
+  Convert face detection into face roi using vitallens-core.
   """
-  return _get_roi_from_det(det=det,
-                           rel_change=(-0.2, -0.1, -0.2, -0.1),
-                           force_even_dims=force_even_dims)
+  return get_roi_from_det(det, roi_method='face', force_even_dims=force_even_dims)
 
 def get_forehead_roi_from_det(
     det: tuple,
     force_even_dims: bool = False
   ) -> tuple:
   """
-  Convert face detection into forehead roi.
-  
-  - Reduces det to forehead as 35% to 65% of width, and 15% to 25% of height. 
-  
-  Args:
-    det: The face detection [0, H/W] in form (x0, y0, x1, y1)
-    force_even_dims: Force to return even height and width roi.
-  Returns:
-    out: The roi [0, H/W] in form (x0, y0, x1, y1)
+  Convert face detection into forehead roi using vitallens-core.
   """
-  return _get_roi_from_det(det=det,
-                           rel_change=(-0.35, -0.15, -0.35, -0.75),
-                           force_even_dims=force_even_dims)
+  return get_roi_from_det(det, roi_method='forehead', force_even_dims=force_even_dims)
 
 def get_upper_body_roi_from_det(
     det: Union[tuple, np.ndarray],
@@ -128,71 +50,11 @@ def get_upper_body_roi_from_det(
     detector: str = 'retinaface'
   ) -> tuple:
   """
-  Convert face detection into upper body roi and clip to frame constraints.
-
-  Args:
-    det: The face detection [0, H/W] in form (x0, y0, x1, y1)
-    clip_dims: constraints (frame_w, frame_h) to clip the result to
-    cropped: Create cropped variant?
-    v: Version of ROI definition (0, 1, 2, or 3)
-    force_even_dims: Force to return even height and width roi.
-    detector: The detector used
-  Returns:
-    out: The roi [0, H/W] in form (x0, y0, x1, y1)
+  Convert face detection into upper body roi using vitallens-core.
   """
   assert isinstance(cropped, bool)
-  assert isinstance(v, int)
-  if v == 0:
-    # V0: (.25, .3, .25, .5) -> (.175, .27, .175, .45)
-    if not cropped:
-      return _get_roi_from_det(det=det,
-                               rel_change=(.25, .3, .25, .5),
-                               clip_dims=clip_dims,
-                               force_even_dims=force_even_dims)
-    else:
-      return _get_roi_from_det(det=det,
-                               rel_change=(.175, .27, .175, .45),
-                               clip_dims=clip_dims,
-                               force_even_dims=force_even_dims)
-  elif v == 1:
-    # V1: (.25, .2, .25, .4) -> (.175, .15, .175, .3)
-    if not cropped:
-      return _get_roi_from_det(det=det,
-                               rel_change=(.25, .2, .25, .4),
-                               clip_dims=clip_dims,
-                               force_even_dims=force_even_dims)
-    else:
-      rel_change = (.19, .1455, .19, .2769) if detector == 'ultralight-rfb' else (.175, .15, .175, .3)
-      return _get_roi_from_det(det=det,
-                               rel_change=rel_change,
-                               clip_dims=clip_dims,
-                               force_even_dims=force_even_dims)
-  elif v == 2:
-    # V2: (.25, .1, .25, .5) -> (.175, .075, .175, .375)
-    if not cropped:
-      return _get_roi_from_det(det=det,
-                               rel_change=(.25, .1, .25, .5),
-                               clip_dims=clip_dims,
-                               force_even_dims=force_even_dims)
-    else:
-      return _get_roi_from_det(det=det,
-                               rel_change=(.175, .075, .175, .375),
-                               clip_dims=clip_dims,
-                               force_even_dims=force_even_dims)
-  elif v == 3:
-    # V3: (.2, .3, .2, .45) -> (.15, .25, .15, .35)
-    if not cropped:
-      return _get_roi_from_det(det=det,
-                               rel_change=(.2, .3, .2, .45),
-                               clip_dims=clip_dims,
-                               force_even_dims=force_even_dims)
-    else:
-      return _get_roi_from_det(det=det,
-                               rel_change=(.15, .25, .15, .35),
-                               clip_dims=clip_dims,
-                               force_even_dims=force_even_dims)
-  else:
-    raise ValueError(f"v {v} is not defined")
+  roi_method = 'upper_body_cropped' if cropped else 'upper_body'
+  return get_roi_from_det(det, roi_method=roi_method, clip_dims=clip_dims, force_even_dims=force_even_dims, detector=detector)
 
 def get_meta_roi_from_det(
     det: tuple,
@@ -200,19 +62,9 @@ def get_meta_roi_from_det(
     force_even_dims: bool = False
   ) -> tuple:
   """
-  Convert face detection into meta roi and clip to frame constraints.
-
-  Args:
-    det: The face detection [0, H/W] in form (x0, y0, x1, y1)
-    clip_dims: constraints (frame_w, frame_h) to clip the result to
-    force_even_dims: Force to return even height and width roi.
-  Returns:
-    out: The roi [0, H/W] in form (x0, y0, x1, y1)
+  Convert face detection into meta roi using vitallens-core.
   """
-  return _get_roi_from_det(det=det,
-                           rel_change=(.2, .2, .2, .2),
-                           clip_dims=clip_dims,
-                           force_even_dims=force_even_dims)
+  return get_roi_from_det(det, roi_method='meta', clip_dims=clip_dims, force_even_dims=force_even_dims)
 
 def get_roi_from_det(
     det: tuple,
@@ -235,34 +87,17 @@ def get_roi_from_det(
     out: The roi [0, H/W] in form (x0, y0, x1, y1)
   """
   assert roi_method is None or isinstance(roi_method, str)
-  if roi_method == 'face':
-    return get_face_roi_from_det(det,
-                                 force_even_dims=force_even_dims)
-  elif roi_method == 'forehead':
-    return get_forehead_roi_from_det(det,
-                                     force_even_dims=force_even_dims)
-  elif roi_method == 'upper_body':
-    assert clip_dims is not None
-    return get_upper_body_roi_from_det(det,
-                                       clip_dims=clip_dims,
-                                       cropped=False,
-                                       force_even_dims=force_even_dims)
-  elif roi_method == 'upper_body_cropped':
-    assert clip_dims is not None
-    return get_upper_body_roi_from_det(det,
-                                       clip_dims=clip_dims,
-                                       cropped=True,
-                                       force_even_dims=force_even_dims,
-                                       detector=detector)
-  elif roi_method == 'meta':
-    assert clip_dims is not None
-    return get_meta_roi_from_det(det,
-                                 clip_dims=clip_dims,
-                                 force_even_dims=force_even_dims)
+  if roi_method == 'meta':
+      vc_method = (0.2, 0.2, 0.2, 0.2)
   elif roi_method is None or roi_method == 'det':
-    return _force_even_dims(det) if force_even_dims else det
+      vc_method = (0.0, 0.0, 0.0, 0.0)
   else:
-    raise ValueError(f"roi method {roi_method} is not supported")
+      vc_method = roi_method
+  vc_detector = 'apple_vision' if detector in ['apple_vision', 'applevision', 'vision'] else 'default'
+  face_rect = vc.Rect(float(det[0]), float(det[1]), float(det[2]-det[0]), float(det[3]-det[1]))
+  clip = (float(clip_dims[0]), float(clip_dims[1])) if clip_dims is not None else None
+  res_rect = vc.calculate_roi(face_rect, vc_method, vc_detector, clip, force_even_dims)
+  return (int(res_rect.x), int(res_rect.y), int(res_rect.x + res_rect.width), int(res_rect.y + res_rect.height))
 
 def crop_resize_from_det(
     video: np.ndarray,
