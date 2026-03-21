@@ -1,4 +1,3 @@
-
 # prpy
 
 [![Tests](https://github.com/prouast/prpy/actions/workflows/main.yml/badge.svg)](https://github.com/prouast/prpy/actions/workflows/main.yml)
@@ -9,7 +8,7 @@ It contains subpackages for working with `numpy`, `ffmpeg`, `tensorflow`, and `t
 
 ## Installation
 
-General prerequisites are `python>=3.9` and `ffmpeg` installed and accessible via the `$PATH` environment variable.
+General prerequisites are `python>=3.10` and `ffmpeg` installed and accessible via the `$PATH` environment variable.
 
 - Please note: If using `numpy` or `tensorflow` options, we only support Python `<3.12` because of the dependencies. 
 
@@ -28,26 +27,3 @@ pip install "./prpy[ffmpeg,numpy,tensorflow,torch,test]"
 
 The above run full installs of all dependencies.
 It is possible to customize the install of the dependencies by only listing the desired subpackages out of `ffmpeg`, `numpy`, `tensorflow`, `torch`, and `test` in the square brackets above.
-
-## Linting and tests
-
-To lint and run tests:
-
-```
-flake8 . --count --select=F,E9 --show-source --statistics
-pytest
-```
-
-## Build
-
-To build:
-
-```
-python -m build
-```
-
-## Re-build and re-install locally
-
-```
-pip uninstall -y prpy && pip install -e .
-```
