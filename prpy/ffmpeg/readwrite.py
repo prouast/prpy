@@ -23,7 +23,6 @@ import logging
 import math
 import numpy as np
 import os
-import re
 from typing import Tuple, Union
 
 from prpy.ffmpeg.probe import probe_video
@@ -90,6 +89,7 @@ def _ffmpeg_filtering(
     n: int,
     w: int,
     h: int,
+    r: int = 0,
     target_fps: Union[float, int, None] = None,
     crop: Union[tuple, None] = None,
     scale: Union[Tuple[int, tuple], None] = None,
@@ -108,10 +108,12 @@ def _ffmpeg_filtering(
     n: The existing number of frames
     w: The existing width
     h: The existing height
+    r: The existing rotation. If 90 or -90, means that w and h are swapped.
+      - This method always eliminates any rotation.
     target_fps: Downsample frames to approximate this framerate (optional)
     crop: Coords for spatial cropping (x0, y0, x1, y1) (optional)
     scale: Size(s) for spatial scaling. Scalar or (width, height) (optional)
-    trim: Frame numbers for temporal trimming (start, end) (optional)
+    trim: Frame numbers for temporal trimming (start, end) (optional) - exclusive of end frame
     preserve_aspect_ratio: Preserve the aspect ratio if scaling
     scale_algorithm: The algorithm used for scaling.
       Supported: bicubic, bilinear, area, lanczos. Default: bicubic
@@ -122,6 +124,7 @@ def _ffmpeg_filtering(
      - target_n: The target number of frames
      - target_w: The target width
      - target_h: The target shape
+     - target_r: The target rotation
      - ds_factor: The applied downsampling factor
   """
   assert isinstance(stream, ffmpeg.nodes.FilterableStream)
@@ -129,6 +132,7 @@ def _ffmpeg_filtering(
   assert isinstance(n, int)
   assert isinstance(w, int)
   assert isinstance(h, int)
+  assert isinstance(r, int)
   assert target_fps is None or isinstance(target_fps, (float, int))
   assert crop is None or (isinstance(crop, tuple) and len(crop) == 4 and all(isinstance(i, (int, np.int64, np.int32)) for i in crop))
   assert scale is None or isinstance(scale, int) or (isinstance(scale, tuple) and len(scale) == 2 and all(isinstance(i, int) for i in scale))
@@ -150,6 +154,7 @@ def _ffmpeg_filtering(
       crop = (crop[0], crop[1], crop[2], crop[3]-1)
       logging.warning(f"Reducing uneven crop height from {crop[3]+1-crop[1]} to {crop[3]-crop[1]} to make operation possible.")
   # Target size after taking into account cropping
+  w, h, r = _rectify_w_h_rotation(w, h, r)
   target_w = crop[2]-crop[0] if crop is not None else w
   target_h = crop[3]-crop[1] if crop is not None else h
   # Target size after taking into account scaling
@@ -180,7 +185,7 @@ def _ffmpeg_filtering(
   if scale not in [None, (0, 0)]:
     stream = ffmpeg.filter(stream, 'scale', target_w, target_h, scale_algorithm)
   # Return
-  return stream, target_n, target_w, target_h, ds_factor
+  return stream, target_n, target_w, target_h, 0, ds_factor
 
 def _ffmpeg_output_to_numpy(
     stream: ffmpeg.nodes.FilterableStream,
@@ -230,27 +235,19 @@ def _ffmpeg_output_to_numpy(
   if crf is None:
     # Stream straight to raw video. Absorps any rotation metadata present in the input video into pixels.
     stream = stream.output("pipe:", vsync="passthrough", format="rawvideo", pix_fmt=pix_fmt)
-    out, err = stream.run(capture_stdout=True, capture_stderr=True)
-    _, _, out_r = _read_output_stream_properties(err, quiet=quiet)
-    assert out_r == 0, "Rotation should be 0 at this point"
+    out, _ = stream.run(capture_stdout=True, capture_stderr=True)
   else:
     # Run stream to encode H264 with crf.
     # Explicitly specify output dimensions so rotation metadata present in the input video is correctly absorbed into pixels.
-    w, h, r = _rectify_w_h_rotation(w, h, r)
     stream = stream.output("pipe:", vsync="passthrough", format='rawvideo', vcodec='libx264', s=f"{w}x{h}", crf=crf)
-    out, err = stream.run(capture_stdout=True, capture_stderr=True)
-    _, _, out_r = _read_output_stream_properties(err, quiet=quiet)
+    out, _ = stream.run(capture_stdout=True, capture_stderr=True)
     # Run stream to decode H264 to raw video
     stream = _ffmpeg_input_from_pipe()
-    stream, _, w, h, _ = _ffmpeg_filtering(
-      stream, fps=fps, n=n, w=w, h=h, scale=scale,
+    stream, _, w, h, r, _ = _ffmpeg_filtering(
+      stream, fps=fps, n=n, w=w, h=h, r=r, scale=scale,
       preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm)
     stream = stream.output("pipe:", vsync='passthrough', format="rawvideo", pix_fmt=pix_fmt)
     out, _ = stream.run(input=out, capture_stdout=True, capture_stderr=True, quiet=quiet)
-    _, _, out_r = _read_output_stream_properties(err, quiet=quiet)
-    assert out_r == 0, "Rotation should be 0 at this point"
-  # Rectify h and w if necessary
-  w, h, r = _rectify_w_h_rotation(w, h, r)
   # Parse result
   frames = np.frombuffer(out, np.uint8)
   try:
@@ -389,38 +386,6 @@ def _rectify_w_h_rotation(
       logging.warning(f"Rotation {r} present in video; Fixing is not yet supported.")
   return w, h, r
 
-def _read_output_stream_properties(err: bytes, quiet: bool = True) -> Tuple[int, int, int]:
-    """Extract output stream properties (width, height, rotation) from ffmpeg stderr log.
-
-    Args:
-      err: The stderr output from ffmpeg (as bytes) containing log information.
-      quiet: If False, prints the decoded log output to the console.
-    Returns:
-      A tuple of:
-       - w: The output width (int)
-       - h: The output height (int)
-       - r: The output rotation in degrees (int)
-    """
-    log_text = err.decode('utf-8', errors='replace')
-    if not quiet:
-      print(log_text)
-    w, h, r = 0, 0, 0
-    # Extract dimensions from a line like "Stream # ... Video: ... 1080x1920"
-    dim_match = re.search(r"Output #.*?Stream #.*?Video:.*?([1-9]\d*)x([1-9]\d*)", log_text, re.DOTALL)
-    if dim_match:
-      w = int(dim_match.group(1))
-      h = int(dim_match.group(2))
-    else:
-      logging.warning("Could not determine output dimensions from ffmpeg log.")
-    # Extract rotation from a line like "displaymatrix: rotation of -90.00 degrees"
-    rot_match = re.search(r"Output #.*?displaymatrix:\s*rotation of\s*([-\d.]+)\s*degrees", log_text)
-    if rot_match:
-      try:
-        r = int(round(float(rot_match.group(1))))
-      except ValueError:
-        logging.warning("Could not parse rotation value from ffmpeg log.")
-    return w, h, r
-
 def read_video_from_path(
     path: str,
     target_fps: Union[float, None] = None,
@@ -432,7 +397,7 @@ def read_video_from_path(
     preserve_aspect_ratio: bool = False,
     scale_algorithm: str = 'bicubic',
     order: str = 'scale_crf',
-    dim_deltas: tuple = (40, 0, 0),
+    dim_deltas: tuple = (50, 0, 0),
     known_metadata: dict = None,
     quiet: bool = True
   ) -> Tuple[np.ndarray, int]:
@@ -446,7 +411,7 @@ def read_video_from_path(
     target_fps: Try to downsample frames to achieve this framerate.
     crop: Coords for spatial cropping (x0, y0, x1, y1) (optional).
     scale: Size(s) for spatial scaling. Scalar or (width, height) (optional).
-    trim: Frame numbers for temporal trimming (start, end) (optional).
+    trim: Frame numbers for temporal trimming (start, end) (optional) - exclusive of end frame.
     crf: Constant rate factor for H.264 encoding (higher = more compression)
       If specified, do intermediate encoding, otherwise ignore.
     pix_fmt: Pixel format to read into.
@@ -472,24 +437,22 @@ def read_video_from_path(
     n = known_metadata['n']
     w = known_metadata['w']
     h = known_metadata['h']
-    r = 0
+    r = 0 # Assume that videos with known metadata never have rotation
   else:
     fps, n, w, h, _, _, r, _ = probe_video(path=path)
   # Input
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
   scale_0 = scale if order == 'scale_crf' or crf == None else 0
-  stream, target_n, target_w, target_h, ds_factor = _ffmpeg_filtering(
-    stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale_0,
+  stream, target_n, target_w, target_h, target_r, ds_factor = _ffmpeg_filtering(
+    stream=stream, fps=fps, n=n, w=w, h=h, r=r, target_fps=target_fps, crop=crop, scale=scale_0,
     trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm,
     requires_even_dims=(crf is not None) or (crop is not None and scale in [None, 0]))
-  # Save whether rotation (in terms of flipped w and h) still present
-  if scale_0 not in [None, 0] or crop is not None: r = 0
   # Output
   fps = target_fps if target_fps is not None else fps
   scale_1 = 0 if order == 'scale_crf' or crf == None else scale
   frames = _ffmpeg_output_to_numpy(
-    stream=stream, r=r, fps=fps, n=target_n, w=target_w, h=target_h,
+    stream=stream, r=target_r, fps=fps, n=target_n, w=target_w, h=target_h,
     scale=scale_1, crf=crf, pix_fmt=pix_fmt, scale_algorithm=scale_algorithm,
     dim_deltas=dim_deltas, quiet=quiet)
   # Check the number of frames
@@ -532,7 +495,7 @@ def write_video_from_path(
     target_fps: Try to downsample frames to achieve this framerate (optional).
     crop: Coords for spatial cropping (x0, y0, x1, y1) (optional).
     scale: Size(s) for spatial scaling. Scalar or (width, height) (optional).
-    trim: Frame numbers for temporal trimming (start, end) (optional).
+    trim: Frame numbers for temporal trimming (start, end) (optional) - exclusive of end frame.
     pix_fmt: Pixel format ('yuv420p', 'yuv444p', etc.)
     codec: The codec to use ('h264', 'h265', 'mjpeg', or 'ffv1')
     crf: Constant rate factor for H.264 encoding (higher = more compression).
@@ -548,8 +511,8 @@ def write_video_from_path(
   # Input
   stream = _ffmpeg_input_from_path(path=path, fps=fps, trim=trim)
   # Filtering
-  stream, _, _, _, _ = _ffmpeg_filtering(
-    stream=stream, fps=fps, n=n, w=w, h=h, target_fps=target_fps, crop=crop, scale=scale,
+  stream, *_ = _ffmpeg_filtering(
+    stream=stream, fps=fps, n=n, w=w, h=h, r=r, target_fps=target_fps, crop=crop, scale=scale,
     trim=trim, preserve_aspect_ratio=preserve_aspect_ratio, scale_algorithm=scale_algorithm,
     requires_even_dims=(codec=='h264' or codec=='h265'))
   # Output
