@@ -59,7 +59,7 @@ def _mag2db(mag: Union[np.ndarray, np.float64]) -> np.ndarray:
   Returns:
     out: Decibels. Same shape as input.
   """
-  return 20. * np.log10(mag)
+  return 20. * np.log10(np.maximum(mag, 1e-10))
 
 def _metric_reduce(res: np.ndarray, squeezed: bool):
   return res.squeeze(0) if squeezed else res
@@ -221,7 +221,7 @@ def snr(
   assert f_true.shape == y_pred.shape[:-1]
   if np.all(np.isfinite(y_pred)) and np.all(np.isfinite(f_true)):
     n = f_s // f_res
-    f, pxx = signal.periodogram(y_pred, fs=f_s, nfft=n, detrend=False, axis=-1)
+    f, pxx = signal.periodogram(y_pred, fs=f_s, nfft=int(n), detrend=False, axis=-1)
     if len(y_pred.shape) == 2:
       f = np.broadcast_to(f[np.newaxis], pxx.shape)
       f_true = f_true[...,np.newaxis]
