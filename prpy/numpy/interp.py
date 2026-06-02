@@ -149,7 +149,6 @@ def interpolate_filtered(
     sl = [slice(None)] * s_out.ndim
     sl[axis] = inside
     s_out[tuple(sl)] = s_mid
-  s_out = pchip(t_out)
   # If propagating nans, carve them back
   if nan_mask is not None:
     prev = np.concatenate(([False], nan_mask[:-1]))
