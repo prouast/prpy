@@ -39,7 +39,10 @@ jobs:
           flake8 . --count --select=F,E9 --show-source --statistics
       - name: Test with pytest
         env:
-          TORCH_COMPILE_DISABLE: 1
+          TORCH_COMPILE_DISABLE: "1"
+          TORCH_USE_TRITON: "0"
+          TRITON_DISABLE: "1"
+          CUDA_VISIBLE_DEVICES: ""
         run: |
           if [ "${{ matrix.python-version }}" == "3.12" ]; then
             pytest --ignore=tests/test_tensorflow.py --ignore=tests/test_torch.py -m "not (skip_parametrize_tf_cv2 or sklearn)"
@@ -68,6 +71,9 @@ jobs:
           python -m pip install ".[ffmpeg,numpy,tensorflow,torch,test]"
       - name: Test with pytest
         env:
-          TORCH_COMPILE_DISABLE: 1
+          TORCH_COMPILE_DISABLE: "1"
+          TORCH_USE_TRITON: "0"
+          TRITON_DISABLE: "1"
+          CUDA_VISIBLE_DEVICES: ""
         run: |
           pytest
