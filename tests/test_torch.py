@@ -27,7 +27,6 @@ import logging
 import os
 import pytest
 import shutil
-import torch
 
 class MockObject:
   """Mock object that satisfies ModelSaver's expected interface."""
