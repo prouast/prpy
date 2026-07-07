@@ -24,7 +24,6 @@ sys.path.append('../prpy')
 import logging
 import numpy as np
 import os
-from packaging import version
 import pytest
 import shutil
 import tensorflow as tf
