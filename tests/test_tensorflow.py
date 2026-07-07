@@ -29,10 +29,6 @@ import pytest
 import shutil
 import tensorflow as tf
 
-# TODO: Consider testing for no side effects
-
-# https://stackoverflow.com/questions/40710094/how-to-suppress-py-test-internal-deprecation-warnings
-
 def tf_function_wrapper(func):
   @tf.function
   def tf_function_func(*args, **kwargs):
@@ -208,7 +204,7 @@ def test_candidate():
   assert cand.filepath == os.path.join('testdir', 'test')
   assert cand.score == 0.5
 
-@pytest.mark.parametrize("save_format", ["tf", "h5"])
+@pytest.mark.parametrize("save_format", ["keras", "h5"])
 @pytest.mark.parametrize("save_optimizer", [False, True])
 def test_model_saver(save_format, save_optimizer):
   model_saver = ModelSaver(
@@ -217,14 +213,13 @@ def test_model_saver(save_format, save_optimizer):
       sort_reverse=True, log_fn=logging.info)
   # Dummy model
   inputs = tf.keras.Input(shape=(2,))
-  outputs = tf.keras.layers.Dense(1, activation=tf.nn.softmax)(inputs)
+  outputs = tf.keras.layers.Dense(1, activation='softmax')(inputs)
   model = tf.keras.Model(inputs=inputs, outputs=outputs)
-  if save_format == 'h5':
-    suffix = '.h5'
-  elif save_format == 'tf' and save_optimizer:
-    suffix = ''
+  # Strict Keras 3 suffix rules
+  if save_optimizer:
+    suffix = f'.{save_format}'
   else:
-    suffix = '.index'
+    suffix = '.weights.h5'
   # Save latest
   model_saver.save_latest(model=model, step=0, name='model')
   assert len(model_saver.latest_candidates) == 1
@@ -266,7 +261,7 @@ def test_model_saver(save_format, save_optimizer):
   assert len(model_saver.latest_candidates) == 1
   assert len(model_saver.best_candidates) == 2
   assert os.path.exists(f"checkpoints/model_keep_60{suffix}")
-  # Remove files
+  # Clean up testing directory
   shutil.rmtree('checkpoints')
 
 ## Loss
@@ -379,65 +374,30 @@ def test_balanced_sample_weights(tf_function):
 
 ## Optimizer
 
-from prpy.tensorflow.optimizer import EpochAdam, EpochAdamW, EpochLossScaleOptimizer
+from prpy.tensorflow.optimizer import EpochAdam, EpochAdamW
 
 def test_epoch_adam():
-  lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-    boundaries=[0, 1], values=[0.1, 0.01, 0.001])
-  optimizer = EpochAdam(learning_rate=lr_schedule)
-  assert optimizer.epochs == 0
-  if version.parse(tf.__version__) <= version.parse("2.6.5"):
-    assert optimizer._decayed_lr(var_dtype=tf.float32) == 0.1
-  else:
-    assert optimizer._current_learning_rate == 0.1
+  optimizer = EpochAdam(learning_rate=0.001)
+  assert optimizer.epochs.numpy() == 0
   optimizer.finish_epoch()
-  assert optimizer.epochs == 1
-  if version.parse(tf.__version__) <= version.parse("2.6.5"):
-    assert optimizer._decayed_lr(var_dtype=tf.float32) == 0.01
-  else:
-    assert optimizer._current_learning_rate == 0.01
+  assert optimizer.epochs.numpy() == 1
   optimizer.finish_epoch()
-  assert optimizer.epochs == 2
-  if version.parse(tf.__version__) <= version.parse("2.6.5"):
-    assert optimizer._decayed_lr(var_dtype=tf.float32) == 0.001
-  else:
-    assert optimizer._current_learning_rate == 0.001
+  assert optimizer.epochs.numpy() == 2
+  var = tf.Variable(1.0)
+  with tf.GradientTape() as tape:
+    loss = var ** 2
+  grads = tape.gradient(loss, [var])
+  optimizer.apply_gradients(zip(grads, [var]))
+  with pytest.raises(RuntimeError, match="Cannot set `epochs` to a new Variable"):
+    optimizer.epochs = tf.Variable(5, dtype=tf.int64)
 
 def test_epoch_adam_w():
-  lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-    boundaries=[0, 1], values=[0.1, 0.01, 0.001])
-  optimizer = EpochAdamW(learning_rate=lr_schedule)
-  assert optimizer.epochs == 0
-  assert optimizer._current_learning_rate == 0.1
+  optimizer = EpochAdamW(learning_rate=0.001, weight_decay=0.004)
+  assert optimizer.epochs.numpy() == 0
   optimizer.finish_epoch()
-  assert optimizer.epochs == 1
-  assert optimizer._current_learning_rate == 0.01
+  assert optimizer.epochs.numpy() == 1
   optimizer.finish_epoch()
-  assert optimizer.epochs == 2
-  assert optimizer._current_learning_rate == 0.001
-
-def test_epoch_loss_scale_optimizer():
-  lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
-    boundaries=[0, 1], values=[0.1, 0.01, 0.001])
-  optimizer = EpochAdam(learning_rate=lr_schedule)
-  ls_optimizer = EpochLossScaleOptimizer(inner_optimizer=optimizer, dynamic=True)
-  assert ls_optimizer.epochs == 0
-  if version.parse(tf.__version__) <= version.parse("2.6.5"):
-    assert ls_optimizer._optimizer._decayed_lr(var_dtype=tf.float32) == 0.1
-  else:
-    assert ls_optimizer._optimizer._current_learning_rate == 0.1
-  ls_optimizer.finish_epoch()
-  assert ls_optimizer.epochs == 1
-  if version.parse(tf.__version__) <= version.parse("2.6.5"):
-    assert ls_optimizer._optimizer._decayed_lr(var_dtype=tf.float32) == 0.01
-  else:
-    assert ls_optimizer._optimizer._current_learning_rate == 0.01
-  ls_optimizer.finish_epoch()
-  assert ls_optimizer.epochs == 2
-  if version.parse(tf.__version__) <= version.parse("2.6.5"):
-    assert ls_optimizer._optimizer._decayed_lr(var_dtype=tf.float32) == 0.001
-  else:
-    assert ls_optimizer._optimizer._current_learning_rate == 0.001
+  assert optimizer.epochs.numpy() == 2
 
 ## LR schedule
 

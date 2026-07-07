@@ -56,7 +56,7 @@ class ModelSaver(object):
       dir: str = "checkpoints",
       keep_best: int = 5,
       keep_latest: int = 1,
-      save_format: str = "tf",
+      save_format: str = "keras",
       save_optimizer: bool = False,
       compare_fn: Callable[[float, float], bool] = lambda x,y: x.score < y.score,
       sort_reverse: bool = False,
@@ -68,7 +68,7 @@ class ModelSaver(object):
       dir: The directory where models should be saved
       keep_best: The number of best scoring models to keep
       keep_latest: The number of latest models to keep
-      save_format: Model format for saving ['tf' or 'h5']
+      save_format: Model format for saving ['keras' or 'h5']
       save_optimizer: Also save optimizer state?
       compare_fn: Function that compares two scores
       sort_reverse: Reverse sort order?
@@ -110,15 +110,27 @@ class ModelSaver(object):
     """
     assert isinstance(model, tf.keras.Model)
     assert isinstance(filepath, str)
-    if self.save_format == 'h5': filepath += '.h5'
-    # Save model
     if self.save_optimizer:
-      model.save(
-        filepath=filepath, overwrite=True, include_optimizer=True,
-        save_format=self.save_format)
+      # Full model saving requires .keras or .h5
+      if self.save_format == 'h5': 
+        filepath += '.h5'
+      elif self.save_format == 'keras':
+        filepath += '.keras'
+      else:
+        raise ValueError(f"Unsupported save_format: {self.save_format}. Use 'keras' or 'h5'.")
+      model.save(filepath=filepath, overwrite=True)
     else:
-      model.save_weights(
-        filepath=filepath, overwrite=True, save_format=self.save_format)
+      # Keras 3 strictly demands .weights.h5 for weights-only saves, regardless of format choice
+      filepath += '.weights.h5'
+      model.save_weights(filepath=filepath, overwrite=True)
+
+  def _cleanup_old_files(self, filepath_prefix: str):
+    """Helper to clean up old files or directories robustly."""
+    for file_or_dir in glob.glob(fr"{filepath_prefix}*"):
+      if os.path.isdir(file_or_dir):
+        shutil.rmtree(file_or_dir)
+      else:
+        os.remove(file_or_dir)
 
   def save_keep(
       self,
@@ -170,11 +182,7 @@ class ModelSaver(object):
       self.__save(model, filepath=candidate.filepath)
       # Prune candidate
       for candidate in self.latest_candidates[self.keep_latest:]:
-        for file in glob.glob(fr"{candidate.filepath}*"):
-          if self.save_format == 'tf' and self.save_optimizer:
-            shutil.rmtree(file)
-          else:
-            os.remove(file)
+        self._cleanup_old_files(candidate.filepath)
       self.latest_candidates = self.latest_candidates[0:self.keep_latest]
 
   def save_best(
@@ -211,11 +219,7 @@ class ModelSaver(object):
       # Prune candidates
       for candidate in self.best_candidates[self.keep_best:]:
         self.log_fn(f"Removing old model {candidate.filepath} with score {candidate.score:.4f}")
-        for file in glob.glob(fr"{candidate.filepath}*"):
-          if self.save_format == 'tf' and self.save_optimizer:
-            shutil.rmtree(file)
-          else:
-            os.remove(file)
+        self._cleanup_old_files(candidate.filepath)
       self.best_candidates = self.best_candidates[0:self.keep_best]
     else:
       # Skip the candidate
