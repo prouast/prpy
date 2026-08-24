@@ -1,5 +1,11 @@
 [build-system]
-requires = ["setuptools>=61", "setuptools-scm", "numpy>=2.0.0"]
+# numpy capped at <2.3: 2.3.0 dropped manylinux2014/manylinux_2_17 wheels for
+# cp312, so an open floor here makes cibuildwheel's cp312 job try to build
+# newest-numpy from source in the manylinux2014 container and fail (its GCC
+# 10.2.1 is below numpy's own >=10.3 build requirement). This only pins what
+# prpy is compiled against, not prpy's own runtime numpy floor (see
+# [project.dependencies] below).
+requires = ["setuptools>=61", "setuptools-scm", "numpy>=2.0.0,<2.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
