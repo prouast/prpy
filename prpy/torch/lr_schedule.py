@@ -18,25 +18,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Torch port of prpy/tensorflow/lr_schedule.py.
-
-TF's `PiecewiseConstantDecayWithWarmup` is a `LearningRateSchedule` object
-because Keras optimizers expect one (evaluated lazily, inside the graph, at
-`optimizer.iterations`) - which is precisely the trap plethnet_tensorflow's
-own engine.py works around (see its long comment on epoch-vs-iteration
-scheduling): it constructs the object but then calls it manually as a plain
-function of *epoch*, once per epoch, via `optimizer.learning_rate.assign(
-lr_schedule(epoch))`, never letting Keras call it automatically.
-
-Since torch's optimizers don't have a competing automatic-call mechanism -
-`torch.optim.Optimizer` has no built-in notion of "schedule" at all, you
-always drive `param_group['lr']` yourself - there's no analogous trap to
-work around, and no need for a class wrapping graph ops (`tf.case`,
-`tf.name_scope`) either. This is a plain Python function: call it once per
-epoch and assign the result directly, e.g.
-`for g in optimizer.param_groups: g['lr'] = piecewise_constant_decay_with_warmup(epoch, ...)`.
-"""
-
 from typing import List, Union
 
 
@@ -49,10 +30,8 @@ def piecewise_constant_decay_with_warmup(
   ) -> float:
   """Piecewise constant decay with linear warmup.
   Args:
-    step: The current step (or epoch - this function doesn't care about the
-      unit, it just compares `step` against `boundaries`/`warmup_steps` in
-      whatever unit they're expressed in. plethnet's engine calls this once
-      per epoch with `step=epoch`, matching how it constructs `boundaries`).
+    step: The current step (or epoch - unit-agnostic, just compared against
+      boundaries/warmup_steps in whatever unit they're expressed in).
     boundaries: Step boundaries. len(boundaries) == len(values) - 1.
     values: The constant LR value for each segment between boundaries.
     warmup_init_lr: The initial LR at step 0, ramping linearly to values[0]
@@ -72,7 +51,4 @@ def piecewise_constant_decay_with_warmup(
   for low, high, v in zip(boundaries[:-1], boundaries[1:], values[1:-1]):
     if low < step <= high:
       return v
-  # Unreachable given the checks above (boundaries/values are consistent by
-  # construction), but avoids an implicit `None` return if that invariant is
-  # ever violated by a caller.
   raise ValueError(f"step={step} did not match any segment of boundaries={boundaries}")

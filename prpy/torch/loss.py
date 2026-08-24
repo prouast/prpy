@@ -18,18 +18,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Torch port of prpy/tensorflow/loss.py.
-
-Only `balanced_sample_weights` is ported - it's the only function from this
-module plethnet_tensorflow actually imports (used by engine.py's
-`live_balanced` liveness-loss weighting). `smooth_l1_loss`/`mae_loss` are
-unused there and have no bearing on this port.
-
-TF's version routes around `tf.math.bincount` "to be compatible with XLA"
-using a `tf.map_fn` loop instead - a constraint that doesn't apply to eager
-torch code, so this uses `torch.bincount` directly.
-"""
-
 import torch
 
 

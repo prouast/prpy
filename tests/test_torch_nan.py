@@ -18,15 +18,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Tests for prpy/torch/nan.py, using the exact same value/gradient scenarios
-as tests/test_tensorflow.py's `test_reduce_nan{mean,sum}[_grad]` and
-`test_nan_linear_combination` - these numbers were derived from (and already
-verify) the TF implementation, so reusing them here is itself a cross-
-framework parity check without needing TF importable in this env. The
-gradient checks are the actual point: forward-only tests would miss the
-"double where" NaN-gradient-poisoning bug class this module exists to avoid.
-"""
-
 import math
 
 import numpy as np
@@ -38,10 +29,6 @@ from prpy.torch.nan import ReduceNanMean, ReduceNanSum, NanLinearCombination
 
 
 def assert_near_nan(x: torch.Tensor, y: torch.Tensor, tol=1e-6):
-  # Broadcast first (TF's assert_equal/assert_near do this implicitly) -
-  # some multi-axis-reduce scenarios below give an expected tensor with a
-  # kept size-1 dim that only matches the actual output's shape after
-  # broadcasting, not by exact shape equality.
   x, y = torch.broadcast_tensors(x, y)
   nan_mask_x = torch.isnan(x)
   nan_mask_y = torch.isnan(y)
@@ -85,13 +72,6 @@ def test_reduce_nanmean_grad(scenario):
   g = torch.tensor([g_list, g_list])
   out = ReduceNanMean(dim=dim)(x)
   assert_near_nan(out, y)
-  # Sum-of-outputs backward (upstream grad = 1 everywhere), matching TF's
-  # tape.gradient(out, x) which implicitly does the same for a non-scalar out.
-  # Plain .sum() (not a NaN-safe rewrite) - its backward is value-independent
-  # (broadcast ones), so this exercises the real scenario (a downstream mean
-  # over possibly-NaN per-slice results) without needing to work around
-  # anything here; the safety has to come from ReduceNanMean's own custom
-  # backward, matching TF's `tape.gradient(out, x)` on a non-scalar target.
   grads, = torch.autograd.grad(out.sum(), x)
   torch.testing.assert_close(grads, g, atol=1e-6, rtol=1e-6)
 
@@ -146,11 +126,6 @@ def test_reduce_nansum_grad(scenario):
   weight = torch.tensor(weight_list) if weight_list is not None else None
   out = ReduceNanSum(weight=weight, dim=dim, default=default)(x)
   assert_near_nan(out, y)
-  # Plain .sum() (not a NaN-safe rewrite) - its backward is value-independent
-  # (broadcast ones), so this exercises the real scenario (a downstream mean
-  # over possibly-NaN per-slice results) without needing to work around
-  # anything here; the safety has to come from ReduceNanMean's own custom
-  # backward, matching TF's `tape.gradient(out, x)` on a non-scalar target.
   grads, = torch.autograd.grad(out.sum(), x)
   torch.testing.assert_close(grads, g, atol=1e-6, rtol=1e-6)
 
@@ -175,11 +150,6 @@ def test_nan_linear_combination(scenario):
 
   out = NanLinearCombination()(x, val_1, val_2)
   assert_near_nan(out, y)
-  # Plain .sum() (see the analogous comment in test_reduce_nanmean_grad) -
-  # TF's test also calls tape.gradient(out, ...) directly on a possibly-NaN
-  # `out` with no workaround, relying on the fact that summation's own
-  # backward is upstream-value-independent (broadcast ones) regardless of
-  # whether the forward scalar it produces is itself NaN.
   grads = torch.autograd.grad(out.sum(), [x, val_1, val_2])
   torch.testing.assert_close(grads[0], g_x, atol=1e-6, rtol=1e-6)
   torch.testing.assert_close(grads[1], g_val_1, atol=1e-6, rtol=1e-6)
