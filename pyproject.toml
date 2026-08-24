@@ -28,7 +28,7 @@ dynamic = ["version"]
 ffmpeg = ["ffmpeg-python"]
 numpy = ["scipy", "Pillow", "opencv-python", "psutil", "scikit-learn"]
 numpy_min = ["scipy", "Pillow", "psutil"]
-tensorflow = ["tensorflow<2.13"]
+tensorflow = ["tensorflow>2.17.0"]
 torch = ["torch>=2.1.0"]
 test = ["pytest", "flake8", "psutil"]
 
