@@ -174,6 +174,15 @@ class ReduceNanSum:
     out = tf.where(tf.reduce_all(tf.logical_not(mask), axis=self.axis),
                    tf.cast(self.default, x.dtype),
                    sum)
+    # TODO(plethnet KNOWN_ISSUES.md #2): this gradient never references
+    # self.weight, even though the forward pass above weights `x` before
+    # summing (`x * weight`). d(out)/dx should be `weight` at finite
+    # positions, not 1. In production this means ReduceNanSum(weight=
+    # loss_weights, ...) (plethnet_tensorflow/engine.py's per-signal loss
+    # combination) has loss_weights affecting only the logged loss value,
+    # not the actual training gradient. See KNOWN_ISSUES.md before fixing -
+    # every plethnet_v* checkpoint trained so far, including production
+    # plethnet_v4, was trained with this behavior.
     def grad(upstream: tf.Tensor) -> tf.Tensor:
       # Tile upstream to match x
       if self.axis is not None:
