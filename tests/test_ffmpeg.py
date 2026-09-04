@@ -57,12 +57,12 @@ def test_probe_video_frame_timestamps_no_bframes_uses_fast_path(sample_video_fil
   assert np.all(np.diff(timestamps) > 0)
   np.testing.assert_allclose(timestamps, np.arange(50) / 25., atol=1e-3)
 
-def test_probe_video_frame_timestamps_bframes_falls_back(sample_video_file, caplog):
-  # sample_video_file has B-frames (libx264 defaults), so the fast path must
-  # reject it and fall back, still producing a correct result.
+def test_probe_video_frame_timestamps_bframes_still_uses_fast_path(sample_video_file, caplog):
+  # sample_video_file has B-frames (libx264 defaults); sorting packet pts
+  # handles that without needing the decode fallback.
   with caplog.at_level("DEBUG"):
     timestamps = probe_video_frame_timestamps(sample_video_file)
-  assert "falling back" in caplog.text
+  assert "falling back" not in caplog.text
   assert len(timestamps) == SAMPLE_FRAMES
   assert np.all(np.diff(timestamps) > 0)
   np.testing.assert_allclose(timestamps, np.arange(SAMPLE_FRAMES) / SAMPLE_FPS, atol=1e-3)
