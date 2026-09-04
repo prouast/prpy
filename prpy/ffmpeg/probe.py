@@ -181,7 +181,7 @@ def _parse_ffprobe_csv_floats(raw: str) -> np.ndarray:
 def probe_video_frame_timestamps(path: str, sanity_check: bool = False) -> list:
   """Probe a video file for a best effort estimate of its frame timestamps.
 
-  Tries reading each packet's pts directly (no decode needed).
+  Tries reading each packet's pts directly and sorting (no decode needed).
   Falls back to decoding every frame otherwise.
 
   Args:
@@ -204,11 +204,11 @@ def probe_video_frame_timestamps(path: str, sanity_check: bool = False) -> list:
     ], capture_output=True, text=True, check=True)
     lines = proc.stdout.splitlines()
     if lines and all(line.rstrip(",") for line in lines):
-      candidate = _parse_ffprobe_csv_floats(proc.stdout)
+      candidate = np.sort(_parse_ffprobe_csv_floats(proc.stdout))
       if candidate.size == len(lines) and np.all(np.diff(candidate) > 0):
         timestamps = candidate
       else:
-        logging.debug("Packet-level pts unusable (out of order or incomplete); falling back.")
+        logging.debug("Packet-level pts unusable (incomplete or has duplicates); falling back.")
   except subprocess.CalledProcessError as e:
     logging.debug("Fast packet-level probe failed, falling back: %s", e)
 
