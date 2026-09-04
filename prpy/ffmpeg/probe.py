@@ -205,10 +205,14 @@ def probe_video_frame_timestamps(path: str, sanity_check: bool = False) -> list:
     lines = proc.stdout.splitlines()
     if lines and all(line.rstrip(",") for line in lines):
       candidate = np.sort(_parse_ffprobe_csv_floats(proc.stdout))
-      if candidate.size == len(lines) and np.all(np.diff(candidate) > 0):
+      # A handful of tied pts (e.g. a GOP-boundary rounding artifact) is fine
+      # -- sorting already guarantees non-decreasing order, so the only real
+      # question is whether too many packets are tied to trust the result.
+      n_dupes = int(np.sum(np.diff(candidate) <= 0)) if candidate.size else 0
+      if candidate.size == len(lines) and n_dupes <= max(1, int(0.01 * candidate.size)):
         timestamps = candidate
       else:
-        logging.debug("Packet-level pts unusable (incomplete or has duplicates); falling back.")
+        logging.debug("Packet-level pts unusable (incomplete or too many duplicates); falling back.")
   except subprocess.CalledProcessError as e:
     logging.debug("Fast packet-level probe failed, falling back: %s", e)
 
