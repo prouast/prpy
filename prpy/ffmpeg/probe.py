@@ -172,8 +172,17 @@ def probe_video(
 
   return fps, total_frames, width, height, codec, bitrate, rotation, issues
 
+def _parse_ffprobe_csv_floats(raw: str) -> np.ndarray:
+  """Parse ffprobe's `-of csv=p=0` stdout (one value per line, possibly with a
+  trailing comma) into a float array."""
+  cleaned = "\n".join(line.rstrip(",") for line in raw.splitlines())
+  return np.fromstring(cleaned, dtype=float, sep="\n")
+
 def probe_video_frame_timestamps(path: str, sanity_check: bool = False) -> list:
   """Probe a video file for a best effort estimate of its frame timestamps.
+
+  Tries reading each packet's pts directly (no decode needed).
+  Falls back to decoding every frame otherwise.
 
   Args:
     path: The path of the video.
@@ -184,23 +193,41 @@ def probe_video_frame_timestamps(path: str, sanity_check: bool = False) -> list:
   if not os.path.exists(path):
     raise FileNotFoundError(f"File {path} does not exist")
 
-  # Build the ffprobe command to extract the best effort timestamp for each frame.
-  ts_cmd = [
-    "ffprobe", "-v", "error",
-    "-select_streams", "v:0",
-    "-show_entries", "frame=best_effort_timestamp_time",
-    "-of", "csv=p=0",
-    path
-  ]
+  timestamps = None
   try:
-    proc = subprocess.run(ts_cmd, capture_output=True, text=True, check=True)
-    raw = proc.stdout
+    proc = subprocess.run([
+      "ffprobe", "-v", "error",
+      "-select_streams", "v:0",
+      "-show_entries", "packet=pts_time",
+      "-of", "csv=p=0",
+      path
+    ], capture_output=True, text=True, check=True)
+    lines = proc.stdout.splitlines()
+    if lines and all(line.rstrip(",") for line in lines):
+      candidate = _parse_ffprobe_csv_floats(proc.stdout)
+      if candidate.size == len(lines) and np.all(np.diff(candidate) > 0):
+        timestamps = candidate
+      else:
+        logging.debug("Packet-level pts unusable (out of order or incomplete); falling back.")
   except subprocess.CalledProcessError as e:
-    logging.error("ffprobe error: %s", e)
-    return []
-  # Clean trailing commas and process with numpy
-  cleaned = "\n".join(line.rstrip(",") for line in raw.splitlines())
-  timestamps = np.fromstring(cleaned, dtype=float, sep="\n")
+    logging.debug("Fast packet-level probe failed, falling back: %s", e)
+
+  if timestamps is None:
+    # Fallback: decode every frame to read its best-effort timestamp.
+    ts_cmd = [
+      "ffprobe", "-v", "error",
+      "-select_streams", "v:0",
+      "-show_entries", "frame=best_effort_timestamp_time",
+      "-of", "csv=p=0",
+      path
+    ]
+    try:
+      proc = subprocess.run(ts_cmd, capture_output=True, text=True, check=True)
+      raw = proc.stdout
+    except subprocess.CalledProcessError as e:
+      logging.error("ffprobe error: %s", e)
+      return []
+    timestamps = _parse_ffprobe_csv_floats(raw)
 
   if sanity_check:
     # Grab the frame count

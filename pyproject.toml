@@ -15,7 +15,11 @@ authors = [
 ]
 description = "Collection of Python utils for signal, image, and video processing"
 readme = "README.md"
-requires-python = ">=3.10"
+# Upper bound must match the newest version actually tested (main.yml's
+# matrix) and built (release.yml's CIBW_BUILD) - keep all three in sync
+# when adding/dropping a Python version. Without this ceiling, pip will
+# silently attempt an untested sdist build on any newer Python.
+requires-python = ">=3.10,<3.13"
 keywords = ["python", "numpy", "ffmpeg", "tensorflow", "torch"]
 license = {text = "MIT License"}
 classifiers = [

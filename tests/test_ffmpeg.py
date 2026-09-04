@@ -26,7 +26,7 @@ import pytest
 import sys
 sys.path.append('../prpy')
 
-from prpy.ffmpeg.probe import probe_video
+from prpy.ffmpeg.probe import probe_video, probe_video_frame_timestamps
 from prpy.ffmpeg.readwrite import read_video_from_path
 from prpy.ffmpeg.readwrite import write_video_from_path, write_video_from_numpy
 
@@ -48,6 +48,32 @@ def test_probe_video(sample_video_file):
   assert c == SAMPLE_CODEC
   assert r == SAMPLE_ROTATION
   assert i == SAMPLE_ISSUES
+
+def test_probe_video_frame_timestamps_no_bframes_uses_fast_path(sample_video_file_no_bframes, caplog):
+  with caplog.at_level("DEBUG"):
+    timestamps = probe_video_frame_timestamps(sample_video_file_no_bframes)
+  assert "falling back" not in caplog.text
+  assert len(timestamps) == 50  # 2s at 25fps
+  assert np.all(np.diff(timestamps) > 0)
+  np.testing.assert_allclose(timestamps, np.arange(50) / 25., atol=1e-3)
+
+def test_probe_video_frame_timestamps_bframes_falls_back(sample_video_file, caplog):
+  # sample_video_file has B-frames (libx264 defaults), so the fast path must
+  # reject it and fall back, still producing a correct result.
+  with caplog.at_level("DEBUG"):
+    timestamps = probe_video_frame_timestamps(sample_video_file)
+  assert "falling back" in caplog.text
+  assert len(timestamps) == SAMPLE_FRAMES
+  assert np.all(np.diff(timestamps) > 0)
+  np.testing.assert_allclose(timestamps, np.arange(SAMPLE_FRAMES) / SAMPLE_FPS, atol=1e-3)
+
+def test_probe_video_frame_timestamps_sanity_check(sample_video_file_no_bframes, sample_video_file):
+  assert len(probe_video_frame_timestamps(sample_video_file_no_bframes, sanity_check=True)) == 50
+  assert len(probe_video_frame_timestamps(sample_video_file, sanity_check=True)) == SAMPLE_FRAMES
+
+def test_probe_video_frame_timestamps_missing_file():
+  with pytest.raises(FileNotFoundError):
+    probe_video_frame_timestamps("does_not_exist.mp4")
 
 @pytest.mark.parametrize("target_fps", [25., 8.])
 @pytest.mark.parametrize("crop", [None, (256, 94, 416, 214)])
