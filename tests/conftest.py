@@ -23,6 +23,7 @@ from PIL import Image
 import os
 import pytest
 import random as rand
+import subprocess
 import tempfile
 from typing import Optional, Union
 
@@ -137,6 +138,19 @@ def sample_video_file(temp_dir):
   filename = 'test.mp4'
   _ffmpeg_output_to_file(stream, output_dir=temp_dir, output_file=filename, overwrite=True)
   yield os.path.join(temp_dir, filename)
+
+@pytest.fixture(scope='session')
+def sample_video_file_no_bframes(temp_dir):
+  # H264 with B-frames disabled, for probe_video_frame_timestamps' fast path.
+  filename = 'test_no_bframes.mp4'
+  path = os.path.join(temp_dir, filename)
+  subprocess.run([
+    'ffmpeg', '-y', '-v', 'error',
+    '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=25:duration=2',
+    '-c:v', 'libx264', '-bf', '0', '-pix_fmt', 'yuv420p',
+    path
+  ], check=True)
+  yield path
 
 @pytest.fixture(scope='session')
 def sample_video_data():
