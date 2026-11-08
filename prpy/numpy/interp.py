@@ -73,6 +73,8 @@ def interpolate_filtered(
     s_out: The interpolated signal values, shape (..., T2, ...)
   """
   t_in, s_in, t_out = map(np.asarray, (t_in, s_in, t_out))
+  if not np.issubdtype(s_in.dtype, np.floating):
+    s_in = s_in.astype(float)
   axis = axis % s_in.ndim
   def _nan_template(dt_len):
     shp = list(s_in.shape)

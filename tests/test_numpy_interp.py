@@ -1,3 +1,4 @@
+import warnings
 # Copyright (c) 2025 Philipp Rouast
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -182,3 +183,14 @@ def test_interpolate_filtered(t_in, s_in, t_out, band, order, s_out_exp, fill_na
 def test_interpolate_skipped(rr_intervals, threshold, expected):
   corrected = interpolate_skipped(rr_intervals, threshold)
   np.testing.assert_allclose(corrected, expected, atol=1e-2)
+
+def test_interpolate_filtered_integer_input():
+  t_in = np.arange(0, 10, 1.)
+  s_in = np.array([97, 98, 98, 99, 97, 96, 98, 99, 98, 97])
+  with warnings.catch_warnings():
+    warnings.simplefilter('error')
+    out = interpolate_filtered(t_in=t_in, s_in=s_in, t_out=np.arange(-1, 11, 0.5), fill_nan=False)
+  assert out.dtype == float
+  assert np.isnan(out[:2]).all() and np.isnan(out[-3:]).all()
+  np.testing.assert_allclose(out[2::2][:10], s_in)
+  assert out[3] > 97 and out[3] < 98
