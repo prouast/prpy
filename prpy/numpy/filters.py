@@ -21,6 +21,7 @@
 import math
 import numpy as np
 from scipy import signal
+from scipy.linalg import solveh_banded
 from scipy.ndimage import uniform_filter1d
 from scipy.sparse import spdiags
 from typing import Union, Tuple
@@ -151,18 +152,20 @@ def detrend(
   T = z.shape[axis]
   if T < 3:
    return z
-  # Identity matrix
-  I = np.identity(T)
   # Regularization matrix
   D2 = spdiags(
     [np.ones(T), -2*np.ones(T), np.ones(T)],
-    [0, 1, 2], (T-2), T).toarray()
-  # Inverse of I+lambda^2*D2’*D2
-  A = I + (Lambda**2) * np.dot(D2.T, D2)
+    [0, 1, 2], (T-2), T)
+  # I+lambda^2*D2’*D2 is symmetric pentadiagonal, so solve it in banded form
+  DTD = (D2.T @ D2).todia()
+  ab = np.zeros((3, T))
+  ab[2] = 1. + (Lambda**2) * DTD.diagonal(0)
+  ab[1, 1:] = (Lambda**2) * DTD.diagonal(1)
+  ab[0, 2:] = (Lambda**2) * DTD.diagonal(2)
   # Compute the detrending operation (vectorized)
   if axis == 0:
     z = np.transpose(z)
-  z_trend = np.linalg.solve(A, z.T)
+  z_trend = solveh_banded(ab, z.T)
   proc_z = (z.T - z_trend)
   if axis == 1:
     proc_z = np.transpose(proc_z)

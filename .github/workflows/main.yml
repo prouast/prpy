@@ -8,6 +8,10 @@ on:
 
 jobs:
   linux:
+    # Skip only a same-repo PR whose head branch is dev -- that commit was
+    # already tested by the push trigger above. Everything else (external
+    # PRs, Dependabot if added later) still runs normally.
+    if: github.event_name != 'pull_request' || github.head_ref != 'dev'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -43,6 +47,7 @@ jobs:
             pytest
           fi
   windows:
+    if: github.event_name != 'pull_request' || github.head_ref != 'dev'
     runs-on: windows-latest
     steps:
       - name: Set up Python 3.10
