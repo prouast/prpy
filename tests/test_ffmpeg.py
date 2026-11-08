@@ -22,11 +22,12 @@ import math
 import numpy as np
 import os
 import pytest
+import subprocess
 
 import sys
 sys.path.append('../prpy')
 
-from prpy.ffmpeg.probe import probe_video, probe_video_frame_timestamps
+from prpy.ffmpeg.probe import probe_video, probe_video_frame_timestamps, _mp4_index_frame_timestamps, _MP4IndexUnusable
 from prpy.ffmpeg.readwrite import read_video_from_path
 from prpy.ffmpeg.readwrite import write_video_from_path, write_video_from_numpy
 
@@ -189,3 +190,24 @@ def test_read_video_from_path_trim(sample_video_file, sample_video_data):
                                                trim=(start_idx, end_idx))
   # Can't assert equality because there are some encoding artifacts.
   assert np.mean(frames_sliced_directly-frames_trim_ffmpeg) < 23.0
+
+def _ffprobe_packet_timestamps(path):
+  out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time",
+                        "-of", "csv=p=0", path], capture_output=True, text=True, check=True).stdout
+  return np.sort([float(l.rstrip(',')) for l in out.splitlines()])
+
+@pytest.mark.parametrize("fixture", ["sample_video_file", "sample_video_file_no_bframes"])
+def test_mp4_index_frame_timestamps_match_packets(fixture, request):
+  path = request.getfixturevalue(fixture)
+  np.testing.assert_array_equal(_mp4_index_frame_timestamps(path), _ffprobe_packet_timestamps(path))
+
+@pytest.mark.parametrize("ext,args", [(".mp4", ["-movflags", "frag_keyframe+empty_moov"]), (".mkv", [])])
+def test_probe_video_frame_timestamps_falls_back_without_mp4_index(sample_video_file, temp_dir, ext, args, caplog):
+  path = os.path.join(temp_dir, f"no_index{ext}")
+  subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", sample_video_file, "-c", "copy", *args, path], check=True)
+  with pytest.raises(_MP4IndexUnusable):
+    _mp4_index_frame_timestamps(path)
+  with caplog.at_level("DEBUG"):
+    timestamps = probe_video_frame_timestamps(path)
+  assert "MP4 index unusable" in caplog.text
+  np.testing.assert_array_equal(timestamps, _ffprobe_packet_timestamps(path))

@@ -23,6 +23,7 @@ import logging
 from typing import Tuple
 import os
 import json
+import struct
 import subprocess
 import numpy as np
 
@@ -178,11 +179,107 @@ def _parse_ffprobe_csv_floats(raw: str) -> np.ndarray:
   cleaned = "\n".join(line.rstrip(",") for line in raw.splitlines())
   return np.fromstring(cleaned, dtype=float, sep="\n")
 
+class _MP4IndexUnusable(Exception):
+  pass
+
+def _mp4_boxes(f, start: int, end: int):
+  """Yield (type, payload_start, box_end) for the MP4 boxes in [start, end)."""
+  pos = start
+  while pos + 8 <= end:
+    f.seek(pos)
+    size, typ = struct.unpack('>I4s', f.read(8))
+    header = 8
+    if size == 1:
+      size = struct.unpack('>Q', f.read(8))[0]
+      header = 16
+    elif size == 0:
+      size = end - pos
+    if size < header or pos + size > end:
+      raise _MP4IndexUnusable(f"bad box size at {pos}")
+    yield typ, pos + header, pos + size
+    pos += size
+
+def _mp4_child(f, start: int, end: int, name: bytes, required: bool = True):
+  for typ, s, e in _mp4_boxes(f, start, end):
+    if typ == name:
+      return s, e
+  if required:
+    raise _MP4IndexUnusable(f"no {name.decode()} box")
+  return None
+
+def _mp4_full_box(f, start: int) -> Tuple[int, int]:
+  """Seek to a full box payload, return (version, entry count)."""
+  f.seek(start)
+  version = f.read(4)[0]
+  return version, struct.unpack('>I', f.read(4))[0]
+
+def _mp4_table(f, n: int) -> np.ndarray:
+  data = f.read(8 * n)
+  if len(data) != 8 * n:
+    raise _MP4IndexUnusable("truncated sample table")
+  return np.frombuffer(data, dtype='>u4').reshape(-1, 2)
+
+def _mp4_index_frame_timestamps(path: str) -> np.ndarray:
+  """Read the frame timestamps of the first video track from an MP4/MOV index.
+
+  Reads only the sample tables (stts, ctts, elst), not the media data.
+  Raises _MP4IndexUnusable for anything this does not handle.
+  """
+  size = os.path.getsize(path)
+  with open(path, 'rb') as f:
+    if f.read(8)[4:8] != b'ftyp':
+      raise _MP4IndexUnusable("not an MP4/MOV file")
+    moov = _mp4_child(f, 0, size, b'moov')
+    if _mp4_child(f, *moov, b'mvex', required=False):
+      raise _MP4IndexUnusable("fragmented MP4")
+    for typ, s, e in _mp4_boxes(f, *moov):
+      if typ != b'trak':
+        continue
+      mdia = _mp4_child(f, s, e, b'mdia')
+      f.seek(_mp4_child(f, *mdia, b'hdlr')[0] + 8)
+      if f.read(4) != b'vide':
+        continue
+      f.seek(_mp4_child(f, *mdia, b'mdhd')[0])
+      version = f.read(4)[0]
+      f.read(16 if version == 1 else 8)
+      timescale = struct.unpack('>I', f.read(4))[0]
+      if timescale == 0:
+        raise _MP4IndexUnusable("zero timescale")
+      stbl = _mp4_child(f, *_mp4_child(f, *mdia, b'minf'), b'stbl')
+      _, n = _mp4_full_box(f, _mp4_child(f, *stbl, b'stts')[0])
+      stts = _mp4_table(f, n)
+      dts = np.concatenate([[0], np.cumsum(np.repeat(stts[:, 1].astype(np.int64), stts[:, 0]))[:-1]])
+      pts = dts
+      ctts_box = _mp4_child(f, *stbl, b'ctts', required=False)
+      if ctts_box:
+        version, n = _mp4_full_box(f, ctts_box[0])
+        ctts = _mp4_table(f, n)
+        offsets = ctts[:, 1].view('>i4') if version == 1 else ctts[:, 1]
+        offsets = np.repeat(offsets.astype(np.int64), ctts[:, 0])
+        if offsets.size != dts.size:
+          raise _MP4IndexUnusable("ctts and stts sample counts differ")
+        pts = dts + offsets
+      shift = 0
+      edts = _mp4_child(f, s, e, b'edts', required=False)
+      elst = _mp4_child(f, *edts, b'elst', required=False) if edts else None
+      if elst:
+        version, n = _mp4_full_box(f, elst[0])
+        if n != 1:
+          raise _MP4IndexUnusable(f"{n} edit list entries")
+        _, shift = struct.unpack('>Qq' if version == 1 else '>Ii', f.read(16 if version == 1 else 8))
+        if shift < 0:
+          raise _MP4IndexUnusable("empty edit")
+      if pts.size == 0:
+        raise _MP4IndexUnusable("no samples")
+      return np.round(np.sort(pts - shift) / timescale, 6)
+  raise _MP4IndexUnusable("no video track")
+
 def probe_video_frame_timestamps(path: str, sanity_check: bool = False) -> list:
   """Probe a video file for a best effort estimate of its frame timestamps.
 
-  Tries reading each packet's pts directly and sorting (no decode needed).
-  Falls back to decoding every frame otherwise.
+  For MP4/MOV, reads the timestamps from the file's index (no media data read).
+  Otherwise tries reading each packet's pts directly and sorting (no decode
+  needed), and falls back to decoding every frame.
 
   Args:
     path: The path of the video.
@@ -195,26 +292,34 @@ def probe_video_frame_timestamps(path: str, sanity_check: bool = False) -> list:
 
   timestamps = None
   try:
-    proc = subprocess.run([
-      "ffprobe", "-v", "error",
-      "-select_streams", "v:0",
-      "-show_entries", "packet=pts_time",
-      "-of", "csv=p=0",
-      path
-    ], capture_output=True, text=True, check=True)
-    lines = proc.stdout.splitlines()
-    if lines and all(line.rstrip(",") for line in lines):
-      candidate = np.sort(_parse_ffprobe_csv_floats(proc.stdout))
-      # A handful of tied pts (e.g. a GOP-boundary rounding artifact) is fine
-      # -- sorting already guarantees non-decreasing order, so the only real
-      # question is whether too many packets are tied to trust the result.
-      n_dupes = int(np.sum(np.diff(candidate) <= 0)) if candidate.size else 0
-      if candidate.size == len(lines) and n_dupes <= max(1, int(0.01 * candidate.size)):
-        timestamps = candidate
-      else:
-        logging.debug("Packet-level pts unusable (incomplete or too many duplicates); falling back.")
-  except subprocess.CalledProcessError as e:
-    logging.debug("Fast packet-level probe failed, falling back: %s", e)
+    timestamps = _mp4_index_frame_timestamps(path)
+    if timestamps.size > 1 and np.sum(np.diff(timestamps) <= 0) > max(1, int(0.01 * timestamps.size)):
+      logging.debug("MP4 index has too many tied timestamps; probing packets.")
+      timestamps = None
+  except (_MP4IndexUnusable, OSError, struct.error, ValueError) as e:
+    logging.debug("MP4 index unusable (%s); probing packets.", e)
+  if timestamps is None:
+    try:
+      proc = subprocess.run([
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "packet=pts_time",
+        "-of", "csv=p=0",
+        path
+      ], capture_output=True, text=True, check=True)
+      lines = proc.stdout.splitlines()
+      if lines and all(line.rstrip(",") for line in lines):
+        candidate = np.sort(_parse_ffprobe_csv_floats(proc.stdout))
+        # A handful of tied pts (e.g. a GOP-boundary rounding artifact) is fine
+        # -- sorting already guarantees non-decreasing order, so the only real
+        # question is whether too many packets are tied to trust the result.
+        n_dupes = int(np.sum(np.diff(candidate) <= 0)) if candidate.size else 0
+        if candidate.size == len(lines) and n_dupes <= max(1, int(0.01 * candidate.size)):
+          timestamps = candidate
+        else:
+          logging.debug("Packet-level pts unusable (incomplete or too many duplicates); falling back.")
+    except subprocess.CalledProcessError as e:
+      logging.debug("Fast packet-level probe failed, falling back: %s", e)
 
   if timestamps is None:
     # Fallback: decode every frame to read its best-effort timestamp.
