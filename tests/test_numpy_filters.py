@@ -134,6 +134,17 @@ def test_detrend():
               [-.0582996, .03747831, -.27848467, .31075766, .33470214]]),
     rtol=1e-6)
 
+@pytest.mark.parametrize("T", [3, 4, 10, 500])
+def test_detrend_matches_dense_solution(T):
+  rng = np.random.default_rng(T)
+  z = np.cumsum(rng.normal(size=(2, T)), axis=1)
+  D2 = np.diff(np.identity(T), n=2, axis=0)
+  A = np.identity(T) + 25. * D2.T @ D2
+  expected = z - np.linalg.solve(A, z.T).T
+  np.testing.assert_allclose(detrend(z=z, Lambda=5., axis=-1), expected, rtol=1e-8, atol=1e-10)
+  np.testing.assert_allclose(detrend(z=z.T, Lambda=5., axis=0), expected.T, rtol=1e-8, atol=1e-10)
+  np.testing.assert_allclose(detrend(z=z[0], Lambda=5.), expected[0], rtol=1e-8, atol=1e-10)
+
 def test_detrend_frequency_response():
   # Example from the paper
   f_s = 4
