@@ -142,7 +142,7 @@ def test_interpolate_data_outliers():
       np.array([0., 0.01, 0.02, 0.03]),
       (0.5, 40),
       2,
-      np.array([-0.636099, -1.021032, -0.622056, -0.610314]),
+      np.array([-1.070714, -0.924092, -0.681315, -0.556244]),
       True
     ),
     (
@@ -194,3 +194,15 @@ def test_interpolate_filtered_integer_input():
   assert np.isnan(out[:2]).all() and np.isnan(out[-3:]).all()
   np.testing.assert_allclose(out[2::2][:10], s_in)
   assert out[3] > 97 and out[3] < 98
+
+def test_interpolate_filtered_uniform_grids_stay_on_true_time():
+  # Non-integer rates and different start times, which must not shift the output
+  f = 1.5
+  t_in = 0.04 + np.arange(30000) / 500.19
+  t_out = np.arange(3598) / 59.941
+  s_in = np.sin(2 * np.pi * f * t_in)
+  out = interpolate_filtered(t_in=t_in, s_in=s_in, t_out=t_out, band=(0.67, 3.67), order=4)
+  inside = (t_out >= t_in[0]) & (t_out <= t_in[-1])
+  assert np.isnan(out[~inside]).all()
+  away_from_edges = (t_out >= 8) & (t_out <= t_in[-1] - 8)
+  np.testing.assert_allclose(out[away_from_edges], np.sin(2 * np.pi * f * t_out[away_from_edges]), atol=1e-2)

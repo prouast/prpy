@@ -19,7 +19,6 @@
 # SOFTWARE.
 
 import logging
-import math
 import numpy as np
 from scipy import signal, interpolate, stats
 from typing import Union, Callable
@@ -58,7 +57,7 @@ def interpolate_filtered(
     axis: int = 0
   ) -> np.ndarray:
   """
-  Interpolate data with bandpass filter and zero-phase polyphase resample (with PCHIP fallback) from `t_in` to `t_out`
+  Interpolate data from `t_in` to `t_out` with PCHIP, after a zero-phase bandpass filter if `band` is given and both grids are uniform
   
   Args:
     t_in: The timestamp values we want to interpolate [seconds]. ndarray, shape (T,)
@@ -108,26 +107,9 @@ def interpolate_filtered(
     fs_in = 1.0 / np.median(np.diff(t_in))
     low, high = band
     nyq = 0.5 * fs_in
-    b, a = signal.butter(order, [low/nyq, high/nyq], btype="band")
-    s_filt = signal.filtfilt(b, a, s_in, axis=axis)
-    # Polyphase resample - only resample the region we need
-    t_mid = t_out[inside]
-    fs_out = 1.0 / np.median(np.diff(t_mid))
-    g = math.gcd(int(round(fs_in)), int(round(fs_out)))
-    up, down = int(round(fs_out))//g, int(round(fs_in))//g
-    s_rs = signal.resample_poly(s_filt, up, down, axis=axis)
-    # Align length exactly to len(ts)
-    if s_rs.shape[axis] != t_mid.size:
-      slicer = [slice(None)] * s_rs.ndim
-      slicer[axis] = slice(0, t_mid.size)
-      s_rs = s_rs[tuple(slicer)]
-    # inject into full-length nan canvas
-    s_out = _nan_template(t_out.size)
-    sl = [slice(None)] * s_out.ndim
-    sl[axis] = inside
-    s_out[tuple(sl)] = s_rs
-    return s_out
-  # Fallback: shape‑preserving spline (PCHIP)
+    sos = signal.butter(order, [low/nyq, high/nyq], btype="band", output="sos")
+    s_in = signal.sosfiltfilt(sos, s_in, axis=axis)
+  # Shape‑preserving spline (PCHIP), evaluated at the output timestamps
   nan_mask = None
   if not fill_nan and has_nan:
     # Create 1D nan taking into account all extra dims in s
