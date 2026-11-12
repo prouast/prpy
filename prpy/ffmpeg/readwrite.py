@@ -25,7 +25,7 @@ import numpy as np
 import os
 from typing import Tuple, Union
 
-from prpy.ffmpeg.probe import probe_video
+from prpy.ffmpeg.probe import probe_video, probe_video_frame_timestamps
 from prpy.ffmpeg.utils import find_factors_near
 
 def _ffmpeg_input_from_path(
@@ -47,9 +47,31 @@ def _ffmpeg_input_from_path(
   assert trim is None or (isinstance(trim, tuple) and all(isinstance(i, int) for i in trim))
   trim_start = 0 if trim is None else trim[0]
   # Create the stream and skip forward to trim start if applicable
-  stream = ffmpeg.input(filename=path, ss=trim_start/fps)
+  stream = ffmpeg.input(filename=path, ss=_frame_seek_time(path=path, fps=fps, frame=trim_start))
   # Return
   return stream
+
+def _frame_seek_time(
+    path: str,
+    fps: Union[float, int],
+    frame: int
+  ) -> float:
+  """Seek time in seconds that lands on the given frame, also for variable frame rate video.
+
+  Args:
+    path: The path of the video.
+    fps: The average framerate of the video, used if the frame timestamps are unavailable.
+    frame: The frame index to seek to.
+  Returns:
+    The seek time, halfway between the previous frame and the given frame.
+  """
+  if frame <= 0:
+    return 0
+  t = np.asarray(probe_video_frame_timestamps(path=path))
+  if t.size <= frame:
+    logging.warning(f"Frame timestamps unavailable for frame {frame} ({t.size} found); seeking with average fps.")
+    return frame/fps
+  return float((t[frame-1] + t[frame]) / 2 - t[0])
 
 def _ffmpeg_input_from_pipe() -> ffmpeg.nodes.FilterableStream:
   """Use pipe as input part of ffmpeg command.
