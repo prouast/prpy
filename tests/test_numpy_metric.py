@@ -188,3 +188,14 @@ def test_convenience_wrappers_basic():
   assert mae_shift(y_t, y_p, fs, 0.7, 3.0) < mae(y_t, y_p)
   assert mse_shift(y_t, y_p, fs, 0.7, 3.0) < mse(y_t, y_p)
   assert cor_shift(y_t, y_p, fs, 0.7, 3.0) > cor(y_t, y_p)
+
+def test_undefined_metrics_are_nan_without_warnings():
+  import warnings
+  y = np.array([[1., 2., 3.], [np.nan, np.nan, np.nan], [5., 5., 5.]])
+  p = np.array([[1., 2., 4.], [1., 2., 3.], [1., 2., 3.]])
+  with warnings.catch_warnings():
+    warnings.simplefilter('error')
+    from prpy.numpy.metric import cor, mae, mse
+    assert np.isnan(mae(y, p)[1]) and np.isnan(mse(y, p)[1])
+    assert np.isnan(cor(y, p)[1]) and np.isnan(cor(y, p)[2])
+    assert np.isfinite(cor(y, p)[0])

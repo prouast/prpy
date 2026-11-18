@@ -141,7 +141,8 @@ def detect_valid_peaks(
     width = width * f_s if isinstance(width, float) else tuple(w * f_s if w is not None else None for w in width)
   else:
     width_s = None  
-  min_dist_samples = max(1/np.quantile(freqs, 0.9) * f_s * (1 - period_rel_tol_shorter), 0)
+  with np.errstate(divide='ignore'):  # freq 0 (flat signal): no min distance limit applies, inf
+    min_dist_samples = max(1/np.quantile(freqs, 0.9) * f_s * (1 - period_rel_tol_shorter), 0)
   raw_det_idxs, _ = signal.find_peaks(
     vals,
     height=height,

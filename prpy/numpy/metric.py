@@ -93,7 +93,8 @@ def mae(
     mask = np.isfinite(err)
     n_valid = mask.sum(axis=1)
     err_sum = _masked_sum(err, mask, axis=1)
-    res = np.where(n_valid > 0, err_sum / n_valid, np.nan)
+    with np.errstate(invalid='ignore', divide='ignore'):  # 0/0 where n_valid == 0, discarded
+      res = np.where(n_valid > 0, err_sum / n_valid, np.nan)
   return _metric_reduce(res, squeezed)
 
 def mse(
@@ -124,7 +125,8 @@ def mse(
     mask = np.isfinite(sq)
     n_valid = mask.sum(axis=1)
     sq_sum = _masked_sum(sq, mask, axis=1)
-    res = np.where(n_valid > 0, sq_sum / n_valid, np.nan)
+    with np.errstate(invalid='ignore', divide='ignore'):  # 0/0 where n_valid == 0, discarded
+      res = np.where(n_valid > 0, sq_sum / n_valid, np.nan)
   return _metric_reduce(res, squeezed)
 
 def rmse(
@@ -177,7 +179,8 @@ def cor(
   cov = (r_true * r_pred).sum(axis=1) / np.where(n_valid == 0, 1, n_valid)
   var_t = (r_true ** 2).sum(axis=1) / np.where(n_valid == 0, 1, n_valid)
   var_p = (r_pred ** 2).sum(axis=1) / np.where(n_valid == 0, 1, n_valid)
-  res = cov / (np.sqrt(var_t) * np.sqrt(var_p))
+  with np.errstate(invalid='ignore', divide='ignore'):  # 0/0 for zero variance: cor undefined, NaN
+    res = cov / (np.sqrt(var_t) * np.sqrt(var_p))
   res = np.where(n_valid > 0, res, np.nan)
   return _metric_reduce(res, squeezed)
 
