@@ -131,7 +131,7 @@ class ReduceNanSum:
   Behavior when x is non-finite:
   - out: Non-finite vals in a slice contribute 0
   - out: All-non-finite slices are set to default value
-  - grad = 0
+  - grad = weight (1 without weight) at finite, 0 at non-finite input positions
   """
   def __init__(
       self,
@@ -174,15 +174,6 @@ class ReduceNanSum:
     out = tf.where(tf.reduce_all(tf.logical_not(mask), axis=self.axis),
                    tf.cast(self.default, x.dtype),
                    sum)
-    # TODO(plethnet KNOWN_ISSUES.md #2): this gradient never references
-    # self.weight, even though the forward pass above weights `x` before
-    # summing (`x * weight`). d(out)/dx should be `weight` at finite
-    # positions, not 1. In production this means ReduceNanSum(weight=
-    # loss_weights, ...) (plethnet_tensorflow/engine.py's per-signal loss
-    # combination) has loss_weights affecting only the logged loss value,
-    # not the actual training gradient. See KNOWN_ISSUES.md before fixing -
-    # every plethnet_v* checkpoint trained so far, including production
-    # plethnet_v4, was trained with this behavior.
     def grad(upstream: tf.Tensor) -> tf.Tensor:
       # Tile upstream to match x
       if self.axis is not None:
@@ -193,7 +184,9 @@ class ReduceNanSum:
         # Tile
         tile_shape = [1 if s1 == s2 else s2 if s1 == 1 else s1 for s1, s2 in zip(x.shape, upstream.shape)]
         upstream = tf.tile(upstream, tile_shape)
-      # Set the gradient to 0 where input was not finite
+      # Gradient is the weight where input was finite, 0 elsewhere
+      if self.weight is not None:
+        upstream = upstream * tf.cast(tf.broadcast_to(self.weight, tf.shape(x)), upstream.dtype)
       dout_dx = tf.where(mask, upstream, tf.zeros_like(x))
       return dout_dx
     return out, grad

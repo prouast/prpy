@@ -125,21 +125,22 @@ class _ReduceNanSumFn(torch.autograd.Function):
       safe_weight = torch.where(mask, weight, torch.zeros_like(weight)).to(x.dtype)
       weighted = safe_x * safe_weight
     else:
+      safe_weight = mask.to(x.dtype)
       weighted = safe_x
     total = weighted.sum(dim=dims) if dims is not None else weighted.sum()
     all_nan = (~mask).all(dim=dims) if dims is not None else (~mask).all()
     out = torch.where(all_nan, torch.tensor(default, dtype=x.dtype, device=x.device), total)
-    ctx.save_for_backward(mask)
+    ctx.save_for_backward(mask, torch.broadcast_to(safe_weight, mask.shape))
     ctx.dims = dims
     return out
   @staticmethod
   def backward(ctx, grad_output):
-    # Deliberately does not multiply by weight - see ReduceNanSum's docstring.
-    (mask,) = ctx.saved_tensors
+    mask, safe_weight = ctx.saved_tensors
     if ctx.dims is not None:
       grad_output = _unsqueeze_at(grad_output, ctx.dims)
     grad_output = torch.broadcast_to(grad_output, mask.shape)
-    dx = torch.where(mask, grad_output, torch.zeros_like(mask, dtype=grad_output.dtype))
+    dx = torch.where(mask, grad_output * safe_weight.to(grad_output.dtype),
+                     torch.zeros_like(mask, dtype=grad_output.dtype))
     return dx, None, None, None
 
 
@@ -149,13 +150,7 @@ class ReduceNanSum:
   Behavior when x is non-finite:
   - out: Non-finite vals in a slice contribute 0
   - out: All-non-finite slices are set to default value
-  - grad = 0 at non-finite input positions
-
-  TODO(plethnet KNOWN_ISSUES.md #2): when `weight` is given, it scales the
-  forward sum (`x * weight`) but is NOT applied in the gradient - matches a
-  discrepancy in TF's own hand-written gradient, preserved here verbatim for
-  parity with what plethnet_v4 was actually trained with. Don't fix without
-  sign-off - it would change real training dynamics.
+  - grad = weight (1 without weight) at finite, 0 at non-finite input positions
   """
   def __init__(self, weight: Optional[torch.Tensor] = None, dim: Dims = None, default: float = float('nan')):
     self.weight = weight
